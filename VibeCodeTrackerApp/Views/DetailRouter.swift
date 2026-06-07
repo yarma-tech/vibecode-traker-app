@@ -27,7 +27,8 @@ struct DetailRouter: View {
     }
 }
 
-/// Temporary single-project detail until the full view lands in Slice 5.
+/// Interim single-project detail until the full view lands in Slice 5.
+/// Shows project header + the parsed sessions list.
 struct ProjectStubView: View {
     let projectID: PersistentIdentifier
     @Environment(\.modelContext) private var context
@@ -41,16 +42,20 @@ struct ProjectStubView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
-                if project.pathIsProvisional {
-                    Label("Path is provisional until sessions are parsed (Slice 3).",
-                          systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    Label("\(project.sessions.count) sessions", systemImage: "bubble.left.and.bubble.right")
+                    Label("\(Format.tokens(project.sessions.reduce(0) { $0 + $1.totalTokens })) tok", systemImage: "number")
                 }
-                Spacer()
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Divider().padding(.vertical, 4)
+
+                SessionsListView(sessions: project.sessions.sorted { $0.startedAt > $1.startedAt })
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(24)
+            .navigationTitle(project.name)
         } else {
             PlaceholderDetail(title: "Project not found", systemImage: "questionmark.folder", subtitle: nil)
         }

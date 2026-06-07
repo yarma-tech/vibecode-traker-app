@@ -33,4 +33,16 @@ enum TestSupport {
         }
         return root
     }
+
+    /// URL of a committed fixture, resolved relative to this source file so it
+    /// works from both CLI and CI without bundle-resource configuration.
+    static func fixtureURL(_ name: String) -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/\(name)")
+    }
+
+    static func fixtureText(_ name: String) throws -> String {
+        try String(contentsOf: fixtureURL(name), encoding: .utf8)
+    }
 }

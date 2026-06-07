@@ -30,6 +30,7 @@ struct ContentView: View {
         hasScanned = true
         do {
             try await ClaudeProjectsScanner().scan(into: context)
+            try await SessionSyncService().sync(into: context)
         } catch {
             Log.scanner.error("Initial scan failed: \(error.localizedDescription, privacy: .public)")
         }

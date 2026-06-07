@@ -28,6 +28,9 @@ final class Project {
     /// While provisional, `path`/`name` come from the lossy folder-name decode.
     var pathIsProvisional: Bool
 
+    @Relationship(deleteRule: .cascade, inverse: \Session.project)
+    var sessions: [Session] = []
+
     init(
         id: UUID = UUID(),
         name: String,

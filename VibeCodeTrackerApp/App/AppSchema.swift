@@ -7,6 +7,8 @@ import SwiftData
 /// sync automatically.
 enum AppSchema {
     static let models: [any PersistentModel.Type] = [
-        Project.self
+        Project.self,
+        Session.self,
+        FileSyncState.self
     ]
 }

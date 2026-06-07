@@ -39,3 +39,27 @@
 - For the morning: path/name are provisional (lossy folder decode) until Slice 3
   rewrites them from each session's `cwd`. GUI not visually verified headless — open
   in Xcode and Run to see your ~47 projects in the sidebar.
+
+## Slice 3 — JSONL session parser
+- Status: ✅ Done (2026-06-07 00:16)
+- What: `Session` + `FileSyncState` models; `Project.sessions` relationship;
+  `JSONLParser` (schema-tolerant via JSONSerialization, aggregates by sessionId:
+  tokens, min/max timestamps → duration, primary model, message count, first user
+  prompt, cwd); `SessionSyncService` (background parse → main-actor upsert, skips
+  files unchanged since last scan via FileSyncState); `SessionsListView` + `SessionRow`
+  wired into the interim project detail; `Format` helpers (tokens/duration/relative).
+- Files: Models/{Session,FileSyncState}.swift (+Project rel), App/Formatting.swift,
+  Services/{JSONLParser,SessionSyncService}.swift, Views/Project/SessionsListView.swift,
+  Tests/{JSONLParserTests,SessionSyncServiceTests,FormatTests}.swift,
+  Tests/Fixtures/session-basic.jsonl
+- Verify: `** TEST SUCCEEDED **`, 19 tests, 0 failures. Parser asserted against a
+  representative fixture (input=15, output=300, cacheRead=3000, cacheCreation=50,
+  duration=300s, msgCount=4, first prompt skips tool_result, real cwd recovered).
+- Schema notes (verified against real ~/.claude data): line types include
+  queue-operation/attachment/last-prompt/system (all tolerated); usage keys are
+  input_tokens / output_tokens / cache_read_input_tokens / cache_creation_input_tokens;
+  real model ids like "claude-opus-4-7".
+- Known simplification: incremental sync is file-granularity (skip unchanged files),
+  not byte-offset line-level. Large files are read whole. Both fine for V1; noted as
+  future work in FileSyncState.swift.
+- For the morning: path/name now correct (from cwd). GUI not visually verified headless.
