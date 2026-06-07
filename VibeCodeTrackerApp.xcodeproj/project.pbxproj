@@ -1,0 +1,444 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0707B45270FF0524B744AB88 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB85DEEEFF1D3A3FD3D11B1 /* ContentView.swift */; };
+		29FDCA1D68300CFC75B6731E /* VibeCodeTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EE9CA34837154144CEC2DF /* VibeCodeTrackerApp.swift */; };
+		31152AD417654EB2D487ADEA /* BootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0275905073114EE2F7E40BC5 /* BootstrapTests.swift */; };
+		3431E4E36462B789C7A48916 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 733731D23B19E90D5331DC7B /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4E9F297941826532B2D71D4F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 87B0C911316A8C0AB2CA687E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C27A3D4826DDA6F0AE96BD28;
+			remoteInfo = VibeCodeTrackerApp;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0275905073114EE2F7E40BC5 /* BootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BootstrapTests.swift; sourceTree = "<group>"; };
+		57E759AB698932C15846AE72 /* VibeCodeTrackerAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VibeCodeTrackerAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		65A32D783AF338F280C9654C /* VibeCodeTrackerApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VibeCodeTrackerApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6947D819E6153A1208C47493 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		733731D23B19E90D5331DC7B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8BB85DEEEFF1D3A3FD3D11B1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B7EE9CA34837154144CEC2DF /* VibeCodeTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeCodeTrackerApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3060D0EB669A9C3791B1EE15 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				65A32D783AF338F280C9654C /* VibeCodeTrackerApp.app */,
+				57E759AB698932C15846AE72 /* VibeCodeTrackerAppTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		60FF09FE5431EAD6913D268B /* VibeCodeTrackerAppTests */ = {
+			isa = PBXGroup;
+			children = (
+				0275905073114EE2F7E40BC5 /* BootstrapTests.swift */,
+			);
+			path = VibeCodeTrackerAppTests;
+			sourceTree = "<group>";
+		};
+		7CB3E140A8DFD366FAD32619 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				8BB85DEEEFF1D3A3FD3D11B1 /* ContentView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		B5F8C9E668E73CC10B147ECB /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				733731D23B19E90D5331DC7B /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		CD50BFD9D3206B80A7497AFB = {
+			isa = PBXGroup;
+			children = (
+				FE3F82851E0980D5352A86F7 /* VibeCodeTrackerApp */,
+				60FF09FE5431EAD6913D268B /* VibeCodeTrackerAppTests */,
+				3060D0EB669A9C3791B1EE15 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		FE3F82851E0980D5352A86F7 /* VibeCodeTrackerApp */ = {
+			isa = PBXGroup;
+			children = (
+				B5F8C9E668E73CC10B147ECB /* Resources */,
+				7CB3E140A8DFD366FAD32619 /* Views */,
+				6947D819E6153A1208C47493 /* Info.plist */,
+				B7EE9CA34837154144CEC2DF /* VibeCodeTrackerApp.swift */,
+			);
+			path = VibeCodeTrackerApp;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C27A3D4826DDA6F0AE96BD28 /* VibeCodeTrackerApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B118B62ADC1210D6076742EB /* Build configuration list for PBXNativeTarget "VibeCodeTrackerApp" */;
+			buildPhases = (
+				D40E43C02DB43BA83DAB26A2 /* Sources */,
+				83D668D7F956E27AC264AEEC /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = VibeCodeTrackerApp;
+			packageProductDependencies = (
+			);
+			productName = VibeCodeTrackerApp;
+			productReference = 65A32D783AF338F280C9654C /* VibeCodeTrackerApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F10ECF7B22B0144B1B0D5431 /* VibeCodeTrackerAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DAC446CAE15F8D9DE15DB47F /* Build configuration list for PBXNativeTarget "VibeCodeTrackerAppTests" */;
+			buildPhases = (
+				328ADECE393BA793B4F104AE /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				658B03B40784C0DD76648D7D /* PBXTargetDependency */,
+			);
+			name = VibeCodeTrackerAppTests;
+			packageProductDependencies = (
+			);
+			productName = VibeCodeTrackerAppTests;
+			productReference = 57E759AB698932C15846AE72 /* VibeCodeTrackerAppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		87B0C911316A8C0AB2CA687E /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					C27A3D4826DDA6F0AE96BD28 = {
+						DevelopmentTeam = "";
+					};
+					F10ECF7B22B0144B1B0D5431 = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 2C8FE545420B44E4C93CA487 /* Build configuration list for PBXProject "VibeCodeTrackerApp" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = CD50BFD9D3206B80A7497AFB;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 3060D0EB669A9C3791B1EE15 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C27A3D4826DDA6F0AE96BD28 /* VibeCodeTrackerApp */,
+				F10ECF7B22B0144B1B0D5431 /* VibeCodeTrackerAppTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		83D668D7F956E27AC264AEEC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3431E4E36462B789C7A48916 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		328ADECE393BA793B4F104AE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				31152AD417654EB2D487ADEA /* BootstrapTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D40E43C02DB43BA83DAB26A2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0707B45270FF0524B744AB88 /* ContentView.swift in Sources */,
+				29FDCA1D68300CFC75B6731E /* VibeCodeTrackerApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		658B03B40784C0DD76648D7D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C27A3D4826DDA6F0AE96BD28 /* VibeCodeTrackerApp */;
+			targetProxy = 4E9F297941826532B2D71D4F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		596ACD4FB700933BA392B5B4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VibeCodeTrackerApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = tech.yannick.vibecodetracker;
+				PRODUCT_NAME = VibeCodeTrackerApp;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		5A1DDED7CA862006D65C5605 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VibeCodeTrackerApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = tech.yannick.vibecodetracker;
+				PRODUCT_NAME = VibeCodeTrackerApp;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		77B56ECD599A284FD1BCF7AB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = tech.yannick.vibecodetrackerTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibeCodeTrackerApp.app/Contents/MacOS/VibeCodeTrackerApp";
+			};
+			name = Debug;
+		};
+		C913E2A2C9243CD9D713C544 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = tech.yannick.vibecodetrackerTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibeCodeTrackerApp.app/Contents/MacOS/VibeCodeTrackerApp";
+			};
+			name = Release;
+		};
+		E288A77ADA0C50A6ABA020D0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F4AAA1EE55BF36C09D31FE3F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2C8FE545420B44E4C93CA487 /* Build configuration list for PBXProject "VibeCodeTrackerApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E288A77ADA0C50A6ABA020D0 /* Debug */,
+				F4AAA1EE55BF36C09D31FE3F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B118B62ADC1210D6076742EB /* Build configuration list for PBXNativeTarget "VibeCodeTrackerApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				596ACD4FB700933BA392B5B4 /* Debug */,
+				5A1DDED7CA862006D65C5605 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DAC446CAE15F8D9DE15DB47F /* Build configuration list for PBXNativeTarget "VibeCodeTrackerAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				77B56ECD599A284FD1BCF7AB /* Debug */,
+				C913E2A2C9243CD9D713C544 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 87B0C911316A8C0AB2CA687E /* Project object */;
+}

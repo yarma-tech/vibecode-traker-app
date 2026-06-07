@@ -1,0 +1,69 @@
+# XcodeGen project specification.
+# Regenerate the .xcodeproj with: xcodegen generate
+# The generated .xcodeproj IS committed so contributors do not need xcodegen
+# to build (see docs/DEVELOPMENT.md and DECISIONS.md).
+name: VibeCodeTrackerApp
+options:
+  bundleIdPrefix: tech.yannick
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Local, unsigned build. Distribution signing is configured separately.
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+    ENABLE_HARDENED_RUNTIME: "NO"
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  VibeCodeTrackerApp:
+    type: application
+    platform: macOS
+    sources:
+      - path: VibeCodeTrackerApp
+    settings:
+      base:
+        PRODUCT_NAME: VibeCodeTrackerApp
+        PRODUCT_BUNDLE_IDENTIFIER: tech.yannick.vibecodetracker
+        INFOPLIST_FILE: VibeCodeTrackerApp/Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"
+        ENABLE_PREVIEWS: "YES"
+        COMBINE_HIDPI_IMAGES: "YES"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+
+  VibeCodeTrackerAppTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: VibeCodeTrackerAppTests
+    dependencies:
+      - target: VibeCodeTrackerApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tech.yannick.vibecodetrackerTests
+        GENERATE_INFOPLIST_FILE: "YES"
+
+schemes:
+  VibeCodeTrackerApp:
+    build:
+      targets:
+        VibeCodeTrackerApp: all
+        VibeCodeTrackerAppTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - VibeCodeTrackerAppTests
