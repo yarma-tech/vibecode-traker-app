@@ -11,6 +11,10 @@ struct SettingsView: View {
 
     private let secretStore: SecretStoring = KeychainStore()
 
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    }
+
     var body: some View {
         Form {
             Section("Anthropic API") {
@@ -48,6 +52,21 @@ struct SettingsView: View {
                         Text(freq.label).tag(freq.rawValue)
                     }
                 }
+            }
+
+            Section {
+                VStack(spacing: Spacing.sm) {
+                    Image("LogoLockup")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 168)
+                        .accessibilityLabel("Vibe Code Tracker")
+                    Text("Version \(appVersion)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Spacing.sm)
             }
         }
         .formStyle(.grouped)

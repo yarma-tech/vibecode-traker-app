@@ -52,6 +52,9 @@ struct ProjectListView: View {
         }
         .listStyle(.sidebar)
         .navigationTitle("Vibe Code Tracker")
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BrandHeader()
+        }
         .toolbar {
             ToolbarItem {
                 Menu {

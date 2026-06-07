@@ -16,6 +16,7 @@ struct ContentView: View {
     @AppStorage(PreferenceKey.refreshFrequency) private var refreshFrequencyRaw = RefreshFrequency.hourly.rawValue
     @State private var selection: SidebarItem? = .dashboard
     @State private var hasScanned = false
+    @State private var showSplash = !AppEnvironment.isRunningTests
 
     var body: some View {
         NavigationSplitView {
@@ -27,6 +28,16 @@ struct ContentView: View {
         .task {
             await scanOnce()
             await backgroundRefreshLoop()
+        }
+        .overlay {
+            if showSplash {
+                LaunchSplashView()
+                    .transition(.opacity)
+                    .task {
+                        try? await Task.sleep(for: .seconds(1.1))
+                        withAnimation(.easeOut(duration: 0.45)) { showSplash = false }
+                    }
+            }
         }
     }
 
