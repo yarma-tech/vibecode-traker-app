@@ -32,6 +32,7 @@
 		34818B4C82FC38522F2CE2D0 /* ClaudeProjectsScannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5117657535D8C250FAC99E /* ClaudeProjectsScannerTests.swift */; };
 		34BDB4D3DDA75FF9C278AEB0 /* CommitsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083E2D6529BD739315435657 /* CommitsListView.swift */; };
 		3548D294C865D4C334845F22 /* ModelPricing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BF875059AAEAE8FC1BAF9D /* ModelPricing.swift */; };
+		386922BCB7D50A9437DEC52F /* SessionsTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D72BE3F1DAFFC83A6E3CD81 /* SessionsTableView.swift */; };
 		39363A0FA6B9A3ED610B2182 /* SessionStatusEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 660C95D82DDF342D57C35054 /* SessionStatusEvaluator.swift */; };
 		393A7BBE13EE315F9D779D34 /* session-basic.jsonl in Resources */ = {isa = PBXBuildFile; fileRef = E697C1A2A66CCA64563C7347 /* session-basic.jsonl */; };
 		41425DE389F5BB16857743CA /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBD8A047F12FD1010CC8401C /* Formatting.swift */; };
@@ -110,6 +111,7 @@
 		3017A3D87097C8D97470880E /* BacklogItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogItem.swift; sourceTree = "<group>"; };
 		3B7D1A0CAC335EE0B53AD2D4 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
 		4CB92E9E7B1C0AA8F69A9F09 /* FileSyncState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSyncState.swift; sourceTree = "<group>"; };
+		4D72BE3F1DAFFC83A6E3CD81 /* SessionsTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsTableView.swift; sourceTree = "<group>"; };
 		4F9BD618DFD1055E5B06B69A /* StackDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackDetector.swift; sourceTree = "<group>"; };
 		5022F5A74A8ED0468E460A49 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
 		51D4F192DB0316A95B26EB63 /* GlobalDashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalDashboardViewModel.swift; sourceTree = "<group>"; };
@@ -235,6 +237,7 @@
 				083E2D6529BD739315435657 /* CommitsListView.swift */,
 				3B7D1A0CAC335EE0B53AD2D4 /* ProjectDetailView.swift */,
 				C052820C8C43F31CEECEDA2F /* SessionsListView.swift */,
+				4D72BE3F1DAFFC83A6E3CD81 /* SessionsTableView.swift */,
 			);
 			path = Project;
 			sourceTree = "<group>";
@@ -529,6 +532,7 @@
 				39363A0FA6B9A3ED610B2182 /* SessionStatusEvaluator.swift in Sources */,
 				F164D618A7F604B80FB69131 /* SessionSyncService.swift in Sources */,
 				76E6D7BBBAF6547E8E6B9C81 /* SessionsListView.swift in Sources */,
+				386922BCB7D50A9437DEC52F /* SessionsTableView.swift in Sources */,
 				6785AA491F28A2B47DBCA9AE /* SettingsView.swift in Sources */,
 				6BD9EFD2DA7FE40ABDD9EDCF /* Spacing.swift in Sources */,
 				4CEDBC54F464047B856560C1 /* StackDetector.swift in Sources */,
