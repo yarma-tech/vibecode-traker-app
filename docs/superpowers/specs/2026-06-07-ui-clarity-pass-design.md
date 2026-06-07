@@ -148,15 +148,16 @@ therefore construct stats with `estimatedCostUSD` set directly.
 - Remaining sections become collapsible via `SectionHeader` + `DisclosureGroup`,
   each showing a **count** in its header (e.g. `Recent commits (10)`,
   `Backlog (3)`).
-- **Default open:** Commit activity, Recent commits. **Default collapsed:** Recent
-  sessions, Backlog. Open/closed state persisted in `AppStorage` (global keys, not
+- **Default open:** Commit activity, Recent sessions. **Default collapsed:** Recent
+  commits, Backlog. Open/closed state persisted in `AppStorage` (global keys, not
   per-project, to stay simple). New keys are declared in `PreferenceKey`
   (`App/Preferences.swift`), the established home for storage keys — not inlined as
   raw strings in the view.
 - **Empty sections** collapse to a single muted line rather than a large blank
   block (e.g. "No backlog items").
-- **Order by importance:** Commit activity → Recent commits → Recent sessions →
-  Backlog. (Stack now lives in the header per 4.6.)
+- **Order by importance:** Commit activity → Recent sessions → Recent commits →
+  Backlog. Sessions lead the lists (this is a Claude Code session tracker), so
+  Recent sessions sits above Recent commits. (Stack now lives in the header per 4.6.)
 
 ## 5. Components & Boundaries
 

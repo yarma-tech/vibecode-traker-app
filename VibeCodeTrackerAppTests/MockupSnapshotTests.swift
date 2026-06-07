@@ -143,11 +143,11 @@ private enum MockGallery {
                 commitBars(dates: Sample.commitDates)
             }
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                SectionHeader(title: "Recent commits", count: 10, isExpanded: .constant(true))
-            }
-            VStack(alignment: .leading, spacing: Spacing.sm) {
                 SectionHeader(title: "Recent sessions", count: 4, isExpanded: .constant(true))
                 sessionsTable(sessions: sessions)
+            }
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                SectionHeader(title: "Recent commits", count: 10, isExpanded: .constant(true))
             }
             SectionHeader(title: "Backlog", count: 0, isExpanded: .constant(false))
         }

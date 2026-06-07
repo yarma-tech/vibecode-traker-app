@@ -890,7 +890,7 @@ git commit -m "feat: add detail section collapse-state keys"
 - [ ] **Step 2: KPI row** — replace the four `KPICard`s with `HeroKPI`s (cost now `String(format: "$%.2f", kpis.totalCostUSD)`, caption "est.").
 - [ ] **Step 3: Commit activity** — replace `CommitHeatmapView(commitDates:)` with `CommitBarChartView(commitDates:)`; rename the section title to `"Commit activity — last 30 days"`.
 - [ ] **Step 4: Sessions** — replace `SessionsListView(sessions:)` with `SessionsTableView(sessions:)` (drop the `.frame(minHeight:)`).
-- [ ] **Step 5: Collapsible sections** — add `@AppStorage` properties for the three keys (default `true` for commits, `false` for sessions/backlog), convert Recent commits / Recent sessions / Backlog into `SectionHeader(title:count:isExpanded:)` + conditional body. Order: Commit activity → Recent commits → Recent sessions → Backlog. Empty body renders a single muted line (e.g. `Text("No backlog items").font(.caption).foregroundStyle(.secondary)`).
+- [ ] **Step 5: Collapsible sections** — add `@AppStorage` properties for the three keys (default `true` for sessions, `false` for commits/backlog), convert Recent sessions / Recent commits / Backlog into `SectionHeader(title:count:isExpanded:)` + conditional body. Order: Commit activity → Recent sessions → Recent commits → Backlog (sessions lead — this is a Claude Code session tracker). Empty body renders a single muted line (e.g. `Text("No backlog items").font(.caption).foregroundStyle(.secondary)`).
 - [ ] **Step 6: Build.** Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 7: Commit**
 
