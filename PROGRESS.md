@@ -143,3 +143,16 @@
   Tests/SessionStatusEvaluatorTests.swift
 - Verify: `** TEST SUCCEEDED **`, 53 tests, 0 warnings.
 - Note: commit association is a time-window proxy (explicit session↔commit linking is V2).
+
+## Slice 10 — Settings + Keychain
+- Status: ✅ Done (2026-06-07 00:55)
+- What: `SecretStoring` protocol with `KeychainStore` (Security framework) +
+  `InMemorySecretStore` (tests/previews); `SettingsView` (SecureField API key with
+  Save/Test/Remove, iCloud sync toggle [UI], refresh-frequency picker); `Preferences`
+  (RefreshFrequency enum + UserDefaults keys). Wired into the sidebar.
+- Files: Services/KeychainStore.swift, App/Preferences.swift,
+  Views/Settings/SettingsView.swift, Tests/KeychainStoreTests.swift
+- Verify: `** TEST SUCCEEDED **`, 55 tests, 0 warnings (real Keychain round-trip
+  passed in this environment).
+- Note: "Test connection" does local key-format validation in this slice; a live
+  network check is added with the usage API (Slice 11). iCloud toggle is UI-only until Slice 12.

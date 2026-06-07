@@ -14,11 +14,7 @@ struct DetailRouter: View {
         case .project(let id):
             ProjectDetailView(projectID: id)
         case .settings:
-            PlaceholderDetail(
-                title: "Settings",
-                systemImage: "gearshape",
-                subtitle: "API key and preferences arrive in Slice 10."
-            )
+            SettingsView()
         }
     }
 }
