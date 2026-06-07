@@ -20,3 +20,22 @@
   not sandboxed (see DECISIONS.md). For the morning: open the .xcodeproj in Xcode
   to run with full GUI; everything builds headless too.
 - For the morning: nothing blocking.
+
+## Slice 2 — Detect Claude Code projects
+- Status: ✅ Done (2026-06-07 00:08)
+- What: `Project` SwiftData model; `ClaudeProjectsScanner` (lists `~/.claude/projects/`
+  sub-folders, naive path decode, idempotent upsert); `NavigationSplitView` skeleton
+  with `ProjectListView` sidebar (Global Dashboard / Projects / Settings) and a
+  `DetailRouter` with placeholders; `ModelContainer` with reset-on-incompatible-schema;
+  initial scan on launch (skipped under tests).
+- Files: Models/Project.swift, App/{AppSchema,Persistence,Log}.swift,
+  Services/ClaudeProjectsScanner.swift, Views/{ContentView,ProjectListView,DetailRouter}.swift,
+  Tests/{ClaudeProjectsScannerTests,TestSupport}.swift
+- Verify: `** TEST SUCCEEDED **`, 7 tests, 0 failures.
+- Debugging note: hit a SwiftData EXC_BREAKPOINT that turned out to be a TEST bug —
+  a helper returned `container.mainContext` while the container (a local) deallocated;
+  SwiftData traps when a context outlives its container. Fixed by retaining the
+  container in the test; documented in TestSupport.swift and DECISIONS.md.
+- For the morning: path/name are provisional (lossy folder decode) until Slice 3
+  rewrites them from each session's `cwd`. GUI not visually verified headless — open
+  in Xcode and Run to see your ~47 projects in the sidebar.

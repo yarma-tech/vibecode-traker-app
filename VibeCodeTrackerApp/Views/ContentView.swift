@@ -1,25 +1,42 @@
 import SwiftUI
+import SwiftData
 
-/// Placeholder root view shown during bootstrap (Slice 1).
-///
-/// This is replaced by the sidebar + dashboard navigation in Slice 2 onward.
+/// What the sidebar can select. Grows as new top-level destinations are added.
+enum SidebarItem: Hashable {
+    case dashboard
+    case project(PersistentIdentifier)
+    case settings
+}
+
+/// Root view: sidebar + detail. Kicks off an initial project scan on appear
+/// (skipped under tests to keep them hermetic).
 struct ContentView: View {
+    @Environment(\.modelContext) private var context
+    @State private var selection: SidebarItem? = .dashboard
+    @State private var hasScanned = false
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "chart.bar.doc.horizontal")
-                .font(.system(size: 48, weight: .light))
-                .foregroundStyle(.tint)
-            Text("Vibe Code Tracker — v0.1")
-                .font(.title2.weight(.semibold))
-            Text("Local dashboard for your Claude Code projects")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+        NavigationSplitView {
+            ProjectListView(selection: $selection)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 320)
+        } detail: {
+            DetailRouter(selection: selection)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        .task { await scanOnce() }
+    }
+
+    private func scanOnce() async {
+        guard !hasScanned, !AppEnvironment.isRunningTests else { return }
+        hasScanned = true
+        do {
+            try await ClaudeProjectsScanner().scan(into: context)
+        } catch {
+            Log.scanner.error("Initial scan failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 
 #Preview {
     ContentView()
+        .modelContainer(for: Project.self, inMemory: true)
 }

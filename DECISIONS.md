@@ -60,3 +60,15 @@ the choice, alternatives, and consequences for Yannick to review.
   its background scan under XCTest (added in Slice 2) to keep tests hermetic.
 - **Consequences**: Tests never touch Yannick's real filesystem — they use
   `FileManager.default.temporaryDirectory` and in-memory `ModelContainer`s.
+
+## 2026-06-07 — SwiftData gotcha: a ModelContext does not retain its container
+
+- **Context**: A test helper returned `container.mainContext` while the
+  `ModelContainer` was a local variable. On return the container deallocated and
+  the next use of the context trapped (EXC_BREAKPOINT deep in SwiftData).
+- **Decision / rule**: always retain the `ModelContainer` for as long as any of
+  its contexts are in use. Test helpers return the *container*, not a bare context.
+  Codified in `VibeCodeTrackerAppTests/TestSupport.swift`.
+- **Consequences**: Avoids a confusing crash that looks like a model/schema bug
+  but is purely an object-lifetime issue. Production code is unaffected (the app's
+  container is owned by `VibeCodeTrackerApp` for the process lifetime).
