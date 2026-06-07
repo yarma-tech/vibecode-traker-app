@@ -691,6 +691,7 @@ git commit -m "test: add Phase 0 mockup snapshot harness"
 **Files:**
 - Modify: `VibeCodeTrackerApp/ViewModels/GlobalDashboardViewModel.swift`
 - Modify: `VibeCodeTrackerAppTests/GlobalDashboardViewModelTests.swift`
+- Modify: `VibeCodeTrackerApp/Views/Global/GlobalDashboardView.swift` (transitional call-site compile fix; superseded by Task 1.4)
 
 - [ ] **Step 1: Update the cost tests** — replace `testCostNilWhenUnknown` and `testCostSummedWhenKnown` in `GlobalDashboardViewModelTests.swift` with:
 
@@ -757,6 +758,13 @@ Expected: FAIL — `estimatedCostUSD` is not a member of `SessionStat`; `costThi
   )
   ```
 
+  e. **Keep the app compiling** — `GlobalDashboardView.costCard(_:)` currently does `if let cost = kpis.costThisWeek { … } else { … }`, which no longer compiles now that `costThisWeek` is a non-optional `Double`. Replace the whole body of `costCard(_:)` with a single always-shown card (this is also the desired end state — Task 1.4 later folds it into the hero tier):
+  ```swift
+  private func costCard(_ kpis: DashboardKPIs) -> some View {
+      KPICard(title: "Cost", value: String(format: "$%.2f", kpis.costThisWeek), caption: "est. · this week", systemImage: "dollarsign.circle")
+  }
+  ```
+
 - [ ] **Step 4: Run tests to verify pass**
 
 ```bash
@@ -767,7 +775,7 @@ Expected: `** TEST SUCCEEDED **`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add VibeCodeTrackerApp/ViewModels/GlobalDashboardViewModel.swift VibeCodeTrackerAppTests/GlobalDashboardViewModelTests.swift
+git add VibeCodeTrackerApp/ViewModels/GlobalDashboardViewModel.swift VibeCodeTrackerAppTests/GlobalDashboardViewModelTests.swift VibeCodeTrackerApp/Views/Global/GlobalDashboardView.swift
 git commit -m "feat: estimated cost from tokens at list prices (dashboard)"
 ```
 
@@ -776,6 +784,7 @@ git commit -m "feat: estimated cost from tokens at list prices (dashboard)"
 **Files:**
 - Modify: `VibeCodeTrackerApp/ViewModels/ProjectDetailViewModel.swift`
 - Modify: `VibeCodeTrackerAppTests/ProjectDetailViewModelTests.swift`
+- Modify: `VibeCodeTrackerApp/Views/Project/ProjectDetailView.swift` (transitional call-site compile fix; superseded by Task 1.6)
 
 - [ ] **Step 1: Update tests** — in `ProjectDetailViewModelTests.swift`, change the `stat` helper to set `estimatedCostUSD` and update assertions:
 
@@ -819,12 +828,17 @@ func testCostSummed() {
   kpis.totalCostUSD = stats.reduce(0) { $0 + $1.estimatedCostUSD }
   ```
 
+  c. **Keep the app compiling** — `ProjectDetailView` renders the project cost KPI with `if let cost = kpis.totalCostUSD { … } else { … }`, which no longer compiles now that `totalCostUSD` is non-optional. Replace that `if/else` with a single always-shown card (Task 1.6 later restyles it as a `HeroKPI`):
+  ```swift
+  KPICard(title: "Cost", value: String(format: "$%.2f", kpis.totalCostUSD), systemImage: "dollarsign.circle")
+  ```
+
 - [ ] **Step 4: Run tests** (same `-only-testing`). Expected: `** TEST SUCCEEDED **`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add VibeCodeTrackerApp/ViewModels/ProjectDetailViewModel.swift VibeCodeTrackerAppTests/ProjectDetailViewModelTests.swift
+git add VibeCodeTrackerApp/ViewModels/ProjectDetailViewModel.swift VibeCodeTrackerAppTests/ProjectDetailViewModelTests.swift VibeCodeTrackerApp/Views/Project/ProjectDetailView.swift
 git commit -m "feat: estimated cost from tokens at list prices (project)"
 ```
 
