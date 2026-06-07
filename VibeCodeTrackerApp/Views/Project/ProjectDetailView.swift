@@ -31,12 +31,7 @@ struct ProjectDetailView: View {
                 LazyVGrid(columns: columns, spacing: 12) {
                     KPICard(title: "Sessions", value: "\(kpis.sessionCount)", systemImage: "bubble.left.and.bubble.right")
                     KPICard(title: "Tokens", value: Format.tokens(kpis.totalTokens), systemImage: "number")
-                    if let cost = kpis.totalCostUSD {
-                        KPICard(title: "Cost", value: String(format: "$%.2f", cost), systemImage: "dollarsign.circle")
-                    } else {
-                        KPICard(title: "Cost", value: "—", systemImage: "dollarsign.circle",
-                                tooltip: "Configure your Anthropic API key in Settings to see costs.")
-                    }
+                    KPICard(title: "Cost", value: String(format: "$%.2f", kpis.totalCostUSD), systemImage: "dollarsign.circle")
                     KPICard(title: "Avg time", value: kpis.avgDurationSeconds > 0 ? Format.duration(kpis.avgDurationSeconds) : "—", systemImage: "clock")
                 }
 
