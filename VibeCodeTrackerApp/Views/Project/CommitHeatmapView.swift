@@ -37,6 +37,13 @@ enum CommitHeatmap {
         }
         return cells
     }
+
+    /// Valid (ascending) y-axis domain for the weekday rows. Must be ascending —
+    /// a descending ClosedRange traps at runtime.
+    static let weekdayDomain: ClosedRange<Double> = -0.5...6.5
+
+    /// Chart row for a weekday, placing Sunday (0) at the top.
+    static func row(forWeekday weekday: Int) -> Int { 6 - weekday }
 }
 
 /// GitHub-style commit contribution heatmap rendered with Swift Charts.
@@ -51,7 +58,7 @@ struct CommitHeatmapView: View {
         Chart(cells) { cell in
             RectangleMark(
                 x: .value("Week", cell.weekIndex),
-                y: .value("Weekday", cell.weekday)
+                y: .value("Weekday", CommitHeatmap.row(forWeekday: cell.weekday))
             )
             .foregroundStyle(color(for: cell.count))
             .cornerRadius(2)
@@ -59,7 +66,7 @@ struct CommitHeatmapView: View {
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .chartXScale(domain: -0.5...(Double(weeks) - 0.5))
-        .chartYScale(domain: 6.5...(-0.5)) // Sunday on top
+        .chartYScale(domain: CommitHeatmap.weekdayDomain) // Sunday on top via row(forWeekday:)
         .chartLegend(.hidden)
         .frame(height: 110)
         .accessibilityLabel("Commit contribution heatmap for the last \(weeks) weeks")

@@ -8,6 +8,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Initial release.
 
+### Fixed
+- Crash when opening a project that has Git commits: the commit heatmap used a
+  descending `chartYScale` domain (`6.5...(-0.5)`), which traps at runtime. Now uses
+  an ascending domain with the weekday row inverted, plus a render regression test.
+
 ### Added
 - Automatic detection of Claude Code projects from `~/.claude/projects/`.
 - Schema-tolerant JSONL session parser (tokens, primary model, duration, message

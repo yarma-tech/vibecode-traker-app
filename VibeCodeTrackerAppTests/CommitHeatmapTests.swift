@@ -1,7 +1,33 @@
 import XCTest
+import SwiftUI
 @testable import VibeCodeTrackerApp
 
 final class CommitHeatmapTests: XCTestCase {
+
+    // MARK: - Regression: chart domain must be a valid (ascending) range.
+
+    func testWeekdayDomainIsAscending() {
+        // A descending ClosedRange traps at runtime — this guards against the
+        // reversed `6.5...(-0.5)` that crashed CommitHeatmapView.body.
+        XCTAssertLessThan(CommitHeatmap.weekdayDomain.lowerBound, CommitHeatmap.weekdayDomain.upperBound)
+    }
+
+    func testRowForWeekdayPutsSundayOnTopAndStaysInDomain() {
+        XCTAssertEqual(CommitHeatmap.row(forWeekday: 0), 6) // Sunday at top row
+        XCTAssertEqual(CommitHeatmap.row(forWeekday: 6), 0)
+        for weekday in 0...6 {
+            XCTAssertTrue(CommitHeatmap.weekdayDomain.contains(Double(CommitHeatmap.row(forWeekday: weekday))))
+        }
+    }
+
+    @MainActor
+    func testHeatmapViewBodyRenders() throws {
+        // Forces the SwiftUI body (and the chart domain) to evaluate — would have
+        // trapped before the fix. Renders to an image headlessly.
+        let view = CommitHeatmapView(commitDates: [Date(), Date(timeIntervalSinceNow: -86_400)], weeks: 13)
+        let renderer = ImageRenderer(content: view.frame(width: 320, height: 110))
+        XCTAssertNotNil(renderer.nsImage, "Heatmap must render without trapping")
+    }
     private func utcCalendar() -> Calendar {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = .gmt
