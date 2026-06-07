@@ -88,9 +88,17 @@ price?" — always available, no API key required.
   Anthropic list prices (see ModelPricing)."
 - `Session.totalCostUSD` (Anthropic-actual) is left in the model and parsing path
   untouched; it is simply no longer the source for the headline KPI.
+- **Unknown model family:** `ModelPricing.price(family:)` returns zero prices for
+  families outside `{Opus, Sonnet, Haiku}` (e.g. `Session`'s `"Unknown"`). Such a
+  session contributes `$0.00` — expected, not a bug. The summed cost is still
+  non-optional, so the "always renders a value" criterion holds.
 
-**Boundary:** the calculator stays pure and Sendable — cost is computed from the
-stat's own fields, so unit tests can construct stats directly.
+**Boundary:** the calculator stays pure and Sendable. Cost is derived once in
+`GlobalDashboardViewModel.stats(from:)` from the full `Session` (which has the
+per-category token breakdown) and *stored* on the stat as `estimatedCostUSD`; the
+calculators only sum that stored field — they do not re-derive cost from token
+counts (`SessionStat` carries `totalTokens`, not the breakdown). Unit tests
+therefore construct stats with `estimatedCostUSD` set directly.
 
 ### 4.3 Dashboard KPI tiering
 
@@ -123,6 +131,9 @@ stat's own fields, so unit tests can construct stats directly.
 - Columns: **status** (badge/icon) · **prompt preview (≤ 40 chars, truncated)** ·
   **model** · **tokens** · **duration** · **date (relative)**.
 - No per-session cost column (kept deliberately simple).
+- The faint column-header row lives *inside* the section's disclosure body (shown
+  when the Recent sessions section is expanded, per 4.7) — it is not a second
+  always-visible header alongside `SectionHeader`.
 - Empty state retains the existing `ContentUnavailableView`.
 
 ### 4.6 Stack → disclosure under project name
@@ -139,7 +150,9 @@ stat's own fields, so unit tests can construct stats directly.
   `Backlog (3)`).
 - **Default open:** Commit activity, Recent commits. **Default collapsed:** Recent
   sessions, Backlog. Open/closed state persisted in `AppStorage` (global keys, not
-  per-project, to stay simple).
+  per-project, to stay simple). New keys are declared in `PreferenceKey`
+  (`App/Preferences.swift`), the established home for storage keys — not inlined as
+  raw strings in the view.
 - **Empty sections** collapse to a single muted line rather than a large blank
   block (e.g. "No backlog items").
 - **Order by importance:** Commit activity → Recent commits → Recent sessions →
