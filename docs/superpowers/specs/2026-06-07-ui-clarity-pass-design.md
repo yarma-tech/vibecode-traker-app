@@ -209,3 +209,34 @@ therefore construct stats with `estimatedCostUSD` set directly.
 - Stack is hidden under the project name until expanded.
 - `Card` and `SectionHeader` are the single source of card/section chrome on both
   screens.
+
+## 9. Implementation Phasing
+
+### Phase 0 — High-fidelity mockups (approval gate before build)
+
+The redesign must be visually approved before real-data wiring begins.
+
+- Build the redesigned pieces as SwiftUI views driven by **mock/sample data** with
+  `#Preview`s: `Card`, `SectionHeader`, the hero + secondary KPI tiers,
+  `CommitBarChartView`, `SessionsTableView`, the stack disclosure header, and the
+  collapsible detail sections — plus an assembled mock of each full screen
+  (dashboard, project detail).
+- Render each preview to **PNG via an `ImageRenderer`-based snapshot harness** (a
+  small XCTest in the test target) into a known output directory.
+- Share the screenshots with the user; iterate on layout/hierarchy/spacing until
+  approved.
+- Caveat: `ImageRenderer` rasterizes without window vibrancy, so system materials
+  (`.background.secondary`, `.bar`) may render marginally flatter than in the live
+  window. This is acceptable for validating hierarchy and layout; final polish is
+  verified in-app during implementation.
+- No cost-calc change, no viewmodel/data wiring, no heatmap removal in this phase —
+  mock data only, so the previews are throwaway-safe yet reused as the real
+  component bodies once approved.
+
+### Phase 1+ — Implementation (only after Phase 0 approval)
+
+Wire the approved components into the real views and data, then layer in the logic
+changes: estimated-cost derivation (+ tests), `CommitBars` builder (+ tests) and
+heatmap retirement, detail collapsibility with `PreferenceKey` storage keys, and
+the dashboard KPI tiering. Full test suite stays green. The detailed step ordering
+is produced by the implementation plan.
