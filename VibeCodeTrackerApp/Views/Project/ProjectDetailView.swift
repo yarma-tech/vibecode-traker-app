@@ -54,7 +54,7 @@ struct ProjectDetailView: View {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     SectionHeader(title: "Recent sessions", count: sessions.count, isExpanded: $sessionsExpanded)
                     if sessionsExpanded {
-                        SessionsTableView(sessions: sessions)
+                        SessionsTableView(sessions: sessions, commitDates: commits.map(\.authoredAt))
                     }
                 }
 
