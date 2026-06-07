@@ -7,6 +7,7 @@ import SwiftData
 @main
 struct VibeCodeTrackerApp: App {
     let container: ModelContainer
+    @State private var syncCenter = SyncCenter()
 
     init() {
         container = PersistenceController.makeContainer()
@@ -15,6 +16,7 @@ struct VibeCodeTrackerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(syncCenter)
         }
         .defaultSize(width: 1100, height: 720)
         .modelContainer(container)

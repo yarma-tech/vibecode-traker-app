@@ -12,6 +12,7 @@ enum SidebarItem: Hashable {
 /// (skipped under tests to keep them hermetic).
 struct ContentView: View {
     @Environment(\.modelContext) private var context
+    @Environment(SyncCenter.self) private var syncCenter
     @AppStorage(PreferenceKey.refreshFrequency) private var refreshFrequencyRaw = RefreshFrequency.hourly.rawValue
     @State private var selection: SidebarItem? = .dashboard
     @State private var hasScanned = false
@@ -32,7 +33,7 @@ struct ContentView: View {
     private func scanOnce() async {
         guard !hasScanned, !AppEnvironment.isRunningTests else { return }
         hasScanned = true
-        await SyncCoordinator.fullSync(context: context)
+        await SyncCoordinator.fullSync(context: context, center: syncCenter)
     }
 
     /// Periodically re-runs the full sync per the user's refresh frequency.
@@ -47,7 +48,7 @@ struct ContentView: View {
             } catch {
                 return // cancelled
             }
-            await SyncCoordinator.fullSync(context: context)
+            await SyncCoordinator.fullSync(context: context, center: syncCenter)
         }
     }
 }
@@ -55,4 +56,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .modelContainer(for: Project.self, inMemory: true)
+        .environment(SyncCenter())
 }

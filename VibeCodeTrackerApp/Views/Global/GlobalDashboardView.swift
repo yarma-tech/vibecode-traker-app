@@ -4,10 +4,9 @@ import SwiftData
 /// Level-1 view: headline KPIs + latest sessions across all projects.
 struct GlobalDashboardView: View {
     @Environment(\.modelContext) private var context
+    @Environment(SyncCenter.self) private var syncCenter
     @Query(sort: [SortDescriptor(\Session.startedAt, order: .reverse)])
     private var sessions: [Session]
-
-    @State private var isRefreshing = false
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
@@ -27,33 +26,46 @@ struct GlobalDashboardView: View {
                     KPICard(title: "Blocked", value: "\(kpis.blockedSessions)", caption: "sessions", systemImage: "exclamationmark.triangle")
                 }
 
-                if !sessions.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Latest sessions across all projects")
-                            .font(.headline)
-                        LatestSessionsList(sessions: Array(sessions.prefix(10)))
-                    }
-                } else {
-                    ContentUnavailableView(
-                        "No sessions yet",
-                        systemImage: "sparkles",
-                        description: Text("Use Claude Code in a project, then press Refresh.")
-                    )
-                    .padding(.top, 40)
-                }
+                content
             }
             .padding(20)
+            .animation(.default, value: sessions.isEmpty)
         }
         .navigationTitle("Global Dashboard")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    Task { await refresh() }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                RefreshButton(isSyncing: syncCenter.isSyncing) {
+                    Task { await SyncCoordinator.fullSync(context: context, center: syncCenter) }
                 }
-                .disabled(isRefreshing)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if !sessions.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Latest sessions across all projects")
+                    .font(.headline)
+                LatestSessionsList(sessions: Array(sessions.prefix(10)))
+            }
+        } else if syncCenter.isSyncing {
+            VStack(spacing: 12) {
+                ProgressView()
+                Text("Scanning your Claude Code projects…")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 60)
+        } else {
+            ContentUnavailableView {
+                Label("No sessions yet", systemImage: "sparkles")
+            } description: {
+                Text("Use Claude Code in a project, then press Refresh. Vibe Code Tracker reads ~/.claude/projects locally.")
+            } actions: {
+                Button("Refresh") { Task { await SyncCoordinator.fullSync(context: context, center: syncCenter) } }
+            }
+            .padding(.top, 40)
         }
     }
 
@@ -65,10 +77,26 @@ struct GlobalDashboardView: View {
                            tooltip: "Configure your Anthropic API key in Settings to see costs.")
         }
     }
+}
 
-    private func refresh() async {
-        isRefreshing = true
-        defer { isRefreshing = false }
-        await SyncCoordinator.fullSync(context: context)
+/// Toolbar refresh button that spins while a sync is in progress.
+private struct RefreshButton: View {
+    let isSyncing: Bool
+    let action: () -> Void
+    @State private var angle = 0.0
+
+    var body: some View {
+        Button(action: action) {
+            Label("Refresh", systemImage: "arrow.clockwise")
+                .rotationEffect(.degrees(angle))
+        }
+        .disabled(isSyncing)
+        .onChange(of: isSyncing) { _, syncing in
+            if syncing {
+                withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) { angle = 360 }
+            } else {
+                withAnimation(.default) { angle = 0 }
+            }
+        }
     }
 }

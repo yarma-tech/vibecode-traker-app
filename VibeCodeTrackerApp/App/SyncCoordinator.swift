@@ -5,7 +5,9 @@ import SwiftData
 /// read Git history. Used on launch and by the Refresh button.
 @MainActor
 enum SyncCoordinator {
-    static func fullSync(context: ModelContext) async {
+    static func fullSync(context: ModelContext, center: SyncCenter? = nil) async {
+        center?.isSyncing = true
+        defer { center?.isSyncing = false }
         do {
             try await ClaudeProjectsScanner().scan(into: context)
             try await SessionSyncService().sync(into: context)
@@ -15,6 +17,7 @@ enum SyncCoordinator {
             try StatusSyncService().recomputeStatuses(in: context)
             // No-op unless an Anthropic Admin key is in the Keychain.
             try await UsageSyncService().sync(into: context)
+            center?.lastSyncedAt = .now
         } catch {
             Log.app.error("Full sync failed: \(error.localizedDescription, privacy: .public)")
         }

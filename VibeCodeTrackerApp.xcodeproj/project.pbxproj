@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		027E614C0C5A6677BDCA713A /* SyncCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05E90F085DC4615167F339D /* SyncCenter.swift */; };
 		02FE5D526CBAF544E54151CF /* StackTagsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83A89AC153A961BD5538EBB5 /* StackTagsView.swift */; };
 		036FF62ABA4324DDD2C24DA7 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB98EF2057AADE1216AC16BE /* Session.swift */; };
 		04903C30AF1C89118FB0C3EA /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADA00C79537232D46036FD9F /* StatusBadge.swift */; };
@@ -131,6 +132,7 @@
 		A945DBD3B5E70AB2C6FEB1EA /* ModelPricingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPricingTests.swift; sourceTree = "<group>"; };
 		AD3DA618383C59454C60C422 /* ProjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectListView.swift; sourceTree = "<group>"; };
 		ADA00C79537232D46036FD9F /* StatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadge.swift; sourceTree = "<group>"; };
+		B05E90F085DC4615167F339D /* SyncCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCenter.swift; sourceTree = "<group>"; };
 		B0F4F4882332680FC96579BB /* CommitHeatmapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitHeatmapTests.swift; sourceTree = "<group>"; };
 		B453A5C1FE23D54363872F44 /* BacklogParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogParserTests.swift; sourceTree = "<group>"; };
 		B7EE9CA34837154144CEC2DF /* VibeCodeTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeCodeTrackerApp.swift; sourceTree = "<group>"; };
@@ -175,6 +177,7 @@
 				D0EA1FCDC0D058BEE8044A43 /* Log.swift */,
 				14D603394F99A7064D66F8E1 /* Persistence.swift */,
 				B90299CF6DCFD0F864A9DF01 /* Preferences.swift */,
+				B05E90F085DC4615167F339D /* SyncCenter.swift */,
 				D6C976DC9F933DC084D89669 /* SyncCoordinator.swift */,
 			);
 			path = App;
@@ -509,6 +512,7 @@
 				02FE5D526CBAF544E54151CF /* StackTagsView.swift in Sources */,
 				04903C30AF1C89118FB0C3EA /* StatusBadge.swift in Sources */,
 				2367F6EE392D228F774C17CF /* StatusSyncService.swift in Sources */,
+				027E614C0C5A6677BDCA713A /* SyncCenter.swift in Sources */,
 				20A164EE567F5147E6F1F1C6 /* SyncCoordinator.swift in Sources */,
 				568841388CAA812AD03F8C84 /* TokenUsageSnapshot.swift in Sources */,
 				B02205880646EB5439B17352 /* UsageSyncService.swift in Sources */,

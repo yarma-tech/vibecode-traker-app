@@ -184,3 +184,15 @@
 - Why partial: CloudKit needs (1) an Apple Developer account + entitlement and
   (2) removing all `@Attribute(.unique)` (CloudKit forbids them). Both are Yannick
   decisions — documented in BLOCKERS.md and DECISIONS.md. Graceful degradation done.
+
+## Slice 13 — Polish UI
+- Status: ✅ Done (2026-06-07 01:12)
+- What: real app icon (generated PNG set via scripts/generate-app-icon.swift — "VCT"
+  on a gradient); shared `SyncCenter` (@Observable) driving loading states; animated
+  (spinning) Refresh button; dashboard scanning/empty/welcome states with
+  ContentUnavailableView + action; subtle list animation. Dark mode works out of the
+  box (all colors are semantic: .secondary/.tint/.background.secondary/.separator/.bar).
+- Files: scripts/generate-app-icon.swift, Assets AppIcon PNGs, App/SyncCenter.swift,
+  Views/Global/GlobalDashboardView.swift, ContentView/App/SyncCoordinator updates
+- Verify: `** TEST SUCCEEDED **`, 67 tests, 0 warnings; app launches with embedded
+  icon (Assets.car), no crash.
