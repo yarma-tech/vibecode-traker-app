@@ -119,3 +119,13 @@
 - Files: Models/BacklogItem.swift, Services/{BacklogParser,BacklogSyncService}.swift,
   Views/Project/BacklogView.swift, Tests/{BacklogParserTests,BacklogSyncServiceTests}.swift
 - Verify: `** TEST SUCCEEDED **`, 42 tests, 0 warnings.
+
+## Slice 8 — Stack detection
+- Status: ✅ Done (2026-06-07 00:44)
+- What: `StackDetector` (PRD §8 mapping: marker files for TS/Rust/Python/Go/Swift/
+  Docker, supabase/prisma sub-files, TWILIO_ in .env; package.json dep parsing for
+  Next.js/React/Mastra/Supabase/Tailwind/Remotion/Inngest/etc., deduped); pure
+  `tags(from:)` + `dependencyTags`. `StackSyncService` stores `Project.stack`; shown
+  via existing StackTagsView. Added to the pipeline.
+- Files: Services/{StackDetector,StackSyncService}.swift, Tests/StackDetectorTests.swift
+- Verify: `** TEST SUCCEEDED **`, 47 tests, 0 warnings.

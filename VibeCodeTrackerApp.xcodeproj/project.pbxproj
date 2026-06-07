@@ -26,6 +26,7 @@
 		34BDB4D3DDA75FF9C278AEB0 /* CommitsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083E2D6529BD739315435657 /* CommitsListView.swift */; };
 		393A7BBE13EE315F9D779D34 /* session-basic.jsonl in Resources */ = {isa = PBXBuildFile; fileRef = E697C1A2A66CCA64563C7347 /* session-basic.jsonl */; };
 		41425DE389F5BB16857743CA /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBD8A047F12FD1010CC8401C /* Formatting.swift */; };
+		4CEDBC54F464047B856560C1 /* StackDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9BD618DFD1055E5B06B69A /* StackDetector.swift */; };
 		546D1561F5C050E5141893A3 /* ProjectDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CAE3699D9026C20FA360787 /* ProjectDetailViewModelTests.swift */; };
 		6B015537C2A1292E2FE6B3EB /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5022F5A74A8ED0468E460A49 /* TestSupport.swift */; };
 		6F6AEE66496539364128D88B /* GlobalDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90CFBCA34C269238DF2F27AA /* GlobalDashboardView.swift */; };
@@ -39,6 +40,7 @@
 		A0A6A2FB8A8246D819B9068A /* SessionSyncServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE665D73D6C13EABBD496F5A /* SessionSyncServiceTests.swift */; };
 		ACC9493FC06A9589C6072CD9 /* DetailRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE6179FA376DD40703D99A45 /* DetailRouter.swift */; };
 		ACE2C38D134A1007D5E4C74C /* BacklogParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBEB4E555B0BB7C28BCE3A30 /* BacklogParser.swift */; };
+		AD2D21DA3C0A682163631D31 /* StackSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 611975272100C86457C0CAE4 /* StackSyncService.swift */; };
 		AD39834A152D8D5951588846 /* GitInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F99E493E0758A305D20DADD /* GitInspector.swift */; };
 		AF5EF956A88496C6C5D2BF01 /* LatestSessionsList.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3906BC2774E626BA6841C1 /* LatestSessionsList.swift */; };
 		B3D27DAE71D77A0462394470 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14D603394F99A7064D66F8E1 /* Persistence.swift */; };
@@ -50,6 +52,7 @@
 		D79E739DCC9B2715F7F7B790 /* BacklogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 999B99AAEFE8CF82257400DD /* BacklogView.swift */; };
 		D81B3CFA07F1BF39A7885937 /* FileSyncState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB92E9E7B1C0AA8F69A9F09 /* FileSyncState.swift */; };
 		D879E7EAE22E3C40738E24C4 /* ProjectDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF63CC02E7520F2F6A794399 /* ProjectDetailViewModel.swift */; };
+		E11BA00041E0C941C055DCF2 /* StackDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC802489958CD53BFA3E7753 /* StackDetectorTests.swift */; };
 		EAFD7E41E3E8AF33CF3C3F72 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A218F48E836862EDBB376F /* Project.swift */; };
 		F164D618A7F604B80FB69131 /* SessionSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02F19CC91D99E7844DF60962 /* SessionSyncService.swift */; };
 		F36DE127DD78B0B69D9346B7 /* Commit.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE74E1A2919AE3A3FF553AFB /* Commit.swift */; };
@@ -79,11 +82,13 @@
 		3017A3D87097C8D97470880E /* BacklogItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogItem.swift; sourceTree = "<group>"; };
 		3B7D1A0CAC335EE0B53AD2D4 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
 		4CB92E9E7B1C0AA8F69A9F09 /* FileSyncState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSyncState.swift; sourceTree = "<group>"; };
+		4F9BD618DFD1055E5B06B69A /* StackDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackDetector.swift; sourceTree = "<group>"; };
 		5022F5A74A8ED0468E460A49 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
 		51D4F192DB0316A95B26EB63 /* GlobalDashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalDashboardViewModel.swift; sourceTree = "<group>"; };
 		57E759AB698932C15846AE72 /* VibeCodeTrackerAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VibeCodeTrackerAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		58DA0ACE25C1318DDD37ECAE /* GitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitSyncService.swift; sourceTree = "<group>"; };
 		5C0E5665A739DC4A42D1A291 /* GitInspectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInspectorTests.swift; sourceTree = "<group>"; };
+		611975272100C86457C0CAE4 /* StackSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackSyncService.swift; sourceTree = "<group>"; };
 		65A32D783AF338F280C9654C /* VibeCodeTrackerApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VibeCodeTrackerApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		678905D3552C3DD4DFCC79D6 /* AppSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSchema.swift; sourceTree = "<group>"; };
 		6947D819E6153A1208C47493 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -107,6 +112,7 @@
 		CA3906BC2774E626BA6841C1 /* LatestSessionsList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatestSessionsList.swift; sourceTree = "<group>"; };
 		CBD8A047F12FD1010CC8401C /* Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatting.swift; sourceTree = "<group>"; };
 		CBEB4E555B0BB7C28BCE3A30 /* BacklogParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogParser.swift; sourceTree = "<group>"; };
+		CC802489958CD53BFA3E7753 /* StackDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackDetectorTests.swift; sourceTree = "<group>"; };
 		D0EA1FCDC0D058BEE8044A43 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
 		D6C976DC9F933DC084D89669 /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		DE74E1A2919AE3A3FF553AFB /* Commit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Commit.swift; sourceTree = "<group>"; };
@@ -197,6 +203,7 @@
 				8E7122994EA33632B4646EB5 /* JSONLParserTests.swift */,
 				6CAE3699D9026C20FA360787 /* ProjectDetailViewModelTests.swift */,
 				EE665D73D6C13EABBD496F5A /* SessionSyncServiceTests.swift */,
+				CC802489958CD53BFA3E7753 /* StackDetectorTests.swift */,
 				5022F5A74A8ED0468E460A49 /* TestSupport.swift */,
 			);
 			path = VibeCodeTrackerAppTests;
@@ -241,6 +248,8 @@
 				58DA0ACE25C1318DDD37ECAE /* GitSyncService.swift */,
 				93FA0BC723164FCE75286FE0 /* JSONLParser.swift */,
 				02F19CC91D99E7844DF60962 /* SessionSyncService.swift */,
+				4F9BD618DFD1055E5B06B69A /* StackDetector.swift */,
+				611975272100C86457C0CAE4 /* StackSyncService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -389,6 +398,7 @@
 				8743B3616A051541B4A819C8 /* JSONLParserTests.swift in Sources */,
 				546D1561F5C050E5141893A3 /* ProjectDetailViewModelTests.swift in Sources */,
 				A0A6A2FB8A8246D819B9068A /* SessionSyncServiceTests.swift in Sources */,
+				E11BA00041E0C941C055DCF2 /* StackDetectorTests.swift in Sources */,
 				6B015537C2A1292E2FE6B3EB /* TestSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -426,6 +436,8 @@
 				036FF62ABA4324DDD2C24DA7 /* Session.swift in Sources */,
 				F164D618A7F604B80FB69131 /* SessionSyncService.swift in Sources */,
 				76E6D7BBBAF6547E8E6B9C81 /* SessionsListView.swift in Sources */,
+				4CEDBC54F464047B856560C1 /* StackDetector.swift in Sources */,
+				AD2D21DA3C0A682163631D31 /* StackSyncService.swift in Sources */,
 				02FE5D526CBAF544E54151CF /* StackTagsView.swift in Sources */,
 				20A164EE567F5147E6F1F1C6 /* SyncCoordinator.swift in Sources */,
 				29FDCA1D68300CFC75B6731E /* VibeCodeTrackerApp.swift in Sources */,
