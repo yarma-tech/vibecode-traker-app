@@ -6,6 +6,10 @@ enum PreferenceKey {
     static let refreshFrequency = "refreshFrequency"
     static let showWorktrees = "showWorktrees"
     static let repositoryFilter = "repositoryFilter"
+    // Project-detail section collapse state (global, not per-project).
+    static let detailCommitsExpanded = "detailCommitsExpanded"
+    static let detailSessionsExpanded = "detailSessionsExpanded"
+    static let detailBacklogExpanded = "detailBacklogExpanded"
 }
 
 /// Sidebar repository filter.
