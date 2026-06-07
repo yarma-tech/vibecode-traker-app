@@ -28,3 +28,44 @@ enum CommitBars {
         return bars
     }
 }
+
+/// Vertical bar chart of daily commit counts over a trailing window.
+struct CommitBarChartView: View {
+    let commitDates: [Date]
+    var days: Int = 30
+    var now: Date = .now
+
+    private var bars: [CommitBar] { CommitBars.series(commitDates: commitDates, now: now, days: days) }
+
+    var body: some View {
+        Chart(bars) { bar in
+            BarMark(
+                x: .value("Day", bar.day, unit: .day),
+                y: .value("Commits", bar.count)
+            )
+            .foregroundStyle(.green)
+            .cornerRadius(2)
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 3))
+        }
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .day, count: 7)) { _ in
+                AxisGridLine()
+                AxisValueLabel(format: .dateTime.day().month(.abbreviated))
+            }
+        }
+        .frame(height: 110)
+        .accessibilityLabel("Daily commit bar chart for the last \(days) days")
+    }
+}
+
+#Preview {
+    let cal = Calendar.current
+    let today = cal.startOfDay(for: .now)
+    let dates: [Date] = (0..<30).flatMap { offset -> [Date] in
+        guard offset % 3 == 0, let d = cal.date(byAdding: .day, value: -offset, to: today) else { return [] }
+        return Array(repeating: d, count: (offset % 5) + 1)
+    }
+    return CommitBarChartView(commitDates: dates).padding().frame(width: 520)
+}
