@@ -159,7 +159,7 @@ final class SessionSyncService {
         for state in try context.fetch(FetchDescriptor<FileSyncState>()) {
             known[state.path] = FileStateSnapshot(size: state.lastOffset, modified: state.lastModified)
         }
-        let parsed = try await Task.detached(priority: .utility) { [self] in
+        let parsed = await Task.detached(priority: .utility) { [self] in
             parseAll(knownStates: known)
         }.value
         let summary = try apply(parsed, into: context)

@@ -31,6 +31,9 @@ final class Project {
     @Relationship(deleteRule: .cascade, inverse: \Session.project)
     var sessions: [Session] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \Commit.project)
+    var commits: [Commit] = []
+
     init(
         id: UUID = UUID(),
         name: String,

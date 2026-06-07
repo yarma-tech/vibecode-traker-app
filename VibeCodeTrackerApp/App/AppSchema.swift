@@ -9,6 +9,7 @@ enum AppSchema {
     static let models: [any PersistentModel.Type] = [
         Project.self,
         Session.self,
+        Commit.self,
         FileSyncState.self
     ]
 }

@@ -93,3 +93,19 @@
 - Files: ViewModels/ProjectDetailViewModel.swift, Views/Project/ProjectDetailView.swift,
   Views/Components/StackTagsView.swift, Tests/ProjectDetailViewModelTests.swift
 - Verify: `** TEST SUCCEEDED **`, 29 tests, 0 failures.
+
+## Slice 6 — Git integration + heatmap
+- Status: ✅ Done (2026-06-07 00:34)
+- What: `Commit` model (+ Project.commits relationship); `GitInspector` (shell-out to
+  /usr/bin/git log --shortstat, pure parser for header/shortstat, conventional-commit
+  + keyword type inference, current branch); `GitSyncService` (read off-main, upsert
+  on main); `CommitHeatmapView` (Swift Charts RectangleMark, GitHub-style grid via
+  pure `CommitHeatmap.cells`); `CommitsListView` + type badge. Detail view gains
+  "Commit activity" + "Recent commits". `SyncCoordinator` centralizes the pipeline
+  (projects → sessions → git) for launch + Refresh.
+- Files: Models/Commit.swift, Services/{GitInspector,GitSyncService}.swift,
+  App/SyncCoordinator.swift, Views/Project/{CommitHeatmapView,CommitsListView}.swift,
+  Tests/{GitInspectorTests,CommitHeatmapTests}.swift
+- Verify: clean build, **zero warnings**, `** TEST SUCCEEDED **`, 37 tests. Git test
+  is a real integration test on a temp repo (created/committed in the test).
+- Note: Commit↔Session matching deferred to V2 (per PRD it's a refinement).

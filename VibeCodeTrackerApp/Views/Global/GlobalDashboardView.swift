@@ -69,11 +69,6 @@ struct GlobalDashboardView: View {
     private func refresh() async {
         isRefreshing = true
         defer { isRefreshing = false }
-        do {
-            try await ClaudeProjectsScanner().scan(into: context)
-            try await SessionSyncService().sync(into: context)
-        } catch {
-            Log.app.error("Refresh failed: \(error.localizedDescription, privacy: .public)")
-        }
+        await SyncCoordinator.fullSync(context: context)
     }
 }

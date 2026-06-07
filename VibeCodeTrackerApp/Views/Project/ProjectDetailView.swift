@@ -40,6 +40,20 @@ struct ProjectDetailView: View {
                     KPICard(title: "Avg time", value: kpis.avgDurationSeconds > 0 ? Format.duration(kpis.avgDurationSeconds) : "—", systemImage: "clock")
                 }
 
+                section("Commit activity — last 90 days") {
+                    if project.commits.isEmpty {
+                        Text("No commits found (not a Git repo, or no recent activity).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        CommitHeatmapView(commitDates: project.commits.map(\.authoredAt))
+                    }
+                }
+
+                section("Recent commits") {
+                    CommitsListView(commits: Array(project.commits.sorted { $0.authoredAt > $1.authoredAt }.prefix(10)))
+                }
+
                 section("Stack") {
                     StackTagsView(stack: project.stack)
                 }
