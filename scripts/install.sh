@@ -50,6 +50,15 @@ echo "==> Installing to $DEST/$APP_NAME"
 rm -rf "${DEST:?}/$APP_NAME"
 ditto "$APP_PATH" "$DEST/$APP_NAME"
 
+# Keep the installed copy as the only Launchpad entry: unregister the build
+# artifact so it doesn't show up as a duplicate (the build/ cache is preserved
+# for fast incremental rebuilds).
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
+if [ -x "$LSREGISTER" ]; then
+  "$LSREGISTER" -u "$APP_PATH" 2>/dev/null || true
+  "$LSREGISTER" -f "$DEST/$APP_NAME" 2>/dev/null || true
+fi
+
 echo "==> Installed: $DEST/$APP_NAME"
 
 if [ "${1:-}" != "--no-open" ]; then
