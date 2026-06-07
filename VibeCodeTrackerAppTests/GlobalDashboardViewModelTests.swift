@@ -42,17 +42,18 @@ final class GlobalDashboardViewModelTests: XCTestCase {
         XCTAssertEqual(k.blockedSessions, 1)
     }
 
-    func testCostNilWhenUnknown() {
-        let k = DashboardCalculator.kpis(stats: makeStats(), now: now)
-        XCTAssertNil(k.costThisWeek)
+    func testEstimatedCostSummedForWeek() {
+        var stats = makeStats()
+        stats[0].estimatedCostUSD = 1.50   // in-week
+        stats[1].estimatedCostUSD = 2.25   // in-week
+        stats[2].estimatedCostUSD = 9.00   // outside week (within 30d) → excluded
+        let k = DashboardCalculator.kpis(stats: stats, now: now)
+        XCTAssertEqual(k.costThisWeek, 3.75, accuracy: 0.0001)
     }
 
-    func testCostSummedWhenKnown() {
-        var stats = makeStats()
-        stats[0].totalCostUSD = 1.50
-        stats[1].totalCostUSD = 2.25
-        let k = DashboardCalculator.kpis(stats: stats, now: now)
-        XCTAssertEqual(try XCTUnwrap(k.costThisWeek), 3.75, accuracy: 0.0001)
+    func testCostZeroWhenNoEstimates() {
+        let k = DashboardCalculator.kpis(stats: makeStats(), now: now)
+        XCTAssertEqual(k.costThisWeek, 0, accuracy: 0.0001)
     }
 
     func testEmptyIsAllZero() {

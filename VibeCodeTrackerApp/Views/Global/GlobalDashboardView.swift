@@ -76,12 +76,7 @@ struct GlobalDashboardView: View {
     }
 
     private func costCard(_ kpis: DashboardKPIs) -> some View {
-        if let cost = kpis.costThisWeek {
-            return KPICard(title: "Cost", value: String(format: "$%.2f", cost), caption: "this week", systemImage: "dollarsign.circle")
-        } else {
-            return KPICard(title: "Cost", value: "—", caption: "this week", systemImage: "dollarsign.circle",
-                           tooltip: "Configure your Anthropic API key in Settings to see costs.")
-        }
+        KPICard(title: "Cost", value: String(format: "$%.2f", kpis.costThisWeek), caption: "est. · this week", systemImage: "dollarsign.circle")
     }
 }
 

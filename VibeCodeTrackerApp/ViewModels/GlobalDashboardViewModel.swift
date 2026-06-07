@@ -11,6 +11,8 @@ struct SessionStat: Equatable, Sendable {
     let projectKey: String?
     /// Known per-session cost (USD). `nil` until the Anthropic API fills it in.
     var totalCostUSD: Double? = nil
+    /// Estimated cost (USD) at published Anthropic list prices, derived from token counts.
+    var estimatedCostUSD: Double = 0
 }
 
 /// The eight headline KPIs shown on the global dashboard.
@@ -18,8 +20,8 @@ struct DashboardKPIs: Equatable {
     var activeProjects: Int = 0
     var sessionsThisWeek: Int = 0
     var tokensThisWeek: Int = 0
-    /// `nil` when unknown (no Anthropic API key configured yet → UI shows "—").
-    var costThisWeek: Double? = nil
+    /// Estimated weekly cost at list prices (always available; 0 when no tokens).
+    var costThisWeek: Double = 0
     var avgTokensPerSession: Int = 0
     var avgSessionDurationSeconds: Int = 0
     var topModelFamily: String = "—"
@@ -72,10 +74,7 @@ enum DashboardCalculator {
 
         kpis.blockedSessions = stats.filter { $0.status == SessionStatus.blocked.rawValue }.count
 
-        // Cost: sum known per-session costs in the week; nil if none are known
-        // (no API key yet). The UI renders nil as "—".
-        let knownCosts = thisWeek.compactMap(\.totalCostUSD)
-        kpis.costThisWeek = knownCosts.isEmpty ? nil : knownCosts.reduce(0, +)
+        kpis.costThisWeek = thisWeek.reduce(0) { $0 + $1.estimatedCostUSD }
 
         return kpis
     }
@@ -93,7 +92,14 @@ enum GlobalDashboardViewModel {
                 modelFamily: session.modelFamily,
                 status: session.status,
                 projectKey: session.project?.claudeProjectHash,
-                totalCostUSD: session.totalCostUSD
+                totalCostUSD: session.totalCostUSD,
+                estimatedCostUSD: ModelPricing.cost(
+                    family: session.modelFamily,
+                    inputTokens: session.inputTokens,
+                    outputTokens: session.outputTokens,
+                    cacheReadTokens: session.cacheReadTokens,
+                    cacheCreationTokens: session.cacheCreationTokens
+                )
             )
         }
     }
