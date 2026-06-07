@@ -3,10 +3,13 @@ import SwiftData
 import AppKit
 
 /// Level-2 view: a single project's header, local KPIs, stack, and sessions.
-/// Commit timeline (Slice 6) and backlog (Slice 7) sections are added later.
 struct ProjectDetailView: View {
     let projectID: PersistentIdentifier
     @Environment(\.modelContext) private var context
+
+    @AppStorage(PreferenceKey.detailSessionsExpanded) private var sessionsExpanded = true
+    @AppStorage(PreferenceKey.detailCommitsExpanded) private var commitsExpanded = false
+    @AppStorage(PreferenceKey.detailBacklogExpanded) private var backlogExpanded = false
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
@@ -23,52 +26,69 @@ struct ProjectDetailView: View {
     private func content(for project: Project) -> some View {
         let kpis = ProjectDetailViewModel.kpis(for: project)
         let sessions = project.sessions.sorted { $0.startedAt > $1.startedAt }
+        let commits = project.commits.sorted { $0.authoredAt > $1.authoredAt }
 
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
                 header(for: project)
 
-                LazyVGrid(columns: columns, spacing: 12) {
-                    KPICard(title: "Sessions", value: "\(kpis.sessionCount)", systemImage: "bubble.left.and.bubble.right")
-                    KPICard(title: "Tokens", value: Format.tokens(kpis.totalTokens), systemImage: "number")
-                    KPICard(title: "Cost", value: String(format: "$%.2f", kpis.totalCostUSD), systemImage: "dollarsign.circle")
-                    KPICard(title: "Avg time", value: kpis.avgDurationSeconds > 0 ? Format.duration(kpis.avgDurationSeconds) : "—", systemImage: "clock")
+                LazyVGrid(columns: columns, spacing: Spacing.md) {
+                    HeroKPI(title: "Sessions", value: "\(kpis.sessionCount)", systemImage: "bubble.left.and.bubble.right")
+                    HeroKPI(title: "Tokens", value: Format.tokens(kpis.totalTokens), systemImage: "number")
+                    HeroKPI(title: "Cost", value: String(format: "$%.2f", kpis.totalCostUSD), caption: "est.", systemImage: "dollarsign.circle")
+                    HeroKPI(title: "Avg time", value: kpis.avgDurationSeconds > 0 ? Format.duration(kpis.avgDurationSeconds) : "—", systemImage: "clock")
                 }
 
-                section("Commit activity — last 90 days") {
-                    if project.commits.isEmpty {
+                // Commit activity (always shown)
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    SectionHeader(title: "Commit activity — last 30 days")
+                    if commits.isEmpty {
                         Text("No commits found (not a Git repo, or no recent activity).")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(.secondary)
                     } else {
-                        CommitHeatmapView(commitDates: project.commits.map(\.authoredAt))
+                        CommitBarChartView(commitDates: commits.map(\.authoredAt))
                     }
                 }
 
-                section("Recent commits") {
-                    CommitsListView(commits: Array(project.commits.sorted { $0.authoredAt > $1.authoredAt }.prefix(10)))
+                // Recent sessions (collapsible, default open) — sessions lead this tracker
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    SectionHeader(title: "Recent sessions", count: sessions.count, isExpanded: $sessionsExpanded)
+                    if sessionsExpanded {
+                        SessionsTableView(sessions: sessions)
+                    }
                 }
 
-                section("Stack") {
-                    StackTagsView(stack: project.stack)
+                // Recent commits (collapsible, default collapsed)
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    SectionHeader(title: "Recent commits", count: commits.count, isExpanded: $commitsExpanded)
+                    if commitsExpanded {
+                        if commits.isEmpty {
+                            Text("No commits yet").font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            CommitsListView(commits: Array(commits.prefix(10)))
+                        }
+                    }
                 }
 
-                section("Recent sessions") {
-                    SessionsListView(sessions: sessions)
-                        .frame(minHeight: 120)
-                }
-
-                section("Backlog") {
-                    BacklogView(items: project.backlogItems)
+                // Backlog (collapsible, default collapsed)
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    SectionHeader(title: "Backlog", count: project.backlogItems.count, isExpanded: $backlogExpanded)
+                    if backlogExpanded {
+                        if project.backlogItems.isEmpty {
+                            Text("No backlog items").font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            BacklogView(items: project.backlogItems)
+                        }
+                    }
                 }
             }
-            .padding(20)
+            .padding(Spacing.lg)
         }
     }
 
     @ViewBuilder
     private func header(for project: Project) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
             HStack(alignment: .firstTextBaseline) {
                 Text(project.name)
                     .font(.largeTitle.weight(.semibold))
@@ -87,14 +107,14 @@ struct ProjectDetailView: View {
             Text("First seen \(project.firstSeenAt.formatted(date: .abbreviated, time: .omitted)) · Last activity \(Format.relative(project.lastActivityAt))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    @ViewBuilder
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.headline)
-            content()
+            DisclosureGroup {
+                StackTagsView(stack: project.stack)
+                    .padding(.top, Spacing.xs)
+            } label: {
+                Text("Stack")
+                    .font(.subheadline.weight(.medium))
+            }
+            .padding(.top, Spacing.xs)
         }
     }
 
