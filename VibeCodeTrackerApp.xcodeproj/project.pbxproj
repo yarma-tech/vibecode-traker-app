@@ -19,6 +19,7 @@
 		1DC7FE7B1471D21DC50150A1 /* GlobalDashboardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13546BF0C667CF1909803725 /* GlobalDashboardViewModelTests.swift */; };
 		20741C103194CD3AC4429744 /* AnthropicUsageClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6FE8E0FD8F205F1FED73860 /* AnthropicUsageClientTests.swift */; };
 		20A164EE567F5147E6F1F1C6 /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6C976DC9F933DC084D89669 /* SyncCoordinator.swift */; };
+		229AA55B6AEAC5E51EB59CDA /* CommitBarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11055849722C237E30080CF4 /* CommitBarChartView.swift */; };
 		2367F6EE392D228F774C17CF /* StatusSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20EE78A82966F6718C3356A4 /* StatusSyncService.swift */; };
 		2848EEFC60EFCA9A3DD5FD86 /* SyncStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C13B0E742FE40D5441A941D /* SyncStatusTests.swift */; };
 		29FDCA1D68300CFC75B6731E /* VibeCodeTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7EE9CA34837154144CEC2DF /* VibeCodeTrackerApp.swift */; };
@@ -72,6 +73,7 @@
 		D79E739DCC9B2715F7F7B790 /* BacklogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 999B99AAEFE8CF82257400DD /* BacklogView.swift */; };
 		D81B3CFA07F1BF39A7885937 /* FileSyncState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB92E9E7B1C0AA8F69A9F09 /* FileSyncState.swift */; };
 		D879E7EAE22E3C40738E24C4 /* ProjectDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF63CC02E7520F2F6A794399 /* ProjectDetailViewModel.swift */; };
+		DF688FE06ED37DD8F2C5FA27 /* CommitBarsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7790A144CB63E1FFF05BA0 /* CommitBarsTests.swift */; };
 		E11BA00041E0C941C055DCF2 /* StackDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC802489958CD53BFA3E7753 /* StackDetectorTests.swift */; };
 		E6EBD6824A09C97ED38F75D1 /* ModelPricingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A945DBD3B5E70AB2C6FEB1EA /* ModelPricingTests.swift */; };
 		EAFD7E41E3E8AF33CF3C3F72 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A218F48E836862EDBB376F /* Project.swift */; };
@@ -94,6 +96,8 @@
 		02F19CC91D99E7844DF60962 /* SessionSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSyncService.swift; sourceTree = "<group>"; };
 		083E2D6529BD739315435657 /* CommitsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitsListView.swift; sourceTree = "<group>"; };
 		08A218F48E836862EDBB376F /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
+		0C7790A144CB63E1FFF05BA0 /* CommitBarsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitBarsTests.swift; sourceTree = "<group>"; };
+		11055849722C237E30080CF4 /* CommitBarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitBarChartView.swift; sourceTree = "<group>"; };
 		13546BF0C667CF1909803725 /* GlobalDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalDashboardViewModelTests.swift; sourceTree = "<group>"; };
 		144D6D1E401D9D7BA9C3B736 /* UsageSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageSyncService.swift; sourceTree = "<group>"; };
 		14D603394F99A7064D66F8E1 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
@@ -226,6 +230,7 @@
 			isa = PBXGroup;
 			children = (
 				999B99AAEFE8CF82257400DD /* BacklogView.swift */,
+				11055849722C237E30080CF4 /* CommitBarChartView.swift */,
 				81887B9FFBBFBAEC99D42279 /* CommitHeatmapView.swift */,
 				083E2D6529BD739315435657 /* CommitsListView.swift */,
 				3B7D1A0CAC335EE0B53AD2D4 /* ProjectDetailView.swift */,
@@ -243,6 +248,7 @@
 				A1AD5DE839DFCE8BC0E9D259 /* BacklogSyncServiceTests.swift */,
 				0275905073114EE2F7E40BC5 /* BootstrapTests.swift */,
 				BE5117657535D8C250FAC99E /* ClaudeProjectsScannerTests.swift */,
+				0C7790A144CB63E1FFF05BA0 /* CommitBarsTests.swift */,
 				B0F4F4882332680FC96579BB /* CommitHeatmapTests.swift */,
 				92BEB11C52906C2D5BC3F38F /* FormatTests.swift */,
 				5C0E5665A739DC4A42D1A291 /* GitInspectorTests.swift */,
@@ -463,6 +469,7 @@
 				2D46F330216BA0ECEFE2B9F6 /* BacklogSyncServiceTests.swift in Sources */,
 				31152AD417654EB2D487ADEA /* BootstrapTests.swift in Sources */,
 				34818B4C82FC38522F2CE2D0 /* ClaudeProjectsScannerTests.swift in Sources */,
+				DF688FE06ED37DD8F2C5FA27 /* CommitBarsTests.swift in Sources */,
 				9C98CD17F235DEA1F2B0E2FF /* CommitHeatmapTests.swift in Sources */,
 				166720D32652103B4BBF48A6 /* FormatTests.swift in Sources */,
 				C3321D215DB4A691CA9EDE59 /* GitInspectorTests.swift in Sources */,
@@ -494,6 +501,7 @@
 				12A41C778B472F96412793FA /* ClaudeProjectsScanner.swift in Sources */,
 				12A51C87E328160493897F3C /* CloudKitSupport.swift in Sources */,
 				F36DE127DD78B0B69D9346B7 /* Commit.swift in Sources */,
+				229AA55B6AEAC5E51EB59CDA /* CommitBarChartView.swift in Sources */,
 				737449089D97A65D271A62B6 /* CommitHeatmapView.swift in Sources */,
 				34BDB4D3DDA75FF9C278AEB0 /* CommitsListView.swift in Sources */,
 				0707B45270FF0524B744AB88 /* ContentView.swift in Sources */,
