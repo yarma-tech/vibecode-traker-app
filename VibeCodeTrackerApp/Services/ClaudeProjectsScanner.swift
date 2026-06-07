@@ -120,7 +120,8 @@ final class ClaudeProjectsScanner {
                     claudeProjectHash: item.claudeProjectHash,
                     firstSeenAt: item.lastActivityAt,
                     lastActivityAt: item.lastActivityAt,
-                    pathIsProvisional: true
+                    pathIsProvisional: true,
+                    isWorktree: Project.detectIsWorktree(path: item.provisionalPath, claudeProjectHash: item.claudeProjectHash)
                 )
                 context.insert(project)
                 byHash[item.claudeProjectHash] = project

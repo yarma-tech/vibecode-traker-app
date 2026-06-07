@@ -8,6 +8,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Initial release.
 
+### Added (post-initial)
+- Project filters: Claude Code worktrees are detected and hidden from the sidebar
+  and KPIs by default (with a "Show worktrees" toggle), and projects are categorized
+  by GitHub remote vs local-only via a sidebar filter menu (All / On GitHub / Local only).
+
 ### Fixed
 - Crash when opening a project that has Git commits: the commit heatmap used a
   descending `chartYScale` domain (`6.5...(-0.5)`), which traps at runtime. Now uses

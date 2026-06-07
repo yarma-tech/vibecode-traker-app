@@ -49,6 +49,29 @@ final class GitInspectorTests: XCTestCase {
         XCTAssertEqual(GitInspector.parseShortstat(" 1 file changed, 2 deletions(-)").deletions, 2)
     }
 
+    // MARK: - Pure: remotes
+
+    func testParseRemotesDeduplicates() {
+        let output = """
+        origin\thttps://github.com/u/r.git (fetch)
+        origin\thttps://github.com/u/r.git (push)
+        upstream\tgit@gitlab.com:u/r.git (fetch)
+        upstream\tgit@gitlab.com:u/r.git (push)
+        """
+        XCTAssertEqual(GitInspector.parseRemotes(output), ["https://github.com/u/r.git", "git@gitlab.com:u/r.git"])
+    }
+
+    func testParseRemotesEmpty() {
+        XCTAssertEqual(GitInspector.parseRemotes(""), [])
+    }
+
+    func testIsGitHubURL() {
+        XCTAssertTrue(GitInspector.isGitHubURL("https://github.com/u/r.git"))
+        XCTAssertTrue(GitInspector.isGitHubURL("git@github.com:u/r.git"))
+        XCTAssertFalse(GitInspector.isGitHubURL("git@gitlab.com:u/r.git"))
+        XCTAssertFalse(GitInspector.isGitHubURL(""))
+    }
+
     // MARK: - Integration against a real temp repo
 
     func testReadsCommitsFromTempRepo() throws {
@@ -75,6 +98,19 @@ final class GitInspectorTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(commit.filesChanged, 1)
 
         XCTAssertEqual(GitInspector().currentBranch(inRepository: repo.path), "main")
+    }
+
+    func testReadsRemotesFromTempRepo() throws {
+        let repo = FileManager.default.temporaryDirectory.appending(path: "vct-repo-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: repo) }
+
+        try git(["init", "-b", "main"], in: repo)
+        try git(["remote", "add", "origin", "https://github.com/test/repo.git"], in: repo)
+
+        let remotes = GitInspector().remotes(inRepository: repo.path)
+        XCTAssertEqual(remotes, ["https://github.com/test/repo.git"])
+        XCTAssertTrue(remotes.contains(where: GitInspector.isGitHubURL))
     }
 
     func testIsGitRepositoryFalseForPlainDirectory() throws {

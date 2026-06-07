@@ -4,6 +4,37 @@ import Foundation
 enum PreferenceKey {
     static let syncViaICloud = "syncViaICloud"
     static let refreshFrequency = "refreshFrequency"
+    static let showWorktrees = "showWorktrees"
+    static let repositoryFilter = "repositoryFilter"
+}
+
+/// Sidebar repository filter.
+enum RepositoryFilter: String, CaseIterable, Identifiable {
+    case all
+    case gitHub
+    case localOnly
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: return "All repositories"
+        case .gitHub: return "On GitHub"
+        case .localOnly: return "Local only"
+        }
+    }
+}
+
+/// Pure filtering logic for the project sidebar (kept testable, no SwiftData).
+enum ProjectFilter {
+    static func matches(isWorktree: Bool, isOnGitHub: Bool, showWorktrees: Bool, repository: RepositoryFilter) -> Bool {
+        if isWorktree && !showWorktrees { return false }
+        switch repository {
+        case .all: return true
+        case .gitHub: return isOnGitHub
+        case .localOnly: return !isOnGitHub
+        }
+    }
 }
 
 /// How often the app refreshes data in the background.

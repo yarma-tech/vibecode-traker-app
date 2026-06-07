@@ -5,13 +5,19 @@ import SwiftData
 struct GlobalDashboardView: View {
     @Environment(\.modelContext) private var context
     @Environment(SyncCenter.self) private var syncCenter
+    @AppStorage(PreferenceKey.showWorktrees) private var showWorktrees = false
     @Query(sort: [SortDescriptor(\Session.startedAt, order: .reverse)])
     private var sessions: [Session]
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
+    /// Sessions excluding worktrees (unless the user opted to show them).
+    private var visibleSessions: [Session] {
+        showWorktrees ? sessions : sessions.filter { !($0.project?.isWorktree ?? false) }
+    }
+
     var body: some View {
-        let kpis = GlobalDashboardViewModel.kpis(from: sessions)
+        let kpis = GlobalDashboardViewModel.kpis(from: visibleSessions)
 
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -29,7 +35,7 @@ struct GlobalDashboardView: View {
                 content
             }
             .padding(20)
-            .animation(.default, value: sessions.isEmpty)
+            .animation(.default, value: visibleSessions.isEmpty)
         }
         .navigationTitle("Global Dashboard")
         .toolbar {
@@ -43,11 +49,11 @@ struct GlobalDashboardView: View {
 
     @ViewBuilder
     private var content: some View {
-        if !sessions.isEmpty {
+        if !visibleSessions.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Latest sessions across all projects")
                     .font(.headline)
-                LatestSessionsList(sessions: Array(sessions.prefix(10)))
+                LatestSessionsList(sessions: Array(visibleSessions.prefix(10)))
             }
         } else if syncCenter.isSyncing {
             VStack(spacing: 12) {

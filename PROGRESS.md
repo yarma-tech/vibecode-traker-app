@@ -211,6 +211,25 @@
 
 ---
 
+## Slice 15 — Filter worktrees + GitHub/local categorization (post-build feature)
+- Status: ✅ Done (2026-06-07)
+- Brainstormed + approved before building (design-first gate honored; streamlined the
+  spec ceremony per user's pace).
+- What: `Project.isWorktree` / `isOnGitHub` / `remoteURL`. Worktrees detected by
+  `.claude/worktrees/` in path or `claude-worktrees` in hash; hidden from sidebar AND
+  excluded from dashboard KPIs/latest by default, with a "Show worktrees" toggle.
+  Git remotes read via `GitInspector.remotes()` (`git remote -v`); `isOnGitHub` = any
+  remote at github.com. Sidebar filter menu (All / On GitHub / Local only). Git sync
+  skips worktrees (faster; they share the parent's remote/history).
+- Files: Project model, ClaudeProjectsScanner/SessionSyncService (set isWorktree),
+  GitInspector (remotes/parseRemotes/isGitHubURL), GitSyncService (remotes + skip
+  worktrees), App/Preferences (RepositoryFilter + ProjectFilter), ProjectListView
+  (filter menu), GlobalDashboardView (exclude worktrees), Tests/{ProjectFilterTests,
+  GitInspectorTests +remotes}.
+- Verify: `** TEST SUCCEEDED **`, 80 tests, 0 warnings. Real data: 47 → 31 worktrees
+  hidden / 16 shown; 6 detected on GitHub (correct remotes), rest local-only. App
+  launched, no crash.
+
 ## Session summary (morning read)
 - **All 14 slices attempted; 13 fully Done, Slice 12 (CloudKit) intentionally partial**
   (blocked without Apple Developer setup — graceful local-only degradation + scaffolding).

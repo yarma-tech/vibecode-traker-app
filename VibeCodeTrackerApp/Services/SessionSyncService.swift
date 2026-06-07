@@ -124,6 +124,7 @@ final class SessionSyncService {
                 project.path = cwd
                 project.name = ClaudeProjectsScanner.displayName(forPath: cwd)
                 project.pathIsProvisional = false
+                project.isWorktree = Project.detectIsWorktree(path: cwd, claudeProjectHash: project.claudeProjectHash)
             }
             if projectData.latestActivity > project.lastActivityAt {
                 project.lastActivityAt = projectData.latestActivity
@@ -178,7 +179,8 @@ final class SessionSyncService {
             claudeProjectHash: data.claudeProjectHash,
             firstSeenAt: data.latestActivity,
             lastActivityAt: data.latestActivity,
-            pathIsProvisional: data.cwd == nil
+            pathIsProvisional: data.cwd == nil,
+            isWorktree: Project.detectIsWorktree(path: path, claudeProjectHash: data.claudeProjectHash)
         )
         context.insert(project)
         index[data.claudeProjectHash] = project

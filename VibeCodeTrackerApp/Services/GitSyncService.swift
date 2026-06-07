@@ -6,6 +6,8 @@ struct RepoCommits: Sendable {
     let claudeProjectHash: String
     let branch: String?
     let commits: [GitCommit]
+    let remoteURL: String?
+    let isOnGitHub: Bool
 }
 
 struct GitSyncSummary: Equatable, Sendable {
@@ -26,9 +28,15 @@ final class GitSyncService {
         for candidate in candidates {
             guard GitInspector.isGitRepository(candidate.path) else { continue }
             let commits = (try? inspector.commits(inRepository: candidate.path)) ?? []
-            guard !commits.isEmpty else { continue }
             let branch = inspector.currentBranch(inRepository: candidate.path)
-            result.append(RepoCommits(claudeProjectHash: candidate.hash, branch: branch, commits: commits))
+            let remotes = inspector.remotes(inRepository: candidate.path)
+            result.append(RepoCommits(
+                claudeProjectHash: candidate.hash,
+                branch: branch,
+                commits: commits,
+                remoteURL: remotes.first,
+                isOnGitHub: remotes.contains(where: GitInspector.isGitHubURL)
+            ))
         }
         return result
     }
@@ -51,6 +59,8 @@ final class GitSyncService {
         for repo in repos {
             guard let project = projectsByHash[repo.claudeProjectHash] else { continue }
             summary.reposScanned += 1
+            project.remoteURL = repo.remoteURL
+            project.isOnGitHub = repo.isOnGitHub
             for gitCommit in repo.commits {
                 if let existing = commitsBySha[gitCommit.sha] {
                     existing.branch = repo.branch
@@ -82,8 +92,9 @@ final class GitSyncService {
     @MainActor
     @discardableResult
     func sync(into context: ModelContext) async throws -> GitSyncSummary {
+        // Skip worktrees: they're hidden and share the parent repo's remote/history.
         let candidates: [(hash: String, path: String)] = try context.fetch(FetchDescriptor<Project>())
-            .filter { !$0.pathIsProvisional }
+            .filter { !$0.pathIsProvisional && !$0.isWorktree }
             .map { (hash: $0.claudeProjectHash, path: $0.path) }
 
         let repos = await Task.detached(priority: .utility) { [self] in

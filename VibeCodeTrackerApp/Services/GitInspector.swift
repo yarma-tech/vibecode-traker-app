@@ -47,6 +47,12 @@ final class GitInspector {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    /// Unique Git remote URLs for a repository.
+    func remotes(inRepository path: String) -> [String] {
+        let output = (try? run(["-C", path, "remote", "-v"])) ?? ""
+        return Self.parseRemotes(output)
+    }
+
     // MARK: - Pure parsing (unit-tested)
 
     static func parseLog(_ output: String) -> [GitCommit] {
@@ -94,6 +100,24 @@ final class GitInspector {
             else if next.hasPrefix("deletion") { deletions = n }
         }
         return (files, insertions, deletions)
+    }
+
+    /// Parses `git remote -v` output into unique remote URLs.
+    /// Lines look like: `origin\thttps://github.com/u/r.git (fetch)`.
+    static func parseRemotes(_ output: String) -> [String] {
+        var urls: [String] = []
+        output.enumerateLines { line, _ in
+            let fields = line.split(whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
+            guard fields.count >= 2 else { return }
+            let url = fields[1]
+            if !url.isEmpty, !urls.contains(url) { urls.append(url) }
+        }
+        return urls
+    }
+
+    /// True if a remote URL points at github.com (SSH or HTTPS).
+    static func isGitHubURL(_ url: String) -> Bool {
+        url.lowercased().contains("github.com")
     }
 
     static func inferType(fromMessage message: String) -> String {
