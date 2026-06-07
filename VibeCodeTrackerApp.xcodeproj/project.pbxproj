@@ -80,6 +80,7 @@
 		D879E7EAE22E3C40738E24C4 /* ProjectDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF63CC02E7520F2F6A794399 /* ProjectDetailViewModel.swift */; };
 		DF688FE06ED37DD8F2C5FA27 /* CommitBarsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7790A144CB63E1FFF05BA0 /* CommitBarsTests.swift */; };
 		E11BA00041E0C941C055DCF2 /* StackDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC802489958CD53BFA3E7753 /* StackDetectorTests.swift */; };
+		E364C72E3F4647C06D8A3B7B /* KPITiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5F2984A5041BDDC499827E2 /* KPITiers.swift */; };
 		E6EBD6824A09C97ED38F75D1 /* ModelPricingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A945DBD3B5E70AB2C6FEB1EA /* ModelPricingTests.swift */; };
 		EAFD7E41E3E8AF33CF3C3F72 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A218F48E836862EDBB376F /* Project.swift */; };
 		F164D618A7F604B80FB69131 /* SessionSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02F19CC91D99E7844DF60962 /* SessionSyncService.swift */; };
@@ -154,6 +155,7 @@
 		B05E90F085DC4615167F339D /* SyncCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCenter.swift; sourceTree = "<group>"; };
 		B0F4F4882332680FC96579BB /* CommitHeatmapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitHeatmapTests.swift; sourceTree = "<group>"; };
 		B453A5C1FE23D54363872F44 /* BacklogParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogParserTests.swift; sourceTree = "<group>"; };
+		B5F2984A5041BDDC499827E2 /* KPITiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KPITiers.swift; sourceTree = "<group>"; };
 		B7EE9CA34837154144CEC2DF /* VibeCodeTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeCodeTrackerApp.swift; sourceTree = "<group>"; };
 		B8D048238EBC2FD760830039 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B90299CF6DCFD0F864A9DF01 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
@@ -185,6 +187,7 @@
 			children = (
 				90CFBCA34C269238DF2F27AA /* GlobalDashboardView.swift */,
 				15E41906EC59CD714B36EF16 /* KPICard.swift */,
+				B5F2984A5041BDDC499827E2 /* KPITiers.swift */,
 				CA3906BC2774E626BA6841C1 /* LatestSessionsList.swift */,
 			);
 			path = Global;
@@ -532,6 +535,7 @@
 				B4169FB4DD65368361187C25 /* GlobalDashboardViewModel.swift in Sources */,
 				7B92B8EEC3C0D37149244FDC /* JSONLParser.swift in Sources */,
 				C9163E6D70E46A2E2490F48C /* KPICard.swift in Sources */,
+				E364C72E3F4647C06D8A3B7B /* KPITiers.swift in Sources */,
 				898B258B85B4FE978B1B5F43 /* KeychainStore.swift in Sources */,
 				AF5EF956A88496C6C5D2BF01 /* LatestSessionsList.swift in Sources */,
 				583A7EDBA71DC10832BBC952 /* LaunchSplashView.swift in Sources */,

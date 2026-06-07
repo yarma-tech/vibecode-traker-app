@@ -9,8 +9,6 @@ struct GlobalDashboardView: View {
     @Query(sort: [SortDescriptor(\Session.startedAt, order: .reverse)])
     private var sessions: [Session]
 
-    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
-
     /// Sessions excluding worktrees (unless the user opted to show them).
     private var visibleSessions: [Session] {
         showWorktrees ? sessions : sessions.filter { !($0.project?.isWorktree ?? false) }
@@ -21,15 +19,25 @@ struct GlobalDashboardView: View {
 
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                LazyVGrid(columns: columns, spacing: 12) {
-                    KPICard(title: "Projects", value: "\(kpis.activeProjects)", caption: "active", systemImage: "folder")
-                    KPICard(title: "Sessions", value: "\(kpis.sessionsThisWeek)", caption: "this week", systemImage: "bubble.left.and.bubble.right")
-                    KPICard(title: "Tokens", value: Format.tokens(kpis.tokensThisWeek), caption: "this week", systemImage: "number")
-                    costCard(kpis)
-                    KPICard(title: "Avg / session", value: Format.tokens(kpis.avgTokensPerSession), caption: "tokens · 30d", systemImage: "chart.bar")
-                    KPICard(title: "Avg time", value: kpis.avgSessionDurationSeconds > 0 ? Format.duration(kpis.avgSessionDurationSeconds) : "—", caption: "30d", systemImage: "clock")
-                    KPICard(title: "Top model", value: kpis.topModelFamily, caption: kpis.topModelShare > 0 ? "\(Int((kpis.topModelShare * 100).rounded())) %" : nil, systemImage: "cpu")
-                    KPICard(title: "Blocked", value: "\(kpis.blockedSessions)", caption: "sessions", systemImage: "exclamationmark.triangle")
+                // Hero tier — the three decision metrics
+                HStack(spacing: Spacing.md) {
+                    HeroKPI(title: "Sessions", value: "\(kpis.sessionsThisWeek)", caption: "this week", systemImage: "bubble.left.and.bubble.right")
+                    HeroKPI(title: "Cost", value: String(format: "$%.2f", kpis.costThisWeek), caption: "est. · this week", systemImage: "dollarsign.circle")
+                    HeroKPI(title: "Blocked", value: "\(kpis.blockedSessions)", caption: "sessions", systemImage: "exclamationmark.triangle")
+                }
+                // Secondary tier — compact context metrics
+                Card {
+                    HStack(spacing: 0) {
+                        SecondaryMetric(label: "Projects", value: "\(kpis.activeProjects)")
+                        Divider().frame(height: 28)
+                        SecondaryMetric(label: "Tokens", value: Format.tokens(kpis.tokensThisWeek))
+                        Divider().frame(height: 28)
+                        SecondaryMetric(label: "Avg/session", value: Format.tokens(kpis.avgTokensPerSession))
+                        Divider().frame(height: 28)
+                        SecondaryMetric(label: "Avg time", value: kpis.avgSessionDurationSeconds > 0 ? Format.duration(kpis.avgSessionDurationSeconds) : "—")
+                        Divider().frame(height: 28)
+                        SecondaryMetric(label: "Top model", value: kpis.topModelFamily)
+                    }
                 }
 
                 content
@@ -75,9 +83,6 @@ struct GlobalDashboardView: View {
         }
     }
 
-    private func costCard(_ kpis: DashboardKPIs) -> some View {
-        KPICard(title: "Cost", value: String(format: "$%.2f", kpis.costThisWeek), caption: "est. · this week", systemImage: "dollarsign.circle")
-    }
 }
 
 /// Toolbar refresh button that spins while a sync is in progress.
