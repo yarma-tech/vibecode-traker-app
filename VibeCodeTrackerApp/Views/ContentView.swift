@@ -12,6 +12,7 @@ enum SidebarItem: Hashable {
 /// (skipped under tests to keep them hermetic).
 struct ContentView: View {
     @Environment(\.modelContext) private var context
+    @AppStorage(PreferenceKey.refreshFrequency) private var refreshFrequencyRaw = RefreshFrequency.hourly.rawValue
     @State private var selection: SidebarItem? = .dashboard
     @State private var hasScanned = false
 
@@ -22,13 +23,32 @@ struct ContentView: View {
         } detail: {
             DetailRouter(selection: selection)
         }
-        .task { await scanOnce() }
+        .task {
+            await scanOnce()
+            await backgroundRefreshLoop()
+        }
     }
 
     private func scanOnce() async {
         guard !hasScanned, !AppEnvironment.isRunningTests else { return }
         hasScanned = true
         await SyncCoordinator.fullSync(context: context)
+    }
+
+    /// Periodically re-runs the full sync per the user's refresh frequency.
+    /// Stops for the "manual" setting or under tests.
+    private func backgroundRefreshLoop() async {
+        guard !AppEnvironment.isRunningTests else { return }
+        while !Task.isCancelled {
+            let frequency = RefreshFrequency(rawValue: refreshFrequencyRaw) ?? .hourly
+            guard let interval = frequency.interval else { return }
+            do {
+                try await Task.sleep(for: .seconds(interval))
+            } catch {
+                return // cancelled
+            }
+            await SyncCoordinator.fullSync(context: context)
+        }
     }
 }
 

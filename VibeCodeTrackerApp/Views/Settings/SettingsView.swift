@@ -76,13 +76,33 @@ struct SettingsView: View {
         }
     }
 
-    /// Slice 10: local validation only. Real network check is added in Slice 11.
     private func testConnection() {
-        guard apiKey.hasPrefix("sk-ant-") else {
-            status = StatusMessage(text: "That doesn't look like an Anthropic Admin key (expected to start with \"sk-ant-\").", systemImage: "exclamationmark.triangle", color: .orange)
-            return
+        let key = apiKey
+        isTesting = true
+        status = nil
+        Task {
+            let result = await AnthropicUsageClient().testConnection(apiKey: key)
+            await MainActor.run {
+                isTesting = false
+                switch result {
+                case .success:
+                    status = StatusMessage(text: "Connection successful.", systemImage: "checkmark.circle", color: .green)
+                case .failure(let error):
+                    status = StatusMessage(text: Self.message(for: error), systemImage: "xmark.circle", color: .red)
+                }
+            }
         }
-        status = StatusMessage(text: "Key format looks valid. A live connection test is added with the usage API.", systemImage: "checkmark.circle", color: .green)
+    }
+
+    private static func message(for error: AnthropicAPIError) -> String {
+        switch error {
+        case .missingKey: return "Enter an API key first."
+        case .unauthorized: return "Unauthorized — check that this is a valid Admin API key."
+        case .rateLimited: return "Rate limited (429). Try again shortly."
+        case .http(let code): return "Unexpected server response (HTTP \(code))."
+        case .network(let message): return "Network error: \(message)"
+        case .decoding: return "Could not read the API response."
+        }
     }
 }
 

@@ -13,6 +13,8 @@ enum SyncCoordinator {
             try await BacklogSyncService().sync(into: context)
             try await StackSyncService().sync(into: context)
             try StatusSyncService().recomputeStatuses(in: context)
+            // No-op unless an Anthropic Admin key is in the Keychain.
+            try await UsageSyncService().sync(into: context)
         } catch {
             Log.app.error("Full sync failed: \(error.localizedDescription, privacy: .public)")
         }

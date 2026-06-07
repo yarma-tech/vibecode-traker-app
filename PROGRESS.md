@@ -156,3 +156,19 @@
   passed in this environment).
 - Note: "Test connection" does local key-format validation in this slice; a live
   network check is added with the usage API (Slice 11). iCloud toggle is UI-only until Slice 12.
+
+## Slice 11 — Anthropic Usage API
+- Status: ✅ Done (2026-06-07 01:02)
+- What: `AnthropicUsageClient` (usage_report/messages, x-api-key + anthropic-version,
+  tolerant JSON parse, error mapping 401/403/429/http/network/decoding, injectable
+  URLSession); `TokenUsageSnapshot` model; `ModelPricing` (public per-MTok price table);
+  `UsageSyncService` (Keychain-gated: no key → no-op/no network; else fetch → store
+  snapshots → price sessions so Cost KPIs light up). Settings "Test connection" now
+  does a real (mock-testable) call. Background hourly refresh loop honoring the
+  refresh-frequency setting. Added to the pipeline.
+- Files: Models/TokenUsageSnapshot.swift, Services/{AnthropicUsageClient,ModelPricing,
+  UsageSyncService}.swift, ContentView/SettingsView/SyncCoordinator updates,
+  Tests/{AnthropicUsageClientTests,ModelPricingTests}.swift (URLProtocol-mocked)
+- Verify: `** TEST SUCCEEDED **`, 63 tests, 0 warnings. NO real network calls made.
+- ⚠️ Blocker logged: exact API/cost schema needs validation with a real key — see
+  BLOCKERS.md. Cost is an estimate from public pricing applied to token counts.
