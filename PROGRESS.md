@@ -196,3 +196,29 @@
   Views/Global/GlobalDashboardView.swift, ContentView/App/SyncCoordinator updates
 - Verify: `** TEST SUCCEEDED **`, 67 tests, 0 warnings; app launches with embedded
   icon (Assets.car), no crash.
+
+## Slice 14 — Open source documentation
+- Status: ✅ Done (2026-06-07 01:20)
+- What: README (features/install/setup/privacy/contributing/license + trademark note),
+  CONTRIBUTING, CODE_OF_CONDUCT (Contributor Covenant 2.1), CHANGELOG (0.1.0),
+  GitHub Actions CI (regenerate via xcodegen → build+test on macOS), docs/ARCHITECTURE
+  (layers, parse-off-main/upsert-on-main, pipeline), docs/DEVELOPMENT (build/test/
+  regenerate/icon/layout/gotchas), issue + PR templates.
+- Files: README.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, CHANGELOG.md,
+  .github/workflows/ci.yml, .github/ISSUE_TEMPLATE/*, .github/PULL_REQUEST_TEMPLATE.md,
+  docs/{ARCHITECTURE,DEVELOPMENT}.md
+- Verify: clean build, `** TEST SUCCEEDED **`, 67 tests, 0 warnings.
+
+---
+
+## Session summary (morning read)
+- **All 14 slices attempted; 13 fully Done, Slice 12 (CloudKit) intentionally partial**
+  (blocked without Apple Developer setup — graceful local-only degradation + scaffolding).
+- **67 tests, 0 failures, 0 warnings.** Clean `xcodebuild` build + test.
+- **Validated against your real data**: 47 projects, 115 sessions ingested correctly.
+- **Open it**: `open VibeCodeTrackerApp.xcodeproj` then ⌘R (or `xcodebuild ... build`).
+- **Two things need you** (see BLOCKERS.md):
+  1. Add a real Anthropic Admin key in Settings + validate the usage API schema/cost.
+  2. Decide on CloudKit (needs Apple Developer account + removing @Attribute(.unique)).
+- **Not done per instructions**: no GitHub push, no code signing, no Apple Dev account,
+  no real API calls. Replace `OWNER` in README/CHANGELOG links when you create the repo.
