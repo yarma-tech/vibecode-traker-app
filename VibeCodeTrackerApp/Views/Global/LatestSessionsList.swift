@@ -23,7 +23,7 @@ private struct LatestSessionRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            StatusDot(status: session.status)
+            StatusBadge(status: session.status, showsLabel: false)
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.firstUserPrompt ?? "(no prompt)")
                     .lineLimit(1)
@@ -45,22 +45,5 @@ private struct LatestSessionRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-    }
-}
-
-/// Small colored status indicator (a fuller badge arrives in Slice 9).
-struct StatusDot: View {
-    let status: String
-
-    private var color: Color {
-        switch status {
-        case SessionStatus.inProgress.rawValue: return .yellow
-        case SessionStatus.blocked.rawValue: return .red
-        default: return .green
-        }
-    }
-
-    var body: some View {
-        Circle().fill(color).frame(width: 8, height: 8)
     }
 }

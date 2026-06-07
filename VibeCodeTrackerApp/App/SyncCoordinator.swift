@@ -12,6 +12,7 @@ enum SyncCoordinator {
             try await GitSyncService().sync(into: context)
             try await BacklogSyncService().sync(into: context)
             try await StackSyncService().sync(into: context)
+            try StatusSyncService().recomputeStatuses(in: context)
         } catch {
             Log.app.error("Full sync failed: \(error.localizedDescription, privacy: .public)")
         }

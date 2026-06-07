@@ -26,6 +26,10 @@ final class Session {
     var messageCount: Int
     /// Preview of the first real user prompt in the session.
     var firstUserPrompt: String?
+    /// Number of assistant messages containing error keywords (for status heuristic).
+    var errorMessageCount: Int
+    /// Modification date of the source `.jsonl` file (drives the inProgress status).
+    var fileModifiedAt: Date
 
     var project: Project?
 
@@ -48,6 +52,8 @@ final class Session {
         commitHashes: [String] = [],
         messageCount: Int = 0,
         firstUserPrompt: String? = nil,
+        errorMessageCount: Int = 0,
+        fileModifiedAt: Date = .distantPast,
         project: Project? = nil
     ) {
         self.sessionId = sessionId
@@ -68,6 +74,8 @@ final class Session {
         self.commitHashes = commitHashes
         self.messageCount = messageCount
         self.firstUserPrompt = firstUserPrompt
+        self.errorMessageCount = errorMessageCount
+        self.fileModifiedAt = fileModifiedAt
         self.project = project
     }
 

@@ -29,6 +29,7 @@ struct SessionRow: View {
                 .font(.body)
                 .lineLimit(1)
             HStack(spacing: 10) {
+                StatusBadge(status: session.status)
                 Label(session.modelFamily, systemImage: "cpu")
                 Label("\(Format.tokens(session.totalTokens)) tok", systemImage: "number")
                 if session.durationSeconds > 0 {

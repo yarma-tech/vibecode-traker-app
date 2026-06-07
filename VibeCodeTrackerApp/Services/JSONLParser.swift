@@ -15,6 +15,7 @@ struct ParsedSession: Equatable, Sendable {
     var messageCount: Int
     var firstUserPrompt: String?
     var cwd: String?
+    var errorMessageCount: Int = 0
 }
 
 /// Parses Claude Code `.jsonl` transcripts into aggregated `ParsedSession` values.
@@ -96,6 +97,25 @@ final class JSONLParser {
         return nil
     }
 
+    /// Error keywords used by the blocked-session heuristic (PRD §7).
+    static let errorKeywords = ["error", "failed", "cannot", "unable to"]
+
+    /// Concatenated text of a message `content` (string or text blocks).
+    static func allText(fromContent content: Any?) -> String {
+        if let string = content as? String { return string }
+        if let blocks = content as? [[String: Any]] {
+            return blocks.compactMap { block in
+                (block["type"] as? String) == "text" ? block["text"] as? String : nil
+            }.joined(separator: " ")
+        }
+        return ""
+    }
+
+    static func containsErrorKeyword(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return errorKeywords.contains { lower.contains($0) }
+    }
+
     static func cleanPreview(_ text: String) -> String? {
         let collapsed = text
             .components(separatedBy: .whitespacesAndNewlines)
@@ -143,6 +163,7 @@ final class JSONLParser {
         var messageCount = 0
         var firstUserPrompt: String?
         var cwd: String?
+        var errorMessageCount = 0
 
         mutating func ingest(_ object: [String: Any]) {
             let type = object["type"] as? String
@@ -174,6 +195,9 @@ final class JSONLParser {
                     if let model = message["model"] as? String, !model.isEmpty {
                         tokensByModel[model, default: 0] += input + output + cacheRead + cacheCreate
                     }
+                    if JSONLParser.containsErrorKeyword(JSONLParser.allText(fromContent: message["content"])) {
+                        errorMessageCount += 1
+                    }
                 }
             case "user":
                 messageCount += 1
@@ -203,7 +227,8 @@ final class JSONLParser {
                 cacheCreationTokens: cacheCreationTokens,
                 messageCount: messageCount,
                 firstUserPrompt: firstUserPrompt,
-                cwd: cwd
+                cwd: cwd,
+                errorMessageCount: errorMessageCount
             )
         }
     }

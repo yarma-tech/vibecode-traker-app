@@ -129,3 +129,17 @@
   via existing StackTagsView. Added to the pipeline.
 - Files: Services/{StackDetector,StackSyncService}.swift, Tests/StackDetectorTests.swift
 - Verify: `** TEST SUCCEEDED **`, 47 tests, 0 warnings.
+
+## Slice 9 — Session status detection
+- Status: ✅ Done (2026-06-07 00:50)
+- What: `SessionStatusEvaluator` (pure heuristic: inProgress if file modified <30 min;
+  blocked if ≥3 error-keyword assistant messages AND no commit in [start, end+5min];
+  else completed). Parser now counts error-keyword assistant messages; Session stores
+  `errorMessageCount` + `fileModifiedAt`. `StatusSyncService` recomputes statuses last
+  in the pipeline (after commits load). `StatusBadge` component used in session rows;
+  removed the duplicate StatusDot.
+- Files: Services/{SessionStatusEvaluator,StatusSyncService}.swift,
+  Views/Components/StatusBadge.swift, parser+model+sync updates,
+  Tests/SessionStatusEvaluatorTests.swift
+- Verify: `** TEST SUCCEEDED **`, 53 tests, 0 warnings.
+- Note: commit association is a time-window proxy (explicit session↔commit linking is V2).

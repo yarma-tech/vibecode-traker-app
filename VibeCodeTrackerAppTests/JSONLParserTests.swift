@@ -59,6 +59,16 @@ final class JSONLParserTests: XCTestCase {
         XCTAssertTrue(parser.parse("\n\n  \n", fallbackSessionId: "f", defaultDate: epoch).isEmpty)
     }
 
+    func testErrorMessageCount() {
+        let text = """
+        {"type":"assistant","sessionId":"s","message":{"model":"claude-opus-4-7","content":[{"type":"text","text":"Error: it failed"}],"usage":{"output_tokens":1}}}
+        {"type":"assistant","sessionId":"s","message":{"model":"claude-opus-4-7","content":[{"type":"text","text":"I cannot do that"}],"usage":{"output_tokens":1}}}
+        {"type":"assistant","sessionId":"s","message":{"model":"claude-opus-4-7","content":[{"type":"text","text":"all good now"}],"usage":{"output_tokens":1}}}
+        """
+        let s = parser.parse(text, fallbackSessionId: "s", defaultDate: epoch).first
+        XCTAssertEqual(s?.errorMessageCount, 2)
+    }
+
     // MARK: - Pure helpers
 
     func testModelFamily() {

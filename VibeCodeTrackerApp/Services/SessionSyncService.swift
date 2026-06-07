@@ -133,11 +133,11 @@ final class SessionSyncService {
                 summary.filesParsed += 1
                 for parsed in file.sessions {
                     if let existing = sessionsById[parsed.sessionId] {
-                        update(existing, from: parsed, project: project)
+                        update(existing, from: parsed, project: project, fileModifiedAt: file.modified)
                         summary.sessionsUpdated += 1
                     } else {
                         let session = Session(sessionId: parsed.sessionId, startedAt: parsed.startedAt)
-                        update(session, from: parsed, project: project)
+                        update(session, from: parsed, project: project, fileModifiedAt: file.modified)
                         context.insert(session)
                         sessionsById[parsed.sessionId] = session
                         summary.sessionsCreated += 1
@@ -186,7 +186,7 @@ final class SessionSyncService {
     }
 
     @MainActor
-    private func update(_ session: Session, from parsed: ParsedSession, project: Project) {
+    private func update(_ session: Session, from parsed: ParsedSession, project: Project, fileModifiedAt: Date) {
         session.startedAt = parsed.startedAt
         session.endedAt = parsed.endedAt
         session.durationSeconds = parsed.durationSeconds
@@ -198,6 +198,8 @@ final class SessionSyncService {
         session.cacheCreationTokens = parsed.cacheCreationTokens
         session.messageCount = parsed.messageCount
         session.firstUserPrompt = parsed.firstUserPrompt
+        session.errorMessageCount = parsed.errorMessageCount
+        session.fileModifiedAt = fileModifiedAt
         session.project = project
     }
 
