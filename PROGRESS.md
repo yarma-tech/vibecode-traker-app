@@ -172,3 +172,15 @@
 - Verify: `** TEST SUCCEEDED **`, 63 tests, 0 warnings. NO real network calls made.
 - ⚠️ Blocker logged: exact API/cost schema needs validation with a real key — see
   BLOCKERS.md. Cost is an estimate from public pricing applied to token counts.
+
+## Slice 12 — CloudKit sync (optional)
+- Status: 🟡 Partial — scaffolded + documented; not active (expected, see BLOCKERS.md)
+- What: `CloudKitSupport` (container id, availability flag, `SyncStatus`); inert
+  `makeContainer(cloudKit:)` path (compiles, never enabled); sidebar sync-status
+  indicator ("Local only" / "iCloud (setup required)"); Settings toggle reflects intent.
+- Files: App/CloudKitSupport.swift, Persistence.swift, ProjectListView.swift,
+  Tests/SyncStatusTests.swift
+- Verify: `** TEST SUCCEEDED **`, 67 tests, 0 warnings. App fully functional locally.
+- Why partial: CloudKit needs (1) an Apple Developer account + entitlement and
+  (2) removing all `@Attribute(.unique)` (CloudKit forbids them). Both are Yannick
+  decisions — documented in BLOCKERS.md and DECISIONS.md. Graceful degradation done.

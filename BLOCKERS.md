@@ -40,3 +40,22 @@ Template:
 - **Impact**: Without a key the app runs fully in tokens-only mode (cost shows "—").
   With a key, token snapshots + estimated costs populate.
 - **Workaround applied**: tolerant parser + documented price table; mocked tests.
+
+## [Slice 12] CloudKit sync — blocked without Apple Developer setup
+- **Date**: 2026-06-07
+- **Context**: Multi-machine sync via SwiftData + CloudKit (PRD §10, F4).
+- **Blockers** (two, both needing your action):
+  1. **Apple Developer account** ($99/yr) + iCloud capability with the
+     `iCloud.tech.yannick.vibecodetracker` container + entitlement in Xcode. I do
+     not create accounts or sign the app.
+  2. **Schema incompatibility**: CloudKit-backed SwiftData forbids
+     `@Attribute(.unique)`. V1 uses unique constraints on Project.id/claudeProjectHash,
+     Session.sessionId, Commit.sha, etc., and the upsert logic relies on them.
+     Enabling CloudKit means removing all `.unique` and de-duplicating manually.
+- **Need from Yannick**: decide whether CloudKit is worth the schema rework; if so,
+  set up the Apple Developer container + entitlement, then we remove `.unique` and
+  switch `PersistenceController.makeContainer(cloudKit: true)`.
+- **Impact**: none on local use — the app is fully functional locally.
+- **Workaround applied**: graceful degradation (default local store), an inert-but-
+  compiling CloudKit code path (`makeContainer(cloudKit:)`, `CloudKitSupport`), and a
+  sidebar status indicator that honestly shows "Local only" / "iCloud (setup required)".

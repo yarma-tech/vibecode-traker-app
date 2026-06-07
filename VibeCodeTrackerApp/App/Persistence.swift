@@ -8,9 +8,16 @@ enum PersistenceController {
     /// During active development the schema changes between slices. If the
     /// existing on-disk store is incompatible, it is wiped and recreated once
     /// rather than crashing the app. There is no production data to protect in V1.
-    static func makeContainer(inMemory: Bool = false) -> ModelContainer {
+    static func makeContainer(inMemory: Bool = false, cloudKit: Bool = false) -> ModelContainer {
         let schema = Schema(AppSchema.models)
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
+        let configuration: ModelConfiguration
+        if cloudKit {
+            // Inert in V1 (CloudKitSupport.isAvailable == false). Kept here to show
+            // the integration point; needs entitlements + removal of @Attribute(.unique).
+            configuration = ModelConfiguration(schema: schema, cloudKitDatabase: .private(CloudKitSupport.containerID))
+        } else {
+            configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
+        }
         do {
             return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
