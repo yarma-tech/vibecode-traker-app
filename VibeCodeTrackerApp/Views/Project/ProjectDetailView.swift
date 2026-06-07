@@ -11,7 +11,7 @@ struct ProjectDetailView: View {
     @AppStorage(PreferenceKey.detailCommitsExpanded) private var commitsExpanded = false
     @AppStorage(PreferenceKey.detailBacklogExpanded) private var backlogExpanded = false
 
-    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
+    private let columns = [GridItem(.adaptive(minimum: 150), spacing: Spacing.md)]
 
     var body: some View {
         if let project = context.model(for: projectID) as? Project {
@@ -62,11 +62,8 @@ struct ProjectDetailView: View {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     SectionHeader(title: "Recent commits", count: commits.count, isExpanded: $commitsExpanded)
                     if commitsExpanded {
-                        if commits.isEmpty {
-                            Text("No commits yet").font(.caption).foregroundStyle(.secondary)
-                        } else {
-                            CommitsListView(commits: Array(commits.prefix(10)))
-                        }
+                        // CommitsListView renders its own muted empty line.
+                        CommitsListView(commits: Array(commits.prefix(10)))
                     }
                 }
 
@@ -74,11 +71,8 @@ struct ProjectDetailView: View {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     SectionHeader(title: "Backlog", count: project.backlogItems.count, isExpanded: $backlogExpanded)
                     if backlogExpanded {
-                        if project.backlogItems.isEmpty {
-                            Text("No backlog items").font(.caption).foregroundStyle(.secondary)
-                        } else {
-                            BacklogView(items: project.backlogItems)
-                        }
+                        // BacklogView renders its own muted empty line.
+                        BacklogView(items: project.backlogItems)
                     }
                 }
             }
