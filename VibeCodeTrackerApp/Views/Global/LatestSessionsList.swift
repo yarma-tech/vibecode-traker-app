@@ -5,16 +5,16 @@ struct LatestSessionsList: View {
     let sessions: [Session]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(sessions) { session in
-                LatestSessionRow(session: session)
-                if session.id != sessions.last?.id {
-                    Divider()
+        Card(padding: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(sessions) { session in
+                    LatestSessionRow(session: session)
+                    if session.id != sessions.last?.id {
+                        Divider()
+                    }
                 }
             }
         }
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator, lineWidth: 0.5))
     }
 }
 
