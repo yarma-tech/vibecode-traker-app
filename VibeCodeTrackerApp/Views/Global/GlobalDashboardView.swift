@@ -18,7 +18,7 @@ struct GlobalDashboardView: View {
         let kpis = GlobalDashboardViewModel.kpis(from: visibleSessions)
 
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
                 // Hero tier — the three decision metrics
                 HStack(spacing: Spacing.md) {
                     HeroKPI(title: "Sessions", value: "\(kpis.sessionsThisWeek)", caption: "this week", systemImage: "bubble.left.and.bubble.right")
@@ -42,7 +42,7 @@ struct GlobalDashboardView: View {
 
                 content
             }
-            .padding(20)
+            .padding(Spacing.lg)
             .animation(.default, value: visibleSessions.isEmpty)
         }
         .navigationTitle("Global Dashboard")
@@ -58,7 +58,7 @@ struct GlobalDashboardView: View {
     @ViewBuilder
     private var content: some View {
         if !visibleSessions.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
                 Text("Latest sessions across all projects")
                     .font(.headline)
                 LatestSessionsList(sessions: Array(visibleSessions.prefix(10)))

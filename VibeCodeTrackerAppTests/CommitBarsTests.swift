@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import VibeCodeTrackerApp
 
 final class CommitBarsTests: XCTestCase {
@@ -38,5 +39,14 @@ final class CommitBarsTests: XCTestCase {
         let old = try XCTUnwrap(cal.date(byAdding: .day, value: -90, to: today))
         let bars = CommitBars.series(commitDates: [old], now: now, days: 30, calendar: cal)
         XCTAssertEqual(bars.reduce(0) { $0 + $1.count }, 0, "commits older than the window contribute nothing")
+    }
+
+    @MainActor
+    func testCommitBarChartViewRenders() throws {
+        // Guard that the chart body renders headlessly (the retired heatmap had an
+        // equivalent guard). A trapping body would surface as a nil image here.
+        let view = CommitBarChartView(commitDates: [now, now.addingTimeInterval(-86_400)], days: 30, now: now)
+        let renderer = ImageRenderer(content: view.frame(width: 480, height: 110))
+        XCTAssertNotNil(renderer.nsImage, "CommitBarChartView must render without trapping")
     }
 }
