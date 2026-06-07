@@ -79,3 +79,17 @@
   rather than calendar-week boundaries; labelled "this week" / "30d" in the UI.
 - Milestone: this completes the prompt's minimum deliverable (slices 1–4) — the app
   launches and shows real data end-to-end.
+- Runtime validation (real data): launched the built app against the real
+  ~/.claude/projects. SwiftData store ended with 47 projects + 115 sessions, all paths
+  correctly recovered from cwd (e.g. "agent-qonto" decoded correctly, not "agent/qonto"),
+  model families and token totals populated. No crash. Confirms the pipeline works.
+
+## Slice 5 — Project detail view
+- Status: ✅ Done (2026-06-07 00:26)
+- What: `ProjectDetailView` (header with name/path/first-seen/last-activity, Open in
+  Finder, 4 local KPI cards, Stack section, Recent sessions), `ProjectMetrics` pure
+  per-project KPI calc + `ProjectDetailViewModel`, reusable `StackTagsView`/`TagChip`.
+  Replaced the interim stub; wired into DetailRouter on project selection.
+- Files: ViewModels/ProjectDetailViewModel.swift, Views/Project/ProjectDetailView.swift,
+  Views/Components/StackTagsView.swift, Tests/ProjectDetailViewModelTests.swift
+- Verify: `** TEST SUCCEEDED **`, 29 tests, 0 failures.
