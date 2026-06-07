@@ -63,3 +63,19 @@
   not byte-offset line-level. Large files are read whole. Both fine for V1; noted as
   future work in FileSyncState.swift.
 - For the morning: path/name now correct (from cwd). GUI not visually verified headless.
+
+## Slice 4 — Global dashboard with KPIs
+- Status: ✅ Done (2026-06-07 00:21)
+- What: `DashboardCalculator` (pure KPI math), `GlobalDashboardViewModel` (Session →
+  stat bridge), 8 KPI cards (Projects / Sessions / Tokens / Cost / Avg-per-session /
+  Avg-time / Top-model / Blocked), reusable `KPICard`, `LatestSessionsList` (10 most
+  recent cross-project with status dot + project name), Refresh toolbar button.
+  Cost shows "—" + tooltip until an API key exists (Slice 11). Dashboard wired as the
+  default detail.
+- Files: ViewModels/GlobalDashboardViewModel.swift, Views/Global/{KPICard,
+  GlobalDashboardView,LatestSessionsList}.swift, Tests/GlobalDashboardViewModelTests.swift
+- Verify: `** TEST SUCCEEDED **`, 26 tests, 0 failures.
+- Decision: KPIs use rolling 7-day / 30-day windows (deterministic, timezone-safe)
+  rather than calendar-week boundaries; labelled "this week" / "30d" in the UI.
+- Milestone: this completes the prompt's minimum deliverable (slices 1–4) — the app
+  launches and shows real data end-to-end.

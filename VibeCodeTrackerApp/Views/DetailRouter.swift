@@ -10,11 +10,7 @@ struct DetailRouter: View {
     var body: some View {
         switch selection {
         case .dashboard, .none:
-            PlaceholderDetail(
-                title: "Global Dashboard",
-                systemImage: "square.grid.2x2",
-                subtitle: "KPIs and activity charts arrive in Slice 4."
-            )
+            GlobalDashboardView()
         case .project(let id):
             ProjectStubView(projectID: id)
         case .settings:
