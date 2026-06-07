@@ -10,6 +10,7 @@ enum SyncCoordinator {
             try await ClaudeProjectsScanner().scan(into: context)
             try await SessionSyncService().sync(into: context)
             try await GitSyncService().sync(into: context)
+            try await BacklogSyncService().sync(into: context)
         } catch {
             Log.app.error("Full sync failed: \(error.localizedDescription, privacy: .public)")
         }

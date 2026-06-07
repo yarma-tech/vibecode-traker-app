@@ -10,6 +10,7 @@ enum AppSchema {
         Project.self,
         Session.self,
         Commit.self,
+        BacklogItem.self,
         FileSyncState.self
     ]
 }

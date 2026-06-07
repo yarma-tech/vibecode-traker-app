@@ -34,6 +34,9 @@ final class Project {
     @Relationship(deleteRule: .cascade, inverse: \Commit.project)
     var commits: [Commit] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \BacklogItem.project)
+    var backlogItems: [BacklogItem] = []
+
     init(
         id: UUID = UUID(),
         name: String,

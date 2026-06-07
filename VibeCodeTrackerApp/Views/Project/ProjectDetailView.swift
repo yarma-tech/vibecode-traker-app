@@ -62,6 +62,10 @@ struct ProjectDetailView: View {
                     SessionsListView(sessions: sessions)
                         .frame(minHeight: 120)
                 }
+
+                section("Backlog") {
+                    BacklogView(items: project.backlogItems)
+                }
             }
             .padding(20)
         }

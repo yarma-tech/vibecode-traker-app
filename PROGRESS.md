@@ -109,3 +109,13 @@
 - Verify: clean build, **zero warnings**, `** TEST SUCCEEDED **`, 37 tests. Git test
   is a real integration test on a temp repo (created/committed in the test).
 - Note: Commit↔Session matching deferred to V2 (per PRD it's a refinement).
+
+## Slice 7 — Backlog parser
+- Status: ✅ Done (2026-06-07 00:40)
+- What: `BacklogItem` model (+ relationship); `BacklogParser` (markdown checkbox
+  parsing w/o brittle regex, P0–P2 priority extraction, reads TODO.md/BACKLOG.md);
+  `BacklogSyncService` with full reconciliation (add/update/remove by sourceFile+title);
+  `BacklogView` (sorted: open first, then priority). Added to detail view + pipeline.
+- Files: Models/BacklogItem.swift, Services/{BacklogParser,BacklogSyncService}.swift,
+  Views/Project/BacklogView.swift, Tests/{BacklogParserTests,BacklogSyncServiceTests}.swift
+- Verify: `** TEST SUCCEEDED **`, 42 tests, 0 warnings.
