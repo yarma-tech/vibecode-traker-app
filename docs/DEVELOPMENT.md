@@ -25,6 +25,17 @@ xcodebuild -scheme VibeCodeTrackerApp -destination 'platform=macOS' test CODE_SI
 Tests are hermetic: they use `FileManager.default.temporaryDirectory` and in-memory
 `ModelContainer`s, and never touch the network or your real `~/.claude`.
 
+## Installing to /Applications
+
+```bash
+./scripts/install.sh            # build Release, install, launch
+./scripts/install.sh --no-open  # build + install only
+```
+
+Builds into a local `build/` dir (git-ignored), then `ditto`s the app to
+`/Applications` (or `~/Applications` if the former isn't writable without sudo).
+Re-run it after code changes to update the installed copy.
+
 ## Regenerating the project
 
 `project.yml` is the source of truth for the Xcode project. The generated

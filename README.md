@@ -34,6 +34,13 @@ cd vibecode-traker-app
 open VibeCodeTrackerApp.xcodeproj   # then press Run (⌘R)
 ```
 
+Or install a Release build straight into `/Applications` (it lands in Launchpad):
+
+```bash
+./scripts/install.sh          # build Release, install to /Applications, launch
+./scripts/install.sh --no-open
+```
+
 Or build/test from the command line:
 
 ```bash
