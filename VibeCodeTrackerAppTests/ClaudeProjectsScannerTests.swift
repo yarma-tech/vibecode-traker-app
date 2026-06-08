@@ -54,8 +54,11 @@ final class ClaudeProjectsScannerTests: XCTestCase {
         let temp = try TestSupport.makeTempProjectsDir(folders: ["-Users-test-alpha", "-Users-test-beta"])
         defer { try? FileManager.default.removeItem(at: temp) }
 
-        // Retain the container for the whole test (see TestSupport docs).
+        // Pin the container for the whole test, including across `await`s
+        // (see TestSupport docs). Without this, ARC can release it at its last
+        // use and the next fetch traps inside SwiftData (EXC_BREAKPOINT).
         let container = try TestSupport.makeInMemoryContainer()
+        defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
         let scanner = ClaudeProjectsScanner(projectsDirectory: temp)
 

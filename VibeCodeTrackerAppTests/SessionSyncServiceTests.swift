@@ -12,6 +12,7 @@ final class SessionSyncServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: temp) }
 
         let container = try TestSupport.makeInMemoryContainer()
+        defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
         let service = SessionSyncService(projectsDirectory: temp)
 
@@ -41,6 +42,7 @@ final class SessionSyncServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: temp) }
 
         let container = try TestSupport.makeInMemoryContainer()
+        defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
         let service = SessionSyncService(projectsDirectory: temp)
 

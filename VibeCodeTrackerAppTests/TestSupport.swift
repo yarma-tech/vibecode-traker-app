@@ -6,11 +6,18 @@ import SwiftData
 enum TestSupport {
     /// Creates an in-memory `ModelContainer` covering the full app schema.
     ///
-    /// IMPORTANT: the caller MUST retain the returned container for the duration
-    /// of the test. `container.mainContext` does **not** keep the container
-    /// alive — using a context whose container has deallocated traps inside
-    /// SwiftData (EXC_BREAKPOINT). Always write:
-    /// `let container = try TestSupport.makeInMemoryContainer(); let ctx = container.mainContext`
+    /// IMPORTANT: the caller MUST keep the returned container alive for the whole
+    /// test. `container.mainContext` does **not** retain its container, so a bare
+    /// `let container = …; let ctx = container.mainContext` is NOT enough: ARC may
+    /// release the container at its last syntactic use (the `.mainContext` line),
+    /// especially in `async` tests where nothing references it again across an
+    /// `await`. A later `ctx.fetch` then traps inside SwiftData (EXC_BREAKPOINT).
+    /// Pin the lifetime to the end of scope right after creating it:
+    /// ```
+    /// let container = try TestSupport.makeInMemoryContainer()
+    /// defer { withExtendedLifetime(container) {} }
+    /// let context = container.mainContext
+    /// ```
     @MainActor
     static func makeInMemoryContainer() throws -> ModelContainer {
         try ModelContainer(

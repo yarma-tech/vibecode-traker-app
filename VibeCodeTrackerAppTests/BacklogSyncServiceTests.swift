@@ -12,6 +12,7 @@ final class BacklogSyncServiceTests: XCTestCase {
     @MainActor
     func testReconcileCreateUpdateRemove() throws {
         let container = try TestSupport.makeInMemoryContainer()
+        defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
         let project = Project(name: "p", path: "/tmp/p", claudeProjectHash: projectHash, pathIsProvisional: false)
         context.insert(project)
