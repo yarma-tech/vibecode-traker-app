@@ -36,6 +36,14 @@ enum Format {
         relativeFormatter.localizedString(for: date, relativeTo: now)
     }
 
+    /// Single-line preview of a user prompt, truncated to `limit` characters
+    /// with a trailing ellipsis. `nil` renders as "(no prompt)".
+    static func promptPreview(_ prompt: String?, limit: Int = 40) -> String {
+        let text = (prompt ?? "(no prompt)").trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.count <= limit { return text }
+        return String(text.prefix(limit - 1)) + "…"
+    }
+
     private static func trim(_ value: Double) -> String {
         // One decimal, but drop a trailing ".0".
         let s = String(format: "%.1f", value)

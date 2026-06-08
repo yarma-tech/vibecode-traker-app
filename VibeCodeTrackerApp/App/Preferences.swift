@@ -10,6 +10,8 @@ enum PreferenceKey {
     static let detailCommitsExpanded = "detailCommitsExpanded"
     static let detailSessionsExpanded = "detailSessionsExpanded"
     static let detailBacklogExpanded = "detailBacklogExpanded"
+    // Sessions section view mode: "table" | "kanban" (global, not per-project).
+    static let detailSessionsViewMode = "detailSessionsViewMode"
 }
 
 /// Sidebar repository filter.

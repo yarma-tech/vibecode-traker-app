@@ -28,6 +28,11 @@ targets:
     platform: macOS
     sources:
       - path: VibeCodeTrackerApp
+    dependencies:
+      # On-device titling (macOS 26+). Weak-linked so the app still launches on
+      # the macOS 14.0 deployment target; all uses are #if canImport + @available.
+      - sdk: FoundationModels.framework
+        weak: true
     settings:
       base:
         PRODUCT_NAME: VibeCodeTrackerApp

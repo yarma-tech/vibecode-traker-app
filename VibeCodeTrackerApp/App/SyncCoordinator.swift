@@ -15,6 +15,7 @@ enum SyncCoordinator {
             try await BacklogSyncService().sync(into: context)
             try await StackSyncService().sync(into: context)
             try StatusSyncService().recomputeStatuses(in: context)
+            try await TitleSyncService().syncTitles(in: context)
             center?.lastSyncedAt = .now
         } catch {
             Log.app.error("Full sync failed: \(error.localizedDescription, privacy: .public)")

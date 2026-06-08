@@ -1,14 +1,12 @@
 import SwiftUI
 
 /// Compact, column-aligned table of a project's sessions.
-/// Columns: status · prompt (≤40 chars) · model · tokens · duration · commit · date.
+/// Columns: status · title + prompt (≤40 chars) · model · tokens · duration · commit · date.
 struct SessionsTableView: View {
     let sessions: [Session]
     /// Authored dates of the project's commits, used to mark each session
     /// "Commit" / "No commit" via `SessionStatusEvaluator.hasCommit`.
     var commitDates: [Date] = []
-
-    private let promptLimit = 40
 
     var body: some View {
         if sessions.isEmpty {
@@ -19,7 +17,7 @@ struct SessionsTableView: View {
             Grid(alignment: .leading, horizontalSpacing: Spacing.md, verticalSpacing: Spacing.sm) {
                 GridRow {
                     Text("").gridColumnAlignment(.center)
-                    header("Prompt")
+                    header("Session")
                     header("Model")
                     header("Tokens").gridColumnAlignment(.trailing)
                     header("Duration").gridColumnAlignment(.trailing)
@@ -30,8 +28,7 @@ struct SessionsTableView: View {
                 ForEach(sessions) { session in
                     GridRow {
                         StatusBadge(status: session.status, showsLabel: false)
-                        Text(preview(session.firstUserPrompt))
-                            .lineLimit(1)
+                        titleCell(session)
                         Text(session.modelFamily)
                             .foregroundStyle(.secondary)
                         Text(Format.tokens(session.totalTokens))
@@ -40,7 +37,7 @@ struct SessionsTableView: View {
                         Text(session.durationSeconds > 0 ? Format.duration(session.durationSeconds) : "—")
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
-                        commitCell(committed(session))
+                        SessionCommitBadge(committed: committed(session))
                         Text(Format.relative(session.startedAt))
                             .foregroundStyle(.secondary)
                     }
@@ -56,10 +53,21 @@ struct SessionsTableView: View {
             .foregroundStyle(.secondary)
     }
 
-    private func preview(_ prompt: String?) -> String {
-        let text = (prompt ?? "(no prompt)").trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.count <= promptLimit { return text }
-        return String(text.prefix(promptLimit - 1)) + "…"
+    /// Synthesized title on top, the 40-char prompt preview beneath it.
+    /// Until a title is generated, the prompt is shown as the primary line.
+    @ViewBuilder
+    private func titleCell(_ session: Session) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(session.title ?? Format.promptPreview(session.firstUserPrompt))
+                .fontWeight(.semibold)
+                .lineLimit(1)
+            if session.title != nil {
+                Text(Format.promptPreview(session.firstUserPrompt))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
     }
 
     /// A session is "committed" if a project commit falls within its time window
@@ -68,15 +76,5 @@ struct SessionsTableView: View {
         SessionStatusEvaluator.hasCommit(commitDates: commitDates,
                                          startedAt: session.startedAt,
                                          endedAt: session.endedAt)
-    }
-
-    @ViewBuilder
-    private func commitCell(_ committed: Bool) -> some View {
-        HStack(spacing: Spacing.xs) {
-            Image(systemName: committed ? "arrow.triangle.branch" : "minus")
-                .foregroundStyle(committed ? Color.green : Color.secondary)
-            Text(committed ? "Commit" : "No commit")
-                .foregroundStyle(.secondary)
-        }
     }
 }

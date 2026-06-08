@@ -10,8 +10,13 @@ struct ProjectDetailView: View {
     @AppStorage(PreferenceKey.detailSessionsExpanded) private var sessionsExpanded = true
     @AppStorage(PreferenceKey.detailCommitsExpanded) private var commitsExpanded = false
     @AppStorage(PreferenceKey.detailBacklogExpanded) private var backlogExpanded = false
+    @AppStorage(PreferenceKey.detailSessionsViewMode) private var sessionsViewModeRaw = SessionDisplayMode.table.rawValue
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: Spacing.md)]
+
+    private var sessionsViewMode: SessionDisplayMode {
+        SessionDisplayMode(rawValue: sessionsViewModeRaw) ?? .table
+    }
 
     var body: some View {
         if let project = context.model(for: projectID) as? Project {
@@ -52,9 +57,26 @@ struct ProjectDetailView: View {
 
                 // Recent sessions (collapsible, default open) — sessions lead this tracker
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    SectionHeader(title: "Recent sessions", count: sessions.count, isExpanded: $sessionsExpanded)
+                    HStack(spacing: Spacing.md) {
+                        SectionHeader(title: "Recent sessions", count: sessions.count, isExpanded: $sessionsExpanded)
+                        if sessionsExpanded {
+                            Picker("View", selection: $sessionsViewModeRaw) {
+                                ForEach(SessionDisplayMode.allCases) { mode in
+                                    Label(mode.label, systemImage: mode.systemImage).tag(mode.rawValue)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .fixedSize()
+                        }
+                    }
                     if sessionsExpanded {
-                        SessionsTableView(sessions: sessions, commitDates: commits.map(\.authoredAt))
+                        switch sessionsViewMode {
+                        case .table:
+                            SessionsTableView(sessions: sessions, commitDates: commits.map(\.authoredAt))
+                        case .kanban:
+                            SessionsKanbanView(sessions: sessions, commitDates: commits.map(\.authoredAt))
+                        }
                     }
                 }
 
