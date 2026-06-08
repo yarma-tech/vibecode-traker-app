@@ -10,6 +10,12 @@ struct VibeCodeTrackerApp: App {
     @State private var syncCenter = SyncCenter()
 
     init() {
+        // A second copy sharing this bundle id would corrupt the shared SwiftData
+        // store (see SingleInstanceGuard). Hand off to the existing instance and
+        // exit before opening the container.
+        if SingleInstanceGuard.anotherInstanceIsRunning() {
+            exit(0)
+        }
         container = PersistenceController.makeContainer()
     }
 
