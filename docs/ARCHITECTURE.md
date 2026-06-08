@@ -1,7 +1,7 @@
 # Architecture
 
-Vibe Code Tracker is a local-first macOS app: Swift + SwiftUI + SwiftData, no
-external services except the optional Anthropic API.
+Vibe Code Tracker is a local-first macOS app: Swift + SwiftUI + SwiftData. It
+makes no network calls — everything is derived on-device.
 
 ## Layers
 
@@ -12,7 +12,6 @@ external services except the optional Anthropic API.
 │  <project>/.git                      commits (git CLI)     │
 │  <project>/TODO.md, BACKLOG.md       backlog               │
 │  <project>/package.json, Cargo.toml… stack signals         │
-│  api.anthropic.com (opt-in)          tokens / cost         │
 └────────────────────────────────────────────────────────────┘
                          │  parse off the main actor → value types
                          ▼
@@ -21,14 +20,12 @@ external services except the optional Anthropic API.
 │  ClaudeProjectsScanner · JSONLParser · SessionSyncService  │
 │  GitInspector · GitSyncService · BacklogParser/Sync        │
 │  StackDetector/Sync · StatusSyncService                    │
-│  AnthropicUsageClient · UsageSyncService · KeychainStore   │
 └────────────────────────────────────────────────────────────┘
                          │  upsert on the main actor
                          ▼
 ┌────────────────────────────────────────────────────────────┐
 │ SwiftData store                                            │
-│  Project · Session · Commit · BacklogItem ·                │
-│  TokenUsageSnapshot · FileSyncState                        │
+│  Project · Session · Commit · BacklogItem · FileSyncState  │
 └────────────────────────────────────────────────────────────┘
                          │  @Query / observation
                          ▼
@@ -61,7 +58,6 @@ access on the main actor.
 4. `BacklogSyncService` — parse TODO/BACKLOG.
 5. `StackSyncService` — detect stack.
 6. `StatusSyncService` — recompute session status (needs commits).
-7. `UsageSyncService` — Anthropic API (no-op without a key).
 
 It runs on launch, on the Refresh button, and on a background timer (the
 configurable refresh frequency).
@@ -69,8 +65,8 @@ configurable refresh frequency).
 ## Models
 
 `Project` owns cascading relationships to `Session`, `Commit`, and `BacklogItem`.
-`TokenUsageSnapshot` records API usage; `FileSyncState` tracks per-file scan state
-(local, never synced). All models are registered once in `AppSchema.models`.
+`FileSyncState` tracks per-file scan state (local, never synced). All models are
+registered once in `AppSchema.models`.
 
 ## Notable decisions
 

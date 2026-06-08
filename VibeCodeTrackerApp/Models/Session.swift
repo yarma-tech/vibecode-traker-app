@@ -16,7 +16,6 @@ final class Session {
     var outputTokens: Int
     var cacheReadTokens: Int
     var cacheCreationTokens: Int
-    var totalCostUSD: Double?
     var topic: String?
     var category: String?
     /// "completed" | "inProgress" | "blocked" (refined in Slice 9).
@@ -44,7 +43,6 @@ final class Session {
         outputTokens: Int = 0,
         cacheReadTokens: Int = 0,
         cacheCreationTokens: Int = 0,
-        totalCostUSD: Double? = nil,
         topic: String? = nil,
         category: String? = nil,
         status: String = SessionStatus.completed.rawValue,
@@ -66,7 +64,6 @@ final class Session {
         self.outputTokens = outputTokens
         self.cacheReadTokens = cacheReadTokens
         self.cacheCreationTokens = cacheCreationTokens
-        self.totalCostUSD = totalCostUSD
         self.topic = topic
         self.category = category
         self.status = status

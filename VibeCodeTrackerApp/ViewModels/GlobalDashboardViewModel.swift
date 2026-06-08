@@ -9,8 +9,6 @@ struct SessionStat: Equatable, Sendable {
     let modelFamily: String
     let status: String
     let projectKey: String?
-    /// Known per-session cost (USD). `nil` until the Anthropic API fills it in.
-    var totalCostUSD: Double? = nil
     /// Estimated cost (USD) at published Anthropic list prices, derived from token counts.
     var estimatedCostUSD: Double = 0
 }
@@ -92,7 +90,6 @@ enum GlobalDashboardViewModel {
                 modelFamily: session.modelFamily,
                 status: session.status,
                 projectKey: session.project?.claudeProjectHash,
-                totalCostUSD: session.totalCostUSD,
                 estimatedCostUSD: ModelPricing.cost(
                     family: session.modelFamily,
                     inputTokens: session.inputTokens,

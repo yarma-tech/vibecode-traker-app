@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Costs are always shown as an on-device **estimate** (token counts × published
+  Anthropic list prices). No API key or account is required.
+
+### Removed
+- The Anthropic Admin API key / usage-sync feature (`AnthropicUsageClient`,
+  `UsageSyncService`, `KeychainStore`, `TokenUsageSnapshot`, `Session.totalCostUSD`,
+  and the Settings "Anthropic API" section). It fetched data that was never
+  displayed and only duplicated the estimate; the app now makes no network calls.
+  See `DECISIONS.md` (2026-06-08).
+
 ## [0.1.0] — 2026-06-07
 
 Initial release.

@@ -11,7 +11,6 @@ enum AppSchema {
         Session.self,
         Commit.self,
         BacklogItem.self,
-        TokenUsageSnapshot.self,
         FileSyncState.self
     ]
 }

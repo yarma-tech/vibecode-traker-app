@@ -72,3 +72,35 @@ the choice, alternatives, and consequences for Yannick to review.
 - **Consequences**: Avoids a confusing crash that looks like a model/schema bug
   but is purely an object-lifetime issue. Production code is unaffected (the app's
   container is owned by `VibeCodeTrackerApp` for the process lifetime).
+
+## 2026-06-08 — Costs are an on-device estimate; drop the Anthropic usage/key feature
+
+- **Context**: Cost KPIs (`DashboardKPIs.costThisWeek`, `ProjectKPIs.totalCostUSD`)
+  now always show an **estimate** = token counts × published list prices
+  (`ModelPricing.cost`), computed on-device. The earlier Admin-API-key feature
+  (`AnthropicUsageClient` → `UsageSyncService` → `TokenUsageSnapshot` /
+  `Session.totalCostUSD`) fetched org usage and re-priced sessions, but on
+  inspection produced nothing the UI showed:
+  - `Session.totalCostUSD` was priced from the session's **own local tokens** at
+    list prices — identical to the estimate, not an Anthropic-billed figure — and
+    was never displayed.
+  - `TokenUsageSnapshot` (the only genuinely Anthropic-billed data) is org-wide /
+    30-day, not attributable to a session or project, and was also never displayed.
+  - So the whole key→client→sync→snapshot chain produced **zero visible output**;
+    the only live use of the key was a "Test connection" button verifying the key.
+- **Decision**: Remove the feature entirely (option (a)). Deleted
+  `AnthropicUsageClient`, `UsageSyncService`, `KeychainStore` / `SecretStoring`,
+  `TokenUsageSnapshot`, `Session.totalCostUSD`, the Settings "Anthropic API"
+  section, and their tests. Settings now states plainly that costs are an
+  on-device estimate requiring no key.
+- **Alternatives**: (b) surface "actual" cost beside the estimate — rejected: no
+  genuine per-session actual exists (it equals the estimate), and org-wide
+  snapshots can't be attributed per project without misleading. (c) keep the key
+  only for connection-test/sync — rejected: it asks the user for a high-privilege
+  **Admin** org key for no visible benefit.
+- **Consequences**: The app now makes **no network calls** (git is a local
+  subprocess) — smaller surface, no credential prompt. If exact billed cost is ever
+  wanted, reintroduce a usage client and actually display its org-level totals,
+  kept distinct from the per-session estimate. SwiftData drops the removed
+  `Session.totalCostUSD` attribute and `TokenUsageSnapshot` entity via lightweight
+  migration; the store re-derives from `~/.claude` on the next scan.

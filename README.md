@@ -15,8 +15,8 @@ A local macOS dashboard for your [Claude Code](https://www.anthropic.com/claude-
 - **Git integration** — recent commits with inferred type (feat/fix/…) via the `git` CLI.
 - **Backlog** — parses `TODO.md` / `BACKLOG.md` (with P0–P2 priorities).
 - **Stack detection** — infers TypeScript, Rust, Python, Next.js, Supabase, Twilio, and more.
-- **Costs (optional)** — add an Anthropic Admin API key to see token/cost data; everything works without it.
-- **Local-first** — your data never leaves your Mac (except the Anthropic API, only if you opt in).
+- **Costs** — every session is costed automatically from its token counts at published Anthropic list prices. No API key or account required.
+- **Local-first** — your data never leaves your Mac; the app makes no network calls.
 
 ## Requirements
 
@@ -50,20 +50,15 @@ xcodebuild -scheme VibeCodeTrackerApp -destination 'platform=macOS' test
 
 The checked-in `.xcodeproj` means contributors don't need any extra tooling. Maintainers who change the project structure regenerate it from `project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen) — see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-## Setup (optional: costs)
+## Costs
 
-By default the app runs in tokens-only mode and shows cost as "—".
-
-To see cost data: open **Settings** in the sidebar, paste your **Anthropic Admin API key**, and press **Save**. The key is stored only in your macOS Keychain and is used solely for `api.anthropic.com`.
-
-> Note: the exact usage/cost API schema is still being validated; current cost figures are derived from public list prices applied to token counts. See [BLOCKERS.md](BLOCKERS.md).
+Every session is costed automatically — token counts × published Anthropic list prices (Opus / Sonnet / Haiku) — on the dashboard and per project. These are **estimates** from public pricing, computed entirely on-device: no API key, no account, and no network calls.
 
 ## Privacy
 
 - All project, session, commit, and backlog data is read locally and stored in a local SwiftData database.
-- The **only** network destination is `api.anthropic.com`, and only if you add an API key.
+- The app makes no network calls — there is no account, login, or API key.
 - iCloud sync is opt-in and not active in this version (requires an Apple Developer setup).
-- Your API key lives exclusively in the macOS Keychain — never in files, logs, or sync.
 
 ## Documentation
 

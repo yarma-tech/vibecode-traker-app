@@ -15,31 +15,15 @@ Template:
 - **Workaround applied**: what I did to keep going
 -->
 
-## [Slice 11] Anthropic Usage API — schema assumed, needs validation with a real key
-- **Date**: 2026-06-07
-- **Context**: Implementing `AnthropicUsageClient` for
-  `GET /v1/organizations/usage_report/messages` (headers `x-api-key`,
-  `anthropic-version: 2023-06-01`).
-- **Constraint honored**: I made **no** real network calls — there is no Admin key
-  to test with, and the app never calls the API unless you store a real key in the
-  Keychain (Settings). All tests use a mocked `URLProtocol`.
-- **Assumption**: response shape is
-  `{ "data": [ { "starting_at", "ending_at", "results": [ { "model",
-  "input_tokens", "output_tokens", "cache_read_input_tokens",
-  "cache_creation_input_tokens" } ] } ] }`. The parser is tolerant (also accepts
-  tokens directly on each `data` entry) and ignores unknown fields.
-- **Cost**: the messages usage report returns **tokens, not USD**. V1 derives cost
-  from public per-MTok list prices in `ModelPricing.swift` (Opus/Sonnet/Haiku) and
-  prices each local session. This is an **estimate**.
-- **Need from Yannick**:
-  1. Add a real Admin API key in Settings and click "Test connection" / Refresh.
-  2. Confirm the JSON shape matches the assumption (adjust `AnthropicUsageClient.parse`
-     if not) — check Console logs (category `network`).
-  3. Decide whether to switch to the authoritative `/v1/organizations/cost_report`
-     endpoint for exact USD instead of the local price estimate.
-- **Impact**: Without a key the app runs fully in tokens-only mode (cost shows "—").
-  With a key, token snapshots + estimated costs populate.
-- **Workaround applied**: tolerant parser + documented price table; mocked tests.
+## [Slice 11] Anthropic Usage API — removed (cost is an on-device estimate)
+- **Date**: 2026-06-07 → resolved 2026-06-08
+- **Resolution**: The Anthropic usage/key feature was removed entirely. Costs are
+  estimated on-device from token counts × published per-MTok list prices
+  (`ModelPricing.swift`, Opus/Sonnet/Haiku) and **always display** — no Admin API
+  key, no network call, nothing needed from Yannick. The org usage/cost API schema
+  is no longer relevant unless org-level billed cost is reintroduced later (it would
+  be shown separately from the per-session estimate). See `DECISIONS.md`
+  (2026-06-08).
 
 ## [Slice 12] CloudKit sync — blocked without Apple Developer setup
 - **Date**: 2026-06-07
