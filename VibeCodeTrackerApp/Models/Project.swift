@@ -12,7 +12,10 @@ import SwiftData
 /// slices that introduce those models.
 @Model
 final class Project {
-    @Attribute(.unique) var id: UUID
+    // Not `.unique`: `id` is always a fresh UUID so it never collides, and a
+    // second unique attribute alongside `claudeProjectHash` makes SwiftData's
+    // upsert/constraint handling fragile (and is incompatible with CloudKit).
+    var id: UUID
     var name: String
     var path: String
     /// Folder name under `~/.claude/projects/` (the encoded cwd). Stable identity.

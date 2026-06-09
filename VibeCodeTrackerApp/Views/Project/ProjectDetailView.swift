@@ -30,8 +30,11 @@ struct ProjectDetailView: View {
     @ViewBuilder
     private func content(for project: Project) -> some View {
         let kpis = ProjectDetailViewModel.kpis(for: project)
-        let sessions = project.sessions.sorted { $0.startedAt > $1.startedAt }
-        let commits = project.commits.sorted { $0.authoredAt > $1.authoredAt }
+        // Exclude any models the background sync deleted mid-render: a `ForEach`
+        // over a deleted `@Model` traps ("backing data could no longer be found").
+        let sessions = project.sessions.filter { !$0.isDeleted }.sorted { $0.startedAt > $1.startedAt }
+        let commits = project.commits.filter { !$0.isDeleted }.sorted { $0.authoredAt > $1.authoredAt }
+        let backlog = project.backlogItems.filter { !$0.isDeleted }.map(BacklogRowData.init)
 
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.lg) {
@@ -91,10 +94,10 @@ struct ProjectDetailView: View {
 
                 // Backlog (collapsible, default collapsed)
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    SectionHeader(title: "Backlog", count: project.backlogItems.count, isExpanded: $backlogExpanded)
+                    SectionHeader(title: "Backlog", count: backlog.count, isExpanded: $backlogExpanded)
                     if backlogExpanded {
                         // BacklogView renders its own muted empty line.
-                        BacklogView(items: project.backlogItems)
+                        BacklogView(items: backlog)
                     }
                 }
             }

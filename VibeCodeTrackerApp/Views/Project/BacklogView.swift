@@ -1,16 +1,58 @@
 import SwiftUI
 
-/// Read-only backlog list parsed from TODO.md / BACKLOG.md.
-struct BacklogView: View {
-    let items: [BacklogItem]
+/// Plain, `Sendable` projection of a `BacklogItem` for display.
+///
+/// The view renders these value snapshots instead of live `@Model` objects. The
+/// background sync deletes `BacklogItem`s on every pass (vanished TODO lines); a
+/// `ForEach` holding the deleted models would trap on the next render pass
+/// ("backing data could no longer be found"). Snapshotting severs that link.
+struct BacklogRowData: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let title: String
+    let isDone: Bool
+    let sourceFile: String
+    let lineNumber: Int
+    let priority: String?
 
-    private var sorted: [BacklogItem] {
+    /// Sort rank: P0=0, P1=1, P2=2, none=3.
+    var priorityRank: Int {
+        switch priority {
+        case "P0": return 0
+        case "P1": return 1
+        case "P2": return 2
+        default: return 3
+        }
+    }
+
+    init(id: UUID, title: String, isDone: Bool, sourceFile: String, lineNumber: Int, priority: String?) {
+        self.id = id
+        self.title = title
+        self.isDone = isDone
+        self.sourceFile = sourceFile
+        self.lineNumber = lineNumber
+        self.priority = priority
+    }
+
+    init(_ item: BacklogItem) {
+        self.init(id: item.id, title: item.title, isDone: item.isDone,
+                  sourceFile: item.sourceFile, lineNumber: item.lineNumber, priority: item.priority)
+    }
+
+    /// Open items first, then by priority, then by source line.
+    static func sorted(_ items: [BacklogRowData]) -> [BacklogRowData] {
         items.sorted { lhs, rhs in
             if lhs.isDone != rhs.isDone { return !lhs.isDone }      // open first
             if lhs.priorityRank != rhs.priorityRank { return lhs.priorityRank < rhs.priorityRank }
             return lhs.lineNumber < rhs.lineNumber
         }
     }
+}
+
+/// Read-only backlog list parsed from TODO.md / BACKLOG.md.
+struct BacklogView: View {
+    let items: [BacklogRowData]
+
+    private var sorted: [BacklogRowData] { BacklogRowData.sorted(items) }
 
     var body: some View {
         if items.isEmpty {
@@ -31,7 +73,7 @@ struct BacklogView: View {
 }
 
 private struct BacklogRow: View {
-    let item: BacklogItem
+    let item: BacklogRowData
 
     var body: some View {
         HStack(spacing: 10) {
@@ -63,18 +105,6 @@ private struct BacklogRow: View {
         case "P0": return .red
         case "P1": return .orange
         default: return .secondary
-        }
-    }
-}
-
-extension BacklogItem {
-    /// Sort rank: P0=0, P1=1, P2=2, none=3.
-    var priorityRank: Int {
-        switch priority {
-        case "P0": return 0
-        case "P1": return 1
-        case "P2": return 2
-        default: return 3
         }
     }
 }
