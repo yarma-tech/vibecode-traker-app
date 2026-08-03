@@ -26,6 +26,13 @@ pub enum ConfigError {
         chemin: PathBuf,
         source: toml::de::Error,
     },
+
+    #[error(
+        "un jeton est ecrit en clair dans {0}. Depuis l'appairage, le jeton vit dans le \
+         trousseau du systeme : retire la ligne `token` du fichier et relance \
+         `vibemap pair <code>` pour relier cette machine."
+    )]
+    JetonEnClair(PathBuf),
 }
 
 fn battement_par_defaut() -> u64 {
@@ -37,9 +44,10 @@ pub struct Config {
     /// Racine de l'API Supabase.
     pub supabase_url: String,
 
-    /// Jeton d'ecriture. Provisoirement colle a la main : l'appairage par code
-    /// le remplacera, et il ira alors dans le trousseau du systeme.
-    pub token: String,
+    /// Reste d'une configuration d'avant l'appairage. Sa presence est une
+    /// erreur : le jeton n'a plus rien a faire dans un fichier.
+    #[serde(default)]
+    token: Option<String>,
 
     /// Identifiant de cette machine dans la table `machines`.
     pub machine_id: String,
@@ -67,10 +75,16 @@ impl Config {
             }
         };
 
-        toml::from_str(&brut).map_err(|source| ConfigError::Invalide {
+        let config: Config = toml::from_str(&brut).map_err(|source| ConfigError::Invalide {
             chemin: chemin.to_path_buf(),
             source,
-        })
+        })?;
+
+        if config.token.is_some() {
+            return Err(ConfigError::JetonEnClair(chemin.to_path_buf()));
+        }
+
+        Ok(config)
     }
 
     /// Emplacement par defaut : `~/.config/vibemap/config.toml`.

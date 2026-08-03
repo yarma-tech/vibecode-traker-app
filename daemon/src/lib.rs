@@ -3,8 +3,11 @@
 //! Il observe ce que font les agents sur le poste et pousse des metadonnees
 //! vers Supabase. Aucun contenu de fichier ne sort jamais d'ici.
 
+mod appairage;
 mod config;
+pub mod trousseau;
 
+pub use appairage::{appairer, AppairageError, Identite};
 pub use config::{Config, ConfigError};
 
 use chrono::{DateTime, Utc};
@@ -19,9 +22,13 @@ pub enum ApiError {
     #[error("Supabase a refuse la requete (code {code}) : {corps}")]
     Refuse { code: u16, corps: String },
 
+    /// Aucune ligne touchee. Trois causes possibles, indiscernables d'ici :
+    /// la machine a ete revoquee, supprimee, ou le jeton ne lui correspond pas.
+    /// Le message les nomme toutes plutot que d'en deviner une.
     #[error(
-        "la machine {0} est inconnue ou ne t'appartient pas. \
-         Verifie l'identifiant de la configuration, ou reappaire la machine."
+        "la machine {0} n'a pas accepte l'ecriture. Elle a peut-etre ete revoquee \
+         ou supprimee depuis l'application web, ou ce jeton ne lui correspond plus. \
+         Relance `vibemap pair <code>` avec un nouveau code pour la relier a nouveau."
     )]
     MachineInconnue(String),
 }

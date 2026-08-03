@@ -17,7 +17,6 @@ fn charge_une_configuration_complete() {
     let chemin = fichier_temporaire(
         r#"
         supabase_url = "http://127.0.0.1:54321"
-        token = "un-jeton"
         machine_id = "3f2b1c00-0000-0000-0000-000000000000"
         label = "MacBook Pro"
         "#,
@@ -26,11 +25,38 @@ fn charge_une_configuration_complete() {
     let config = vibemap::Config::load(&chemin).expect("une configuration complete doit charger");
 
     assert_eq!(config.supabase_url, "http://127.0.0.1:54321");
-    assert_eq!(config.token, "un-jeton");
     assert_eq!(config.label, "MacBook Pro");
     assert_eq!(
         config.interval_seconds, 30,
         "sans valeur explicite, le battement est de 30 secondes"
+    );
+}
+
+/// Le jeton ne vit plus dans le fichier : il est au trousseau (issue #9).
+/// Un fichier qui en contient encore un vient d'avant l'appairage, et le dire
+/// vaut mieux que de faire semblant de rien.
+#[test]
+fn refuse_un_jeton_ecrit_en_clair() {
+    let chemin = fichier_temporaire(
+        r#"
+        supabase_url = "http://127.0.0.1:54321"
+        machine_id = "3f2b1c00-0000-0000-0000-000000000000"
+        label = "MacBook Pro"
+        token = "un-jeton-en-clair"
+        "#,
+    );
+
+    let erreur = vibemap::Config::load(&chemin)
+        .expect_err("un jeton en clair dans le fichier doit etre signale");
+
+    let message = erreur.to_string();
+    assert!(
+        message.contains("trousseau"),
+        "le message doit renvoyer vers le trousseau, obtenu : {message}"
+    );
+    assert!(
+        message.contains("vibemap pair"),
+        "le message doit dire comment refaire l'appairage, obtenu : {message}"
     );
 }
 
@@ -39,7 +65,6 @@ fn le_battement_reste_reglable() {
     let chemin = fichier_temporaire(
         r#"
         supabase_url = "http://127.0.0.1:54321"
-        token = "un-jeton"
         machine_id = "3f2b1c00-0000-0000-0000-000000000000"
         label = "MacBook Pro"
         interval_seconds = 5
@@ -56,7 +81,6 @@ fn nomme_le_champ_manquant() {
         r#"
         supabase_url = "http://127.0.0.1:54321"
         machine_id = "3f2b1c00-0000-0000-0000-000000000000"
-        label = "MacBook Pro"
         "#,
     );
 
@@ -65,7 +89,7 @@ fn nomme_le_champ_manquant() {
 
     let message = erreur.to_string();
     assert!(
-        message.contains("token"),
+        message.contains("label"),
         "le message doit nommer le champ manquant, obtenu : {message}"
     );
 }

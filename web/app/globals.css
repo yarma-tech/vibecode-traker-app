@@ -243,3 +243,76 @@ code {
   font-size: 0.8125rem;
   margin: 0;
 }
+
+/* ---------- appairage d'une machine ---------- */
+
+.appairage {
+  margin-top: 2.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+
+.etape {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  margin: 0 0 0.6rem;
+}
+
+.commande {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  line-height: 1.65;
+  margin: 0 0 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper-2);
+  overflow-x: auto;
+  white-space: pre;
+  word-break: normal;
+}
+
+.commande .invite {
+  color: var(--ink-3);
+  user-select: none;
+  margin-right: 0.4rem;
+}
+
+.attente {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+/* Le seul mouvement de l'ecran : il dit qu'on attend vraiment quelque chose. */
+.pastille {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--edit);
+  animation: battement 2s ease-in-out infinite;
+}
+
+@keyframes battement {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pastille { animation: none; }
+}
+
+/* Une machine revoquee reste visible : elle raconte ce qui a ete coupe. */
+.machine.revoquee .nom,
+.machine.revoquee .etat {
+  color: var(--ink-3);
+}
+
+.machine.revoquee .nom {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Connexion } from "./connexion";
 import { Machines, type Machine } from "./machines";
 import { Deconnexion } from "./deconnexion";
+import { Appairage } from "./appairage";
 
 export default async function Page({
   searchParams,
@@ -32,7 +33,7 @@ export default async function Page({
   // de l'utilisateur connecte, meme si elle ne le precise pas.
   const { data, error } = await supabase
     .from("machines")
-    .select("id,label,platform,last_seen_at")
+    .select("id,label,platform,last_seen_at,revoked_at")
     .order("label");
 
   return (
@@ -52,6 +53,8 @@ export default async function Page({
       ) : (
         <Machines initiales={(data ?? []) as Machine[]} />
       )}
+
+      <Appairage />
     </main>
   );
 }

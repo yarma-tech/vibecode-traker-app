@@ -1,18 +1,95 @@
 //! Point d'entree du daemon.
 //!
-//! Pour l'instant il ne fait qu'une chose : signaler que la machine est vivante.
-//! Le scan des repos, la lecture des journaux et les worktrees viennent ensuite.
+//!   vibemap pair <code>   relie cette machine au compte qui a affiche le code
+//!   vibemap               bat, tant qu'on ne l'arrete pas
+//!
+//! Pour l'instant il ne fait que signaler que la machine est vivante. Le scan
+//! des repos, la lecture des journaux et les worktrees viennent ensuite.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 use vibemap::{Config, Supabase};
 
+const URL_PAR_DEFAUT: &str = "http://127.0.0.1:54321";
+
 #[tokio::main]
 async fn main() -> ExitCode {
-    let chemin = std::env::args()
-        .nth(1)
-        .map(PathBuf::from)
-        .unwrap_or_else(Config::chemin_par_defaut);
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+
+    match arguments.first().map(String::as_str) {
+        Some("pair") => appairer(arguments.get(1).map(String::as_str)).await,
+        Some("--help" | "-h") => {
+            aide();
+            ExitCode::SUCCESS
+        }
+        _ => battre(arguments.first().map(PathBuf::from)).await,
+    }
+}
+
+fn aide() {
+    println!(
+        "vibemap\n\n\
+           vibemap pair <code>   relie cette machine au compte qui a affiche le code\n\
+           vibemap [config]      bat, tant qu'on ne l'arrete pas\n\n\
+         Variables d'environnement :\n\
+         \x20 VIBEMAP_SUPABASE_URL       racine de l'API (defaut : {URL_PAR_DEFAUT})\n\
+         \x20 VIBEMAP_SUPABASE_ANON_KEY  cle publique du projet"
+    );
+}
+
+/// `vibemap pair <code>` : echange le code, range le jeton, ecrit la config.
+async fn appairer(code: Option<&str>) -> ExitCode {
+    let Some(code) = code else {
+        eprintln!("il manque le code : vibemap pair 7K4-M2Q");
+        return ExitCode::FAILURE;
+    };
+
+    let url = std::env::var("VIBEMAP_SUPABASE_URL")
+        .unwrap_or_else(|_| URL_PAR_DEFAUT.to_string());
+
+    let Ok(anon_key) = std::env::var("VIBEMAP_SUPABASE_ANON_KEY") else {
+        eprintln!(
+            "VIBEMAP_SUPABASE_ANON_KEY manquante. C'est la cle publique du projet, \
+             affichee par l'application web sur la page d'appairage."
+        );
+        return ExitCode::FAILURE;
+    };
+
+    let label = nom_de_la_machine();
+    let plateforme = std::env::consts::OS;
+
+    let identite =
+        match vibemap::appairer(&url, &anon_key, code, &label, Some(plateforme)).await {
+            Ok(identite) => identite,
+            Err(erreur) => {
+                eprintln!("{erreur}");
+                return ExitCode::FAILURE;
+            }
+        };
+
+    if let Err(erreur) = vibemap::trousseau::ranger(&identite.machine_id, &identite.token) {
+        eprintln!("{erreur}");
+        return ExitCode::FAILURE;
+    }
+
+    let chemin = Config::chemin_par_defaut();
+    if let Err(erreur) = ecrire_config(&chemin, &url, &identite.machine_id, &identite.label) {
+        eprintln!("impossible d'ecrire {} : {erreur}", chemin.display());
+        return ExitCode::FAILURE;
+    }
+
+    println!(
+        "« {} » est reliee. Le jeton est au trousseau, la configuration dans {}.\n\
+         Lance `vibemap` pour commencer a battre.",
+        identite.label,
+        chemin.display()
+    );
+    ExitCode::SUCCESS
+}
+
+/// `vibemap` : la boucle.
+async fn battre(chemin: Option<PathBuf>) -> ExitCode {
+    let chemin = chemin.unwrap_or_else(Config::chemin_par_defaut);
 
     let config = match Config::load(&chemin) {
         Ok(config) => config,
@@ -22,7 +99,15 @@ async fn main() -> ExitCode {
         }
     };
 
-    let client = Supabase::new(&config.supabase_url, &config.token);
+    let token = match vibemap::trousseau::lire(&config.machine_id) {
+        Ok(token) => token,
+        Err(erreur) => {
+            eprintln!("{erreur}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let client = Supabase::new(&config.supabase_url, &token);
     let mut horloge =
         tokio::time::interval(std::time::Duration::from_secs(config.interval_seconds));
 
@@ -49,4 +134,38 @@ async fn main() -> ExitCode {
             }
         }
     }
+}
+
+fn nom_de_la_machine() -> String {
+    std::process::Command::new("scutil")
+        .args(["--get", "ComputerName"])
+        .output()
+        .ok()
+        .filter(|sortie| sortie.status.success())
+        .map(|sortie| String::from_utf8_lossy(&sortie.stdout).trim().to_string())
+        .filter(|nom| !nom.is_empty())
+        .or_else(|| std::env::var("HOSTNAME").ok())
+        .unwrap_or_else(|| "machine sans nom".to_string())
+}
+
+fn ecrire_config(
+    chemin: &PathBuf,
+    url: &str,
+    machine_id: &str,
+    label: &str,
+) -> std::io::Result<()> {
+    if let Some(dossier) = chemin.parent() {
+        std::fs::create_dir_all(dossier)?;
+    }
+
+    // Aucun secret ici : le jeton est au trousseau.
+    std::fs::write(
+        chemin,
+        format!(
+            "supabase_url = \"{url}\"\n\
+             machine_id = \"{machine_id}\"\n\
+             label = \"{label}\"\n\
+             interval_seconds = 30\n"
+        ),
+    )
 }
