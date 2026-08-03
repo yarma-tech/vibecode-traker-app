@@ -99,21 +99,40 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
         }
     };
 
-    let token = match vibemap::trousseau::lire(&config.machine_id) {
-        Ok(token) => token,
-        Err(erreur) => {
-            eprintln!("{erreur}");
-            return ExitCode::FAILURE;
-        }
+    // Dit avant d'agir : l'acces au trousseau peut ouvrir une boite de dialogue
+    // du systeme, et un daemon bloque sans avoir rien affiche est indiagnosable.
+    // macOS redemande l'autorisation a chaque fois que le binaire change, donc
+    // apres chaque recompilation pendant le developpement.
+    println!("lecture du jeton au trousseau…");
+
+    let token = match std::env::var("VIBEMAP_TOKEN") {
+        // Echappatoire pour le developpement et les machines sans trousseau
+        // (conteneurs, serveurs sans session graphique).
+        Ok(depuis_l_environnement) => depuis_l_environnement,
+        Err(_) => match vibemap::trousseau::lire(&config.machine_id) {
+            Ok(token) => token,
+            Err(erreur) => {
+                eprintln!(
+                    "{erreur}\n\
+                     Si le systeme a demande une autorisation et qu'elle a ete refusee, \
+                     relance apres avoir accepte, ou passe le jeton par la variable \
+                     VIBEMAP_TOKEN."
+                );
+                return ExitCode::FAILURE;
+            }
+        },
     };
 
     let client = Supabase::new(&config.supabase_url, &token);
     let mut horloge =
         tokio::time::interval(std::time::Duration::from_secs(config.interval_seconds));
+    let mut arpentage =
+        tokio::time::interval(std::time::Duration::from_secs(config.scan_seconds));
 
     println!(
-        "vibemap surveille depuis « {} », battement toutes les {} s",
-        config.label, config.interval_seconds
+        "vibemap surveille depuis « {} », battement toutes les {} s, \
+         cartographie toutes les {} s",
+        config.label, config.interval_seconds, config.scan_seconds
     );
 
     loop {
@@ -128,12 +147,57 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
                     Ok(()) => println!("{} battement", instant.format("%H:%M:%S")),
                 }
             }
+            _ = arpentage.tick() => {
+                cartographier(&client, &config).await;
+            }
             _ = tokio::signal::ctrl_c() => {
                 println!("arret demande, au revoir");
                 return ExitCode::SUCCESS;
             }
         }
     }
+}
+
+/// Parcourt les racines, cartographie chaque repo trouve, envoie les plans.
+///
+/// Un repo qui echoue n'arrete pas les autres : mieux vaut une carte partielle
+/// qu'un ecran vide parce qu'un seul dossier posait probleme.
+async fn cartographier(client: &Supabase, config: &Config) {
+    let mut trouves = 0;
+    let mut envoyes = 0;
+
+    for racine in config.racines() {
+        let Ok(entrees) = std::fs::read_dir(&racine) else {
+            eprintln!("racine illisible, ignoree : {}", racine.display());
+            continue;
+        };
+
+        for entree in entrees.flatten() {
+            let chemin = entree.path();
+            if !chemin.join(".git").exists() {
+                continue;
+            }
+            trouves += 1;
+
+            let plan = match vibemap::scanner(&chemin) {
+                Ok(plan) => plan,
+                Err(erreur) => {
+                    eprintln!("{erreur}");
+                    continue;
+                }
+            };
+
+            match client.pousser_plan(&config.machine_id, &plan).await {
+                Ok(_) => envoyes += 1,
+                Err(erreur) => eprintln!("plan de {} non envoye : {erreur}", plan.name),
+            }
+        }
+    }
+
+    println!(
+        "{} cartographie : {envoyes} repo(s) sur {trouves}",
+        chrono::Utc::now().format("%H:%M:%S")
+    );
 }
 
 fn nom_de_la_machine() -> String {
@@ -165,7 +229,9 @@ fn ecrire_config(
             "supabase_url = \"{url}\"\n\
              machine_id = \"{machine_id}\"\n\
              label = \"{label}\"\n\
-             interval_seconds = 30\n"
+             interval_seconds = 30\n\
+             scan_seconds = 300\n\
+             roots = [\"~/Developer\"]\n"
         ),
     )
 }

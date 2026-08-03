@@ -316,3 +316,175 @@ code {
   text-decoration: line-through;
   text-decoration-thickness: 1px;
 }
+
+/* Dette assumee et affichee : la commande n'est pas encore distribuee. */
+.pas-encore {
+  margin: 0.7rem 0 0;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* ---------- liste des repos ---------- */
+
+.repos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.repo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.repo-lien {
+  color: inherit;
+  text-decoration: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.repo-lien:hover .repo-nom {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.repo-nom {
+  font-weight: 620;
+  letter-spacing: -0.01em;
+}
+
+.proprietaire {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+}
+
+.repo-poids {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- le plan ---------- */
+
+.titre-repo {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 1.75rem 0 0.35rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.titre-repo .proprietaire {
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.titre-repo .branche {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  padding: 0.05rem 0.5rem;
+}
+
+.mesures {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  margin: 0 0 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fil {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  margin-bottom: 0.6rem;
+}
+
+.fil .separateur {
+  color: var(--rule-2);
+}
+
+.fil .ici {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Le plan garde ses proportions : une parcelle deux fois plus grande
+   contient deux fois plus de lignes, et cela doit rester vrai a l'oeil. */
+.plan {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 320px;
+}
+
+@media (max-width: 620px) {
+  .plan {
+    aspect-ratio: 3 / 4;
+  }
+}
+
+.parcelle {
+  position: absolute;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.05rem;
+  padding: 0.35rem 0.4rem;
+  text-align: left;
+  background: var(--paper-2);
+  border: 1px solid var(--rule-2);
+  border-radius: 3px;
+  color: var(--ink-2);
+  transition: background 200ms var(--ease), border-color 200ms var(--ease);
+}
+
+/* Une parcelle sans enfant n'est pas cliquable : elle ne doit pas le laisser
+   croire. */
+.parcelle:disabled {
+  cursor: default;
+}
+
+.parcelle:not(:disabled):hover {
+  background: var(--paper);
+  border-color: var(--ink-3);
+}
+
+.parcelle-nom {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.parcelle-poids {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+}

@@ -39,6 +39,14 @@ fn battement_par_defaut() -> u64 {
     30
 }
 
+fn scan_par_defaut() -> u64 {
+    300
+}
+
+fn racines_par_defaut() -> Vec<String> {
+    vec!["~/Developer".to_string()]
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Config {
     /// Racine de l'API Supabase.
@@ -58,6 +66,15 @@ pub struct Config {
     /// Periode du battement de coeur, en secondes.
     #[serde(default = "battement_par_defaut")]
     pub interval_seconds: u64,
+
+    /// Dossiers ou chercher les repos. Le daemon regarde leurs enfants
+    /// directs et retient ceux qui contiennent un `.git`.
+    #[serde(default = "racines_par_defaut")]
+    pub roots: Vec<String>,
+
+    /// Periode entre deux cartographies, en secondes.
+    #[serde(default = "scan_par_defaut")]
+    pub scan_seconds: u64,
 }
 
 impl Config {
@@ -85,6 +102,15 @@ impl Config {
         }
 
         Ok(config)
+    }
+
+    /// Les racines, avec le `~` remplace par le dossier personnel.
+    pub fn racines(&self) -> Vec<PathBuf> {
+        let maison = std::env::var("HOME").unwrap_or_default();
+        self.roots
+            .iter()
+            .map(|brut| PathBuf::from(brut.replacen('~', &maison, 1)))
+            .collect()
     }
 
     /// Emplacement par defaut : `~/.config/vibemap/config.toml`.

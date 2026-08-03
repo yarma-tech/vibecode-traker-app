@@ -5,10 +5,12 @@
 
 mod appairage;
 mod config;
+mod plan;
 pub mod trousseau;
 
 pub use appairage::{appairer, AppairageError, Identite};
 pub use config::{Config, ConfigError};
+pub use plan::{scanner, Module, Plan, ScanError};
 
 use chrono::{DateTime, Utc};
 use serde_json::json;
@@ -84,5 +86,107 @@ impl Supabase {
         }
 
         Ok(())
+    }
+
+    /// Envoie le plan d'un repo et rend son identifiant.
+    ///
+    /// Le repo est reconnu par l'empreinte de sa racine : deux scans de suite
+    /// mettent a jour la meme ligne. Les modules sont remplaces en entier, ce
+    /// qui fait disparaitre de la carte les dossiers disparus du disque.
+    pub async fn pousser_plan(
+        &self,
+        machine_id: &str,
+        plan: &crate::Plan,
+    ) -> Result<String, ApiError> {
+        let repo = self
+            .envoyer(
+                "repos?on_conflict=machine_id,root_hash",
+                Some("resolution=merge-duplicates,return=representation"),
+                json!([{
+                    "machine_id":     machine_id,
+                    "name":           plan.name,
+                    "root_hash":      plan.root_hash,
+                    "remote_owner":   plan.remote_owner,
+                    "remote_url":     plan.remote_url,
+                    "current_branch": plan.current_branch,
+                    "loc_total":      plan.loc_total,
+                    "file_count":     plan.file_count,
+                    "scanned_at":     chrono::Utc::now(),
+                }]),
+            )
+            .await?;
+
+        let repo_id = repo[0]["id"]
+            .as_str()
+            .ok_or_else(|| ApiError::Refuse {
+                code: 500,
+                corps: format!("pas d'identifiant de repo dans {repo}"),
+            })?
+            .to_string();
+
+        // On remplace la carte entiere plutot que de calculer un differentiel :
+        // un repo compte quelques centaines de dossiers, et un remplacement ne
+        // peut pas laisser de dossier fantome derriere lui.
+        let effacement = self
+            .http
+            .delete(format!("{}/rest/v1/modules?repo_id=eq.{}", self.url, repo_id))
+            .header("apikey", &self.token)
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+
+        if !effacement.status().is_success() {
+            let code = effacement.status().as_u16();
+            let corps = effacement.text().await.unwrap_or_default();
+            return Err(ApiError::Refuse { code, corps });
+        }
+
+        if !plan.modules.is_empty() {
+            let lignes: Vec<_> = plan
+                .modules
+                .iter()
+                .map(|m| {
+                    json!({
+                        "repo_id":     repo_id,
+                        "path":        m.path,
+                        "parent_path": m.parent_path,
+                        "depth":       m.depth,
+                        "loc":         m.loc,
+                        "file_count":  m.file_count,
+                    })
+                })
+                .collect();
+
+            self.envoyer("modules", None, json!(lignes)).await?;
+        }
+
+        Ok(repo_id)
+    }
+
+    async fn envoyer(
+        &self,
+        chemin: &str,
+        prefer: Option<&str>,
+        corps: serde_json::Value,
+    ) -> Result<serde_json::Value, ApiError> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/{}", self.url, chemin))
+            .header("apikey", &self.token)
+            .bearer_auth(&self.token)
+            .header("Content-Type", "application/json")
+            .header("Prefer", prefer.unwrap_or("return=representation"))
+            .json(&corps)
+            .send()
+            .await?;
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+
+        if !code.is_success() {
+            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+        }
+
+        Ok(serde_json::from_str(&texte).unwrap_or(serde_json::Value::Null))
     }
 }

@@ -109,6 +109,33 @@ impl TestContext {
         .await;
     }
 
+    /// Relit un repo en contournant la RLS.
+    pub async fn lire_repo(&self, repo_id: &str) -> Value {
+        self.lire(&format!("repos?id=eq.{repo_id}&select=*")).await[0].clone()
+    }
+
+    /// Relit les modules d'un repo en contournant la RLS.
+    pub async fn lire_modules(&self, repo_id: &str) -> Vec<Value> {
+        self.lire(&format!("modules?repo_id=eq.{repo_id}&select=*"))
+            .await
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    async fn lire(&self, chemin: &str) -> Value {
+        self.http
+            .get(format!("{}/rest/v1/{}", self.url, chemin))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .send()
+            .await
+            .expect("lecture de service")
+            .json()
+            .await
+            .expect("reponse JSON de lecture")
+    }
+
     /// Ecriture de service qui refuse d'echouer en silence.
     ///
     /// Une aide de test muette ne rate pas seulement son travail : elle fait
