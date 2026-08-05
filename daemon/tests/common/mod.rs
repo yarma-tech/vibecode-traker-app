@@ -1,3 +1,7 @@
+// Chaque binaire de test compile ce module en entier mais n'en utilise qu'une
+// partie : le reste n'est pas du code mort, il sert ailleurs.
+#![allow(dead_code)]
+
 //! Contexte de test partage : parle a la pile Supabase locale, pas a un simulacre.
 //!
 //! C'est deliberé. L'ADR 0001 exige un test d'integration qui verifie le contrat
@@ -107,6 +111,122 @@ impl TestContext {
             json!({ "revoked_at": "now()" }),
         )
         .await;
+    }
+
+    /// Pose un repo et ses modules sans passer par un scan de disque.
+    ///
+    /// Les tests d'activite n'ont pas besoin d'un vrai depot : ils ont besoin
+    /// d'une carte sur laquelle poser des couleurs.
+    pub async fn creer_repo(&self, machine_id: &str, modules: &[&str]) -> String {
+        self.creer_repo_avec_empreinte(machine_id, &Uuid::new_v4().to_string(), modules)
+            .await
+    }
+
+    pub async fn creer_repo_avec_empreinte(
+        &self,
+        machine_id: &str,
+        empreinte: &str,
+        modules: &[&str],
+    ) -> String {
+        let repos: Value = self
+            .ecrire_service(
+                "repos",
+                json!([{
+                    "user_id":    self.user_id,
+                    "machine_id": machine_id,
+                    "name":       "atelier",
+                    "root_hash":  empreinte,
+                }]),
+            )
+            .await;
+
+        let repo_id = repos[0]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("pas d'id de repo dans {repos}"))
+            .to_string();
+
+        let lignes: Vec<Value> = modules
+            .iter()
+            .map(|path| {
+                let parent = match path.rfind('/') {
+                    Some(i) => path[..i].to_string(),
+                    None => String::new(),
+                };
+                json!({
+                    "repo_id":     repo_id,
+                    "path":        path,
+                    "parent_path": parent,
+                    "depth":       path.split('/').count(),
+                    "loc":         100,
+                    "file_count":  1,
+                })
+            })
+            .collect();
+
+        self.ecrire_service("modules", json!(lignes)).await;
+        repo_id
+    }
+
+    /// Relit les evenements d'activite d'un repo en contournant la RLS.
+    pub async fn lire_evenements(&self, repo_id: &str) -> Vec<Value> {
+        self.lire(&format!(
+            "activity_events?repo_id=eq.{repo_id}&select=*&order=occurred_at"
+        ))
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+    }
+
+    /// Relit une session en contournant la RLS.
+    pub async fn lire_session(&self, session_id: &str) -> Value {
+        self.lire(&format!("sessions?id=eq.{session_id}&select=*")).await[0].clone()
+    }
+
+    /// Demande a la base l'etat de chaque module, comme le fera l'ecran.
+    pub async fn etat_modules(&self, repo_id: &str, fenetre_secondes: i64) -> Vec<Value> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/rpc/etat_modules", self.url))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .json(&json!({
+                "p_repo_id": repo_id,
+                "p_fenetre_secondes": fenetre_secondes,
+            }))
+            .send()
+            .await
+            .expect("appel de etat_modules");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        assert!(code.is_success(), "etat_modules a echoue ({code}) : {texte}");
+
+        serde_json::from_str::<Value>(&texte)
+            .expect("reponse JSON de etat_modules")
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Insertion de service qui refuse d'echouer en silence.
+    async fn ecrire_service(&self, chemin: &str, corps: Value) -> Value {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/{}", self.url, chemin))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .header("Prefer", "return=representation")
+            .json(&corps)
+            .send()
+            .await
+            .expect("requete de service");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        assert!(code.is_success(), "POST {chemin} a echoue ({code}) : {texte}");
+
+        serde_json::from_str(&texte).expect("reponse JSON d'insertion")
     }
 
     /// Relit un repo en contournant la RLS.

@@ -247,7 +247,7 @@ fn nom(racine: &Path) -> String {
 }
 
 /// Le chemin absolu contient le nom de l'utilisateur du systeme : il reste ici.
-fn empreinte(racine: &Path) -> String {
+pub fn empreinte(racine: &Path) -> String {
     let mut hachoir = Sha256::new();
     hachoir.update(racine.to_string_lossy().as_bytes());
     format!("{:x}", hachoir.finalize())

@@ -47,6 +47,23 @@ fn racines_par_defaut() -> Vec<String> {
     vec!["~/Developer".to_string()]
 }
 
+/// Le budget est de cinq secondes entre l'appel d'outil et la couleur affichee
+/// sur un autre appareil. Deux secondes de lecture laissent de la marge au
+/// reseau et au temps reel.
+fn journal_par_defaut() -> u64 {
+    2
+}
+
+/// Au demarrage, on ne remonte pas plus loin que la fenetre d'activite : rejouer
+/// une semaine de journaux allumerait la carte avec du passe.
+fn remontee_par_defaut() -> u64 {
+    600
+}
+
+fn journaux_par_defaut() -> String {
+    "~/.claude/projects".to_string()
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Config {
     /// Racine de l'API Supabase.
@@ -75,6 +92,18 @@ pub struct Config {
     /// Periode entre deux cartographies, en secondes.
     #[serde(default = "scan_par_defaut")]
     pub scan_seconds: u64,
+
+    /// Periode entre deux lectures des journaux d'agents, en secondes.
+    #[serde(default = "journal_par_defaut")]
+    pub journal_seconds: u64,
+
+    /// Jusqu'ou remonter dans les journaux au premier tour, en secondes.
+    #[serde(default = "remontee_par_defaut")]
+    pub journal_lookback_seconds: u64,
+
+    /// Ou Claude Code ecrit ses journaux de session.
+    #[serde(default = "journaux_par_defaut")]
+    pub claude_projects: String,
 }
 
 impl Config {
@@ -106,11 +135,12 @@ impl Config {
 
     /// Les racines, avec le `~` remplace par le dossier personnel.
     pub fn racines(&self) -> Vec<PathBuf> {
-        let maison = std::env::var("HOME").unwrap_or_default();
-        self.roots
-            .iter()
-            .map(|brut| PathBuf::from(brut.replacen('~', &maison, 1)))
-            .collect()
+        self.roots.iter().map(|brut| deplier(brut)).collect()
+    }
+
+    /// Le dossier des journaux d'agents, `~` deplie.
+    pub fn journaux(&self) -> PathBuf {
+        deplier(&self.claude_projects)
     }
 
     /// Emplacement par defaut : `~/.config/vibemap/config.toml`.
@@ -122,4 +152,10 @@ impl Config {
             });
         base.join("vibemap").join("config.toml")
     }
+}
+
+/// Remplace le `~` de tete par le dossier personnel.
+fn deplier(brut: &str) -> PathBuf {
+    let maison = std::env::var("HOME").unwrap_or_default();
+    PathBuf::from(brut.replacen('~', &maison, 1))
 }

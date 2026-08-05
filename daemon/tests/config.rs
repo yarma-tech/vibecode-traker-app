@@ -75,6 +75,57 @@ fn le_battement_reste_reglable() {
     assert_eq!(config.interval_seconds, 5);
 }
 
+/// Cinq secondes est le budget du critere d'acceptation : « la parcelle passe
+/// en ambre sur un autre appareil en moins de cinq secondes ». La lecture des
+/// journaux doit donc tourner nettement plus vite que le battement.
+#[test]
+fn la_lecture_des_journaux_a_sa_propre_cadence() {
+    let chemin = fichier_temporaire(
+        r#"
+        supabase_url = "http://127.0.0.1:54321"
+        machine_id = "3f2b1c00-0000-0000-0000-000000000000"
+        label = "MacBook Pro"
+        "#,
+    );
+
+    let config = vibemap::Config::load(&chemin).expect("chargement");
+
+    assert_eq!(config.journal_seconds, 2);
+    assert!(
+        config.journal_seconds < config.interval_seconds,
+        "les journaux se lisent plus souvent que le battement"
+    );
+    assert_eq!(
+        config.journal_lookback_seconds, 600,
+        "au premier tour, on ne remonte pas plus loin que la fenetre d'activite"
+    );
+    assert!(config.journaux().ends_with(".claude/projects"));
+}
+
+#[test]
+fn la_cadence_des_journaux_reste_reglable() {
+    let chemin = fichier_temporaire(
+        r#"
+        supabase_url = "http://127.0.0.1:54321"
+        machine_id = "3f2b1c00-0000-0000-0000-000000000000"
+        label = "MacBook Pro"
+        journal_seconds = 10
+        journal_lookback_seconds = 60
+        claude_projects = "~/ailleurs/projects"
+        "#,
+    );
+
+    let config = vibemap::Config::load(&chemin).expect("chargement");
+
+    assert_eq!(config.journal_seconds, 10);
+    assert_eq!(config.journal_lookback_seconds, 60);
+    assert!(
+        config.journaux().ends_with("ailleurs/projects"),
+        "le « ~ » doit etre remplace par le dossier personnel"
+    );
+    assert!(!config.journaux().to_string_lossy().contains('~'));
+}
+
 #[test]
 fn nomme_le_champ_manquant() {
     let chemin = fichier_temporaire(

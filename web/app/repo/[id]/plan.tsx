@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { decouper } from "@/lib/treemap";
+import type { Etat } from "./direct";
 
 export type Module = {
   path: string;
@@ -10,6 +11,13 @@ export type Module = {
   loc: number;
   file_count: number;
 };
+
+/** Le mot que porte chaque état, pour qui n'a pas la couleur. */
+const DIT = {
+  lu: "lu",
+  ecrit: "écrit",
+  conflit: "conflit",
+} as const;
 
 /**
  * Quand un dossier avale presque tout le repo, l'afficher seul ne dit rien :
@@ -41,14 +49,39 @@ function lignes(n: number): string {
     : `${n} lignes`;
 }
 
+function depuis(instant: string, maintenant: number): string {
+  const secondes = Math.max(0, Math.round((maintenant - Date.parse(instant)) / 1000));
+  if (secondes < 60) return `il y a ${secondes} s`;
+  return `il y a ${Math.round(secondes / 60)} min`;
+}
+
 export function Plan({
   modules,
   locTotal,
+  etats,
 }: {
   modules: Module[];
   locTotal: number;
+  etats: Etat[];
 }) {
   const [ouvert, setOuvert] = useState<string>("");
+
+  // L'heure ne s'installe qu'après le montage : rendue sur le serveur, elle
+  // ne correspondrait pas à celle du navigateur et l'hydratation s'en plaindrait.
+  const [maintenant, setMaintenant] = useState<number | null>(null);
+  useEffect(() => {
+    const arrivee = setTimeout(() => setMaintenant(Date.now()), 0);
+    const horloge = setInterval(() => setMaintenant(Date.now()), 1000);
+    return () => {
+      clearTimeout(arrivee);
+      clearInterval(horloge);
+    };
+  }, []);
+
+  const parModule = useMemo(
+    () => new Map(etats.map((etat) => [etat.module_path, etat])),
+    [etats],
+  );
 
   const enfants = useMemo(
     () => modules.filter((m) => (m.parent_path ?? "") === ouvert),
@@ -107,12 +140,14 @@ export function Plan({
       <div className="plan">
         {parcelles.map(({ donnee, x, y, largeur, hauteur }) => {
           const peutDescendre = descendable(donnee);
-          const etiquette = `${nom(donnee.path)}, ${lignes(donnee.loc)}`;
+          const etat = parModule.get(donnee.path);
+          const dit = etat ? DIT[etat.etat] : "inactif";
+          const etiquette = `${nom(donnee.path)}, ${lignes(donnee.loc)}, ${dit}`;
 
           return (
             <button
               key={donnee.path}
-              className="parcelle"
+              className={etat ? `parcelle ${etat.etat}` : "parcelle"}
               style={{
                 left: `${x}%`,
                 top: `${y}%`,
@@ -129,12 +164,35 @@ export function Plan({
               {largeur >= LARGEUR_LISIBLE && hauteur >= HAUTEUR_LISIBLE && (
                 <>
                   <span className="parcelle-nom">{nom(donnee.path)}</span>
+                  {etat && (
+                    <span className="parcelle-fait">
+                      {dit}
+                      {maintenant ? `, ${depuis(etat.dernier_evenement, maintenant)}` : ""}
+                    </span>
+                  )}
                   <span className="parcelle-poids">{lignes(donnee.loc)}</span>
                 </>
               )}
             </button>
           );
         })}
+
+      </div>
+
+      <div className="cartouche" aria-hidden="true">
+        <span className="cartouche-titre">Légende</span>
+        <span className="temoignage">
+          <i className="temoin" /> inactif
+        </span>
+        <span className="temoignage">
+          <i className="temoin lu" /> lu
+        </span>
+        <span className="temoignage">
+          <i className="temoin ecrit" /> écrit
+        </span>
+        <span className="temoignage">
+          <i className="temoin conflit" /> conflit
+        </span>
       </div>
     </>
   );

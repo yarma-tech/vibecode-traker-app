@@ -1,13 +1,15 @@
 //! Point d'entree du daemon.
 //!
 //!   vibemap pair <code>   relie cette machine au compte qui a affiche le code
-//!   vibemap               bat, tant qu'on ne l'arrete pas
+//!   vibemap               bat, cartographie et suit les agents
+//!   vibemap hook          poste un appel d'outil recu sur l'entree standard
 //!
-//! Pour l'instant il ne fait que signaler que la machine est vivante. Le scan
-//! des repos, la lecture des journaux et les worktrees viennent ensuite.
+//! Les worktrees et le cout viennent ensuite.
 
-use std::path::PathBuf;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use vibemap::journal::{self, Suivi};
 use vibemap::{Config, Supabase};
 
 const URL_PAR_DEFAUT: &str = "http://127.0.0.1:54321";
@@ -18,6 +20,7 @@ async fn main() -> ExitCode {
 
     match arguments.first().map(String::as_str) {
         Some("pair") => appairer(arguments.get(1).map(String::as_str)).await,
+        Some("hook") => hook().await,
         Some("--help" | "-h") => {
             aide();
             ExitCode::SUCCESS
@@ -30,10 +33,12 @@ fn aide() {
     println!(
         "vibemap\n\n\
            vibemap pair <code>   relie cette machine au compte qui a affiche le code\n\
-           vibemap [config]      bat, tant qu'on ne l'arrete pas\n\n\
+           vibemap [config]      bat, cartographie et suit les agents\n\
+           vibemap hook          poste l'appel d'outil recu sur l'entree standard\n\n\
          Variables d'environnement :\n\
          \x20 VIBEMAP_SUPABASE_URL       racine de l'API (defaut : {URL_PAR_DEFAUT})\n\
-         \x20 VIBEMAP_SUPABASE_ANON_KEY  cle publique du projet"
+         \x20 VIBEMAP_SUPABASE_ANON_KEY  cle publique du projet\n\
+         \x20 VIBEMAP_TOKEN              jeton machine, a defaut du trousseau"
     );
 }
 
@@ -128,12 +133,20 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
         tokio::time::interval(std::time::Duration::from_secs(config.interval_seconds));
     let mut arpentage =
         tokio::time::interval(std::time::Duration::from_secs(config.scan_seconds));
+    let mut veille =
+        tokio::time::interval(std::time::Duration::from_secs(config.journal_seconds));
 
     println!(
         "vibemap surveille depuis « {} », battement toutes les {} s, \
-         cartographie toutes les {} s",
-        config.label, config.interval_seconds, config.scan_seconds
+         cartographie toutes les {} s, journaux toutes les {} s",
+        config.label, config.interval_seconds, config.scan_seconds, config.journal_seconds
     );
+
+    // La carte se dresse avant la premiere lecture des journaux : sans elle,
+    // aucun evenement ne saurait a quel repo se rattacher.
+    let mut carte = BTreeMap::new();
+    cartographier(&client, &config, &mut carte).await;
+    let mut suivi = Suivi::new();
 
     loop {
         tokio::select! {
@@ -148,7 +161,10 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
                 }
             }
             _ = arpentage.tick() => {
-                cartographier(&client, &config).await;
+                cartographier(&client, &config, &mut carte).await;
+            }
+            _ = veille.tick() => {
+                suivre(&client, &config, &carte, &mut suivi).await;
             }
             _ = tokio::signal::ctrl_c() => {
                 println!("arret demande, au revoir");
@@ -162,7 +178,11 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
 ///
 /// Un repo qui echoue n'arrete pas les autres : mieux vaut une carte partielle
 /// qu'un ecran vide parce qu'un seul dossier posait probleme.
-async fn cartographier(client: &Supabase, config: &Config) {
+async fn cartographier(
+    client: &Supabase,
+    config: &Config,
+    carte: &mut BTreeMap<PathBuf, String>,
+) {
     let mut trouves = 0;
     let mut envoyes = 0;
 
@@ -188,7 +208,10 @@ async fn cartographier(client: &Supabase, config: &Config) {
             };
 
             match client.pousser_plan(&config.machine_id, &plan).await {
-                Ok(_) => envoyes += 1,
+                Ok(repo_id) => {
+                    envoyes += 1;
+                    carte.insert(chemin, repo_id);
+                }
                 Err(erreur) => eprintln!("plan de {} non envoye : {erreur}", plan.name),
             }
         }
@@ -198,6 +221,111 @@ async fn cartographier(client: &Supabase, config: &Config) {
         "{} cartographie : {envoyes} repo(s) sur {trouves}",
         chrono::Utc::now().format("%H:%M:%S")
     );
+}
+
+/// Lit ce que les agents ont fait depuis le dernier tour, et l'envoie.
+///
+/// Un evenement dont le repo n'est pas encore cartographie est perdu : le
+/// journal a deja avance. Un repo tout neuf perd donc au plus une periode de
+/// cartographie d'activite, ce qui vaut mieux que de relire les journaux
+/// depuis le debut a chaque tour.
+async fn suivre(
+    client: &Supabase,
+    config: &Config,
+    carte: &BTreeMap<PathBuf, String>,
+    suivi: &mut Suivi,
+) {
+    let horizon = chrono::Utc::now()
+        - chrono::Duration::seconds(config.journal_lookback_seconds as i64);
+    let evenements = suivi.nouveaux(&config.journaux(), horizon);
+    if evenements.is_empty() {
+        return;
+    }
+
+    for lot in journal::rattacher(&evenements, carte) {
+        let resultat = client
+            .pousser_activite(
+                &config.machine_id,
+                &lot.repo_id,
+                lot.branche.as_deref(),
+                &lot.activites,
+            )
+            .await;
+
+        match resultat {
+            Ok(0) => {}
+            Ok(poses) => println!(
+                "{} activite : {poses} appel(s)",
+                chrono::Utc::now().format("%H:%M:%S")
+            ),
+            Err(erreur) => eprintln!("activite non envoyee : {erreur}"),
+        }
+    }
+}
+
+/// `vibemap hook` : un appel d'outil, poste sans attendre le prochain tour.
+///
+/// Le hook est facultatif et ne doit jamais gener l'agent qui l'appelle : quoi
+/// qu'il arrive, il sort en succes et ne dit rien sur la sortie standard.
+async fn hook() -> ExitCode {
+    let mut charge = String::new();
+    if std::io::Read::read_to_string(&mut std::io::stdin(), &mut charge).is_err() {
+        return ExitCode::SUCCESS;
+    }
+
+    if let Err(erreur) = poster_le_hook(&charge).await {
+        eprintln!("vibemap hook : {erreur}");
+    }
+
+    ExitCode::SUCCESS
+}
+
+async fn poster_le_hook(charge: &str) -> Result<(), String> {
+    let Some(evenement) = journal::depuis_hook(charge) else {
+        // Un outil hors correspondance, `Bash` en tete : rien a dire.
+        return Ok(());
+    };
+
+    let config = Config::load(&Config::chemin_par_defaut()).map_err(|e| e.to_string())?;
+
+    let token = match std::env::var("VIBEMAP_TOKEN") {
+        Ok(depuis_l_environnement) => depuis_l_environnement,
+        Err(_) => vibemap::trousseau::lire(&config.machine_id).map_err(|e| e.to_string())?,
+    };
+
+    let racine = journal::racine_git(Path::new(&evenement.cwd))
+        .ok_or_else(|| format!("{} n'est pas dans un depot git", evenement.cwd))?;
+
+    let client = Supabase::new(&config.supabase_url, &token);
+    let empreinte = vibemap::empreinte(&racine);
+    let Some(repo_id) = client
+        .repo_par_empreinte(&config.machine_id, &empreinte)
+        .await
+        .map_err(|e| e.to_string())?
+    else {
+        // Repo pas encore cartographie : la prochaine lecture des journaux le
+        // rattrapera, une fois le plan envoye.
+        return Ok(());
+    };
+
+    let lot = journal::rattacher(
+        std::slice::from_ref(&evenement),
+        &BTreeMap::from([(racine, repo_id.clone())]),
+    );
+
+    for lot in lot {
+        client
+            .pousser_activite(
+                &config.machine_id,
+                &lot.repo_id,
+                lot.branche.as_deref(),
+                &lot.activites,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }
 
 fn nom_de_la_machine() -> String {

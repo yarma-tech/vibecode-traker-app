@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Plan, type Module } from "./plan";
+import { Direct, type Etat, type Evenement } from "./direct";
+import { type Module } from "./plan";
+
+/** Combien d'événements le journal reçoit au premier rendu. */
+const LIGNES_DU_JOURNAL = 60;
 
 export default async function PageRepo({
   params,
@@ -26,14 +30,26 @@ export default async function PageRepo({
 
   if (!repo) notFound();
 
-  const { data: modules } = await supabase
-    .from("modules")
-    .select("path,parent_path,depth,loc,file_count")
-    .eq("repo_id", id)
-    .order("loc", { ascending: false });
+  // La fenêtre d'activité est un réglage de la base : l'écran la lit, il ne la
+  // décide pas. Ainsi une seule valeur gouverne les couleurs et ce qu'on en dit.
+  const [modules, etats, evenements, fenetre] = await Promise.all([
+    supabase
+      .from("modules")
+      .select("path,parent_path,depth,loc,file_count")
+      .eq("repo_id", id)
+      .order("loc", { ascending: false }),
+    supabase.rpc("etat_modules", { p_repo_id: id }),
+    supabase
+      .from("activity_events")
+      .select("id,session_id,module_path,file_path,kind,occurred_at")
+      .eq("repo_id", id)
+      .order("occurred_at", { ascending: false })
+      .limit(LIGNES_DU_JOURNAL),
+    supabase.rpc("fenetre_activite_secondes"),
+  ]);
 
   return (
-    <main className="tableau">
+    <main className="tableau large">
       <header className="entete">
         <Link className="lien" href="/">
           ← tous les repos
@@ -48,12 +64,20 @@ export default async function PageRepo({
       </h1>
 
       <p className="mesures">
-        {(modules ?? []).length} dossiers · {repo.loc_total.toLocaleString("fr-FR")} lignes ·{" "}
+        {(modules.data ?? []).length} dossiers ·{" "}
+        {repo.loc_total.toLocaleString("fr-FR")} lignes ·{" "}
         {repo.file_count.toLocaleString("fr-FR")} fichiers · surface
         proportionnelle aux lignes
       </p>
 
-      <Plan modules={(modules ?? []) as Module[]} locTotal={repo.loc_total} />
+      <Direct
+        repoId={id}
+        modules={(modules.data ?? []) as Module[]}
+        locTotal={repo.loc_total}
+        etatsInitiaux={(etats.data ?? []) as Etat[]}
+        evenementsInitiaux={(evenements.data ?? []) as Evenement[]}
+        fenetreSecondes={(fenetre.data as number | null) ?? 600}
+      />
     </main>
   );
 }

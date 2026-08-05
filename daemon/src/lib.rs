@@ -5,15 +5,30 @@
 
 mod appairage;
 mod config;
+pub mod journal;
 mod plan;
 pub mod trousseau;
 
 pub use appairage::{appairer, AppairageError, Identite};
 pub use config::{Config, ConfigError};
-pub use plan::{scanner, Module, Plan, ScanError};
+pub use plan::{empreinte, scanner, Module, Plan, ScanError};
 
 use chrono::{DateTime, Utc};
 use serde_json::json;
+use std::collections::BTreeMap;
+
+/// Un appel d'outil, pret a partir : plus de chemin absolu, plus de contenu.
+#[derive(Debug, Clone)]
+pub struct Activite {
+    pub session_id: String,
+    pub tool_use_id: String,
+    /// Dossier contenant le fichier, relatif a la racine du repo.
+    pub module_path: String,
+    pub file_path: String,
+    /// « read » ou « write ».
+    pub kind: &'static str,
+    pub occurred_at: DateTime<Utc>,
+}
 
 /// Ce qui peut mal se passer en parlant a Supabase.
 #[derive(Debug, thiserror::Error)]
@@ -161,6 +176,107 @@ impl Supabase {
         }
 
         Ok(repo_id)
+    }
+
+    /// Retrouve un repo deja cartographie par l'empreinte de sa racine.
+    ///
+    /// Le hook n'a pas la carte du daemon en memoire : il ne connait que le
+    /// dossier ou l'outil vient de travailler.
+    pub async fn repo_par_empreinte(
+        &self,
+        machine_id: &str,
+        root_hash: &str,
+    ) -> Result<Option<String>, ApiError> {
+        let reponse = self
+            .http
+            .get(format!(
+                "{}/rest/v1/repos?machine_id=eq.{}&root_hash=eq.{}&select=id",
+                self.url, machine_id, root_hash
+            ))
+            .header("apikey", &self.token)
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+
+        if !code.is_success() {
+            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+        }
+
+        let lignes: serde_json::Value = serde_json::from_str(&texte).unwrap_or_default();
+        Ok(lignes[0]["id"].as_str().map(str::to_string))
+    }
+
+    /// Envoie des appels d'outils, et rend le nombre de lignes reellement posees.
+    ///
+    /// Les sessions sont annoncees avant leurs evenements : sans leur ligne, la
+    /// cle etrangere refuserait tout. Un appel deja connu ne cree rien et ne
+    /// gene rien : c'est la contrainte d'unicite qui absorbe le doublon, et
+    /// c'est ce qui rend le hook optionnel.
+    pub async fn pousser_activite(
+        &self,
+        machine_id: &str,
+        repo_id: &str,
+        branche: Option<&str>,
+        evenements: &[Activite],
+    ) -> Result<usize, ApiError> {
+        if evenements.is_empty() {
+            return Ok(0);
+        }
+
+        // Une session peut arriver en plusieurs lots : on annonce l'etendue vue
+        // dans ce lot-ci, la base garde la plus large.
+        let mut etendues: BTreeMap<&str, (DateTime<Utc>, DateTime<Utc>)> = BTreeMap::new();
+        for evenement in evenements {
+            let etendue = etendues
+                .entry(&evenement.session_id)
+                .or_insert((evenement.occurred_at, evenement.occurred_at));
+            etendue.0 = etendue.0.min(evenement.occurred_at);
+            etendue.1 = etendue.1.max(evenement.occurred_at);
+        }
+
+        for (session_id, (debut, fin)) in etendues {
+            self.envoyer(
+                "rpc/noter_session",
+                Some("return=minimal"),
+                json!({
+                    "p_id":            session_id,
+                    "p_repo_id":       repo_id,
+                    "p_machine_id":    machine_id,
+                    "p_branch":        branche,
+                    "p_started_at":    debut,
+                    "p_last_event_at": fin,
+                }),
+            )
+            .await?;
+        }
+
+        let lignes: Vec<_> = evenements
+            .iter()
+            .map(|e| {
+                json!({
+                    "session_id":  e.session_id,
+                    "repo_id":     repo_id,
+                    "module_path": e.module_path,
+                    "file_path":   e.file_path,
+                    "kind":        e.kind,
+                    "occurred_at": e.occurred_at,
+                    "tool_use_id": e.tool_use_id,
+                })
+            })
+            .collect();
+
+        let poses = self
+            .envoyer(
+                "activity_events?on_conflict=session_id,tool_use_id",
+                Some("resolution=ignore-duplicates,return=representation"),
+                json!(lignes),
+            )
+            .await?;
+
+        Ok(poses.as_array().map(Vec::len).unwrap_or(0))
     }
 
     async fn envoyer(
