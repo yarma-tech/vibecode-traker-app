@@ -209,6 +209,93 @@ impl TestContext {
             .unwrap_or_default()
     }
 
+    /// Les conflits ouverts d'un repo, tels que l'ecran les comptera.
+    pub async fn conflits(&self, repo_id: &str, fenetre_secondes: i64) -> Vec<Value> {
+        self.appeler(
+            "conflits",
+            json!({ "p_repo_id": repo_id, "p_fenetre_secondes": fenetre_secondes }),
+        )
+        .await
+    }
+
+    /// Les conflits de tous les repos, ramenes a ceux d'une machine.
+    ///
+    /// La cle de service ignore la RLS et verrait donc les repos de tous les
+    /// utilisateurs de la base de test : le filtre remet le test dans son bac.
+    pub async fn conflits_de_la_machine(
+        &self,
+        machine_id: &str,
+        fenetre_secondes: i64,
+    ) -> Vec<Value> {
+        let repos: Vec<String> = self
+            .lire(&format!("repos?machine_id=eq.{machine_id}&select=id"))
+            .await
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|r| r["id"].as_str().map(str::to_string))
+            .collect();
+
+        self.appeler(
+            "conflits",
+            json!({ "p_repo_id": null, "p_fenetre_secondes": fenetre_secondes }),
+        )
+        .await
+        .into_iter()
+        .filter(|ligne| {
+            ligne["repo_id"]
+                .as_str()
+                .is_some_and(|id| repos.iter().any(|r| r == id))
+        })
+        .collect()
+    }
+
+    /// Le nombre d'agents presents sur un repo pendant la fenetre.
+    pub async fn agents_actifs(&self, repo_id: &str, fenetre_secondes: i64) -> i64 {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/rpc/agents_actifs", self.url))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .json(&json!({
+                "p_repo_id": repo_id,
+                "p_fenetre_secondes": fenetre_secondes,
+            }))
+            .send()
+            .await
+            .expect("appel de agents_actifs");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        assert!(code.is_success(), "agents_actifs a echoue ({code}) : {texte}");
+
+        texte.trim().parse().unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
+    }
+
+    /// Appel d'une fonction de la base avec la cle de service.
+    async fn appeler(&self, nom: &str, corps: Value) -> Vec<Value> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/rpc/{nom}", self.url))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .json(&corps)
+            .send()
+            .await
+            .expect("appel de fonction");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        assert!(code.is_success(), "{nom} a echoue ({code}) : {texte}");
+
+        serde_json::from_str::<Value>(&texte)
+            .expect("reponse JSON de fonction")
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
     /// Insertion de service qui refuse d'echouer en silence.
     async fn ecrire_service(&self, chemin: &str, corps: Value) -> Value {
         let reponse = self
