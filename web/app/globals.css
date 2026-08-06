@@ -1,0 +1,763 @@
+/* Systeme visuel de Vibe Map.
+   Clair par defaut : l'outil s'ouvre dix secondes en pleine journee, entre
+   deux onglets clairs. Voir PRODUCT.md et la direction visuelle v2.
+   La couleur ne dit qu'un etat, jamais une decoration. */
+
+:root {
+  --paper: oklch(0.977 0.004 155);
+  --paper-2: oklch(0.948 0.005 155);
+  --ink: oklch(0.235 0.012 160);
+  --ink-2: oklch(0.475 0.011 160);
+  --ink-3: oklch(0.625 0.009 160);
+  --rule: oklch(0.873 0.007 160);
+  --rule-2: oklch(0.775 0.01 160);
+
+  --read: oklch(0.505 0.115 252);
+  --read-f: oklch(0.935 0.032 252);
+  --edit: oklch(0.575 0.125 68);
+  --edit-f: oklch(0.935 0.045 78);
+  --conf: oklch(0.505 0.185 27);
+  --conf-f: oklch(0.925 0.05 27);
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: oklch(0.185 0.01 160);
+    --paper-2: oklch(0.228 0.011 160);
+    --ink: oklch(0.94 0.006 160);
+    --ink-2: oklch(0.735 0.01 160);
+    --ink-3: oklch(0.585 0.011 160);
+    --rule: oklch(0.318 0.012 160);
+    --rule-2: oklch(0.408 0.014 160);
+    --read: oklch(0.735 0.125 252);
+    --read-f: oklch(0.318 0.058 252);
+    --edit: oklch(0.795 0.13 78);
+    --edit-f: oklch(0.348 0.062 68);
+    --conf: oklch(0.7 0.175 27);
+    --conf-f: oklch(0.33 0.08 27);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.87em;
+}
+
+/* ---------- premier ecran : connexion ---------- */
+
+.accueil {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 6rem 1.25rem;
+}
+
+.accueil h1 {
+  font-size: 1.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.6rem;
+}
+
+.pitch {
+  color: var(--ink-2);
+  margin: 0 0 1.8rem;
+  max-width: 44ch;
+}
+
+.bouton {
+  background: var(--ink);
+  color: var(--paper);
+  border: 0;
+  border-radius: 4px;
+  padding: 0.5rem 0.9rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: opacity 180ms var(--ease);
+}
+
+.bouton:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.bouton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.echec {
+  margin-top: 1rem;
+  color: var(--conf);
+  font-size: 0.8125rem;
+}
+
+/* ---------- tableau de bord ---------- */
+
+.tableau {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+
+/* Le plan d'un repo travaille a cote de son journal : il lui faut la largeur
+   d'un plan de releve, pas celle d'une colonne de texte. */
+.tableau.large {
+  max-width: 70rem;
+}
+
+.entete {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--rule-2);
+}
+
+.marque {
+  font-weight: 680;
+  letter-spacing: -0.015em;
+}
+
+.compte {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  margin-left: auto;
+}
+
+.lien {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.titre {
+  font-size: 0.6875rem;
+  font-family: var(--mono);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 2rem 0 0.5rem;
+}
+
+/* ---------- liste des machines ---------- */
+
+.machines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.machine {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.nom {
+  font-weight: 620;
+  letter-spacing: -0.01em;
+}
+
+.plateforme {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-3);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.02rem 0.3rem;
+}
+
+.etat {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.etat .quand {
+  color: var(--ink-3);
+}
+
+/* Muette : la seule couleur de cet ecran, parce qu'elle est la seule
+   information qui demande une action. */
+.machine.morte {
+  background: var(--edit-f);
+}
+
+.machine.morte .etat {
+  color: var(--edit);
+  font-weight: 700;
+}
+
+/* ---------- aucune machine ---------- */
+
+.vide {
+  border: 1px dashed var(--rule-2);
+  border-radius: 4px;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 9px,
+    var(--paper-2) 9px 10px
+  );
+}
+
+.vide-titre {
+  font-weight: 620;
+  margin: 0 0 0.35rem;
+}
+
+.vide-suite {
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+/* ---------- appairage d'une machine ---------- */
+
+.appairage {
+  margin-top: 2.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+
+.etape {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  margin: 0 0 0.6rem;
+}
+
+.commande {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  line-height: 1.65;
+  margin: 0 0 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper-2);
+  overflow-x: auto;
+  white-space: pre;
+  word-break: normal;
+}
+
+.commande .invite {
+  color: var(--ink-3);
+  user-select: none;
+  margin-right: 0.4rem;
+}
+
+.attente {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+/* Le seul mouvement de l'ecran : il dit qu'on attend vraiment quelque chose. */
+.pastille {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--edit);
+  animation: battement 2s ease-in-out infinite;
+}
+
+@keyframes battement {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pastille { animation: none; }
+}
+
+/* Une machine revoquee reste visible : elle raconte ce qui a ete coupe. */
+.machine.revoquee .nom,
+.machine.revoquee .etat {
+  color: var(--ink-3);
+}
+
+.machine.revoquee .nom {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* Dette assumee et affichee : la commande n'est pas encore distribuee. */
+.pas-encore {
+  margin: 0.7rem 0 0;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* ---------- liste des repos ---------- */
+
+.repos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.repo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Un repo ou deux agents se marchent dessus se voit sans etre ouvert. */
+.repo.alarme {
+  background: var(--conf-f);
+}
+
+.repo-alarme {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--conf);
+  white-space: nowrap;
+}
+
+.repo-lien {
+  color: inherit;
+  text-decoration: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.repo-lien:hover .repo-nom {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.repo-nom {
+  font-weight: 620;
+  letter-spacing: -0.01em;
+}
+
+.proprietaire {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+}
+
+.repo-poids {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- le plan ---------- */
+
+.titre-repo {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 1.75rem 0 0.35rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.titre-repo .proprietaire {
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.titre-repo .branche {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  padding: 0.05rem 0.5rem;
+}
+
+.mesures {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  margin: 0 0 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fil {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  margin-bottom: 0.6rem;
+}
+
+.fil .separateur {
+  color: var(--rule-2);
+}
+
+.fil .ici {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Le plan garde ses proportions : une parcelle deux fois plus grande
+   contient deux fois plus de lignes, et cela doit rester vrai a l'oeil. */
+.plan {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 320px;
+}
+
+@media (max-width: 620px) {
+  .plan {
+    aspect-ratio: 3 / 4;
+  }
+}
+
+.parcelle {
+  position: absolute;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.05rem;
+  padding: 0.35rem 0.4rem;
+  text-align: left;
+  background: var(--paper-2);
+  border: 1px solid var(--rule-2);
+  border-radius: 3px;
+  color: var(--ink-2);
+  transition: background 200ms var(--ease), border-color 200ms var(--ease);
+}
+
+/* Une parcelle sans enfant n'est pas cliquable : elle ne doit pas le laisser
+   croire. */
+.parcelle:disabled {
+  cursor: default;
+}
+
+.parcelle:not(:disabled):hover {
+  background: var(--paper);
+  border-color: var(--ink-3);
+}
+
+.parcelle-nom {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.parcelle-poids {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Ce que l'agent est en train de faire, sous le nom du dossier. */
+.parcelle-fait {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Les etats du plan. La couleur ne dit qu'un etat : le rouge est la seule
+   couleur saturee de l'ecran, et il n'apparait qu'en cas de conflit reel. */
+.parcelle.lu {
+  background: var(--read-f);
+  border-color: var(--read);
+}
+
+.parcelle.ecrit {
+  background: var(--edit-f);
+  border-color: var(--edit);
+}
+
+.parcelle.conflit {
+  background: var(--conf-f);
+  border-color: var(--conf);
+  box-shadow: inset 0 0 0 1px var(--conf);
+}
+
+/* Cartouche de legende. Il se pose SOUS le plan, jamais dessus : un treemap
+   n'a pas de coin vide, et une legende flottante masquerait justement la
+   parcelle qui vient de s'allumer. */
+.cartouche {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.75rem;
+  margin-top: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-2);
+}
+
+.cartouche-titre {
+  color: var(--ink-3);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.temoignage {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.temoin {
+  display: inline-block;
+  width: 16px;
+  height: 9px;
+  border: 1px solid var(--rule-2);
+  border-radius: 2px;
+}
+
+.temoin.lu {
+  background: var(--read-f);
+  border-color: var(--read);
+}
+
+.temoin.ecrit {
+  background: var(--edit-f);
+  border-color: var(--edit);
+}
+
+.temoin.conflit {
+  background: var(--conf-f);
+  border-color: var(--conf);
+}
+
+/* Bandeau de releve : une ligne, des filets, comme la barre d'etat d'un
+   instrument. Pas de gros chiffre isole, pas de micro-courbe. */
+.bandeau {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin-bottom: 0.9rem;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bandeau > div {
+  padding: 0.38rem 0.85rem 0.38rem 0;
+  margin-right: 0.85rem;
+  border-right: 1px solid var(--rule);
+}
+
+.bandeau > div:last-child {
+  margin-right: 0;
+  border-right: 0;
+}
+
+.bandeau .cle {
+  color: var(--ink-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.bandeau .valeur {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.bandeau .glose {
+  color: var(--ink-2);
+}
+
+/* Le rouge ne sert qu'a ca. */
+.chaud,
+.bandeau .valeur.chaud {
+  color: var(--conf);
+  font-weight: 700;
+}
+
+/* Le plan tient la place, le journal l'accompagne. */
+.releve {
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 940px) {
+  .releve {
+    grid-template-columns: 1fr;
+  }
+}
+
+.releve-plan {
+  min-width: 0;
+}
+
+.journal {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper-2);
+}
+
+.journal-titre {
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.journal-lignes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* Aucun filet lateral colore : c'est le glyphe qui porte la nature. */
+.ligne {
+  display: grid;
+  grid-template-columns: 1rem 3.4rem 1fr;
+  gap: 0.4rem;
+  align-items: baseline;
+  padding: 0.34rem 0.7rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.ligne .glyphe {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  text-align: center;
+}
+
+.ligne .glyphe.read {
+  color: var(--read);
+}
+
+.ligne .glyphe.write {
+  color: var(--edit);
+}
+
+.ligne .glyphe.conflit {
+  color: var(--conf);
+}
+
+/* Le conflit teinte la ligne entiere : aucune autre ligne ne le fait. */
+.ligne.alarme {
+  background: var(--conf-f);
+}
+
+.ligne.alarme .dit,
+.ligne.alarme .dit b,
+.ligne.alarme .dit code {
+  color: var(--ink);
+}
+
+.ligne .quand {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ligne .dit {
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  line-height: 1.4;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ligne .dit b {
+  color: var(--ink);
+  font-weight: 640;
+}
+
+.ligne .dit code {
+  font-family: var(--mono);
+  color: var(--ink);
+}
+
+.journal-vide {
+  margin: 0;
+  padding: 0.8rem 0.7rem;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.journal-pied {
+  margin-top: auto;
+  padding: 0.5rem 0.7rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-3);
+}

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Agent launchd du daemon Vibe Map.
+
+  A installer par l'utilisateur, jamais automatiquement :
+    cp daemon/launchd/fr.yarma.vibemap.plist ~/Library/LaunchAgents/
+    sed -i '' "s|CHEMIN_DU_BINAIRE|$PWD/daemon/target/release/vibemap|" ~/Library/LaunchAgents/fr.yarma.vibemap.plist
+    launchctl load ~/Library/LaunchAgents/fr.yarma.vibemap.plist
+
+  Pour l'arreter :
+    launchctl unload ~/Library/LaunchAgents/fr.yarma.vibemap.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>fr.yarma.vibemap</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>CHEMIN_DU_BINAIRE</string>
+  </array>
+
+  <!-- Demarre a l'ouverture de session. -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Relance si le daemon meurt, avec dix secondes de repit pour eviter
+       la boucle folle quand la configuration est fautive. -->
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/vibemap.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/vibemap.err</string>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>
