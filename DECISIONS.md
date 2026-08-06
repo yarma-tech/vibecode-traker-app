@@ -1,5 +1,9 @@
 # Architectural Decisions
 
+> **Document d'archive.** Il décrit *Vibe Code Tracker*, l'application macOS
+> retirée du dépôt le 2026-08-06. Le produit actuel est **Vibe Map** : voir le
+> [README](README.md) et [la spec](docs/superpowers/specs/2026-08-01-vibe-map-observabilite-web-design.md).
+
 Decisions taken autonomously during the overnight build. Each notes context,
 the choice, alternatives, and consequences for Yannick to review.
 
