@@ -1,5 +1,9 @@
 # Architecture
 
+> **Document d'archive.** Il décrit *Vibe Code Tracker*, l'application macOS
+> retirée du dépôt le 2026-08-06. Le produit actuel est **Vibe Map** : voir le
+> [README](../README.md) et [la spec](superpowers/specs/2026-08-01-vibe-map-observabilite-web-design.md).
+
 Vibe Code Tracker is a local-first macOS app: Swift + SwiftUI + SwiftData. It
 makes no network calls — everything is derived on-device.
 

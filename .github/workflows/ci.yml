@@ -10,27 +10,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-test:
-    name: Build & Test (macOS)
-    runs-on: macos-14
+  daemon:
+    name: Daemon (Rust)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: daemon
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Show toolchain
-        run: |
-          xcodebuild -version
-          swift --version
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            daemon/target
+          key: cargo-${{ hashFiles('daemon/Cargo.lock') }}
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
 
-      - name: Generate Xcode project
-        run: xcodegen generate
+      # Les tests d'integration parlent a une vraie pile Supabase locale : ils
+      # ne tournent pas ici, faute de base. Ils restent la verification qui
+      # compte, et se lancent a la main avant chaque fusion (voir le README).
+      # Ce qui tourne ici est tout ce qui n'a besoin de personne.
+      - name: Tests hors reseau
+        run: cargo test --test journal --test config --test plan
 
-      - name: Build and test
-        run: |
-          xcodebuild test \
-            -scheme VibeCodeTrackerApp \
-            -configuration Debug \
-            -destination 'platform=macOS' \
-            CODE_SIGNING_ALLOWED=NO
+  web:
+    name: Web (Next)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Installer
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint .
+
+      - name: Build
+        run: npm run build
+        env:
+          # Le build ne parle a personne : ces valeurs n'ont qu'a exister.
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: cle-de-build

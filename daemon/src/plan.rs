@@ -147,7 +147,7 @@ pub fn scanner(racine: &Path) -> Result<Plan, ScanError> {
         });
     }
 
-    modules.sort_by(|a, b| b.loc.cmp(&a.loc));
+    modules.sort_by_key(|module| std::cmp::Reverse(module.loc));
 
     Ok(Plan {
         name: nom(racine),

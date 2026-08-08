@@ -1,5 +1,9 @@
 # Blockers
 
+> **Document d'archive.** Il décrit *Vibe Code Tracker*, l'application macOS
+> retirée du dépôt le 2026-08-06. Le produit actuel est **Vibe Map** : voir le
+> [README](README.md) et [la spec](docs/superpowers/specs/2026-08-01-vibe-map-observabilite-web-design.md).
+
 Items that need Yannick's intervention (access, credentials, decisions).
 None are hard-stops for the slices marked Done — each has a documented workaround.
 

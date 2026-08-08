@@ -1,78 +1,112 @@
-# Vibe Code Tracker
+# Vibe Map
 
-A local macOS dashboard for your [Claude Code](https://www.anthropic.com/claude-code) projects. It reads the sessions already on your machine (`~/.claude/projects/`), cross-references your Git repos and backlogs, and gives you a consolidated view of activity, tokens, and cost — without sending your data anywhere.
+Une carte de tes codebases qui s'allume quand un agent y travaille.
 
-> Open the app and know in five seconds where each project stands, what happened this week, how much it cost, and what's blocked.
+> Dix secondes sur un onglet, entre deux autres, pour décider si tu lances un
+> deuxième agent. Puis tu refermes.
 
-![CI](https://github.com/OWNER/vibecode-traker-app/actions/workflows/ci.yml/badge.svg)
+Un dossier par parcelle, la surface proportionnelle aux lignes. Bleu quand on
+lit, ambre quand on écrit, rouge quand deux agents se marchent dessus. La v1 ne
+fait qu'observer : elle ne lance rien, n'arrête rien, ne corrige rien.
 
-## Features
+**Ton code ne quitte pas ta machine.** Seuls des noms de dossiers relatifs, des
+compteurs et des horodatages voyagent. Le chemin absolu d'un repo devient une
+empreinte ; aucune table n'a de colonne où un contenu de fichier ou un prompt
+pourrait entrer.
 
-- **Auto-detection** — finds every project that has had a Claude Code session, no setup required.
-- **Global dashboard** — eight KPIs (active projects, sessions, tokens, cost, averages, top model, blocked) plus the latest sessions across all projects.
-- **Project detail** — per-project KPIs, a GitHub-style commit contribution heatmap, recent commits, sessions, backlog, and detected stack.
-- **Session insight** — token usage, primary model, duration, and an inferred status (in progress / blocked / completed).
-- **Git integration** — recent commits with inferred type (feat/fix/…) via the `git` CLI.
-- **Backlog** — parses `TODO.md` / `BACKLOG.md` (with P0–P2 priorities).
-- **Stack detection** — infers TypeScript, Rust, Python, Next.js, Supabase, Twilio, and more.
-- **Costs** — every session is costed automatically from its token counts at published Anthropic list prices. No API key or account required.
-- **Local-first** — your data never leaves your Mac; the app makes no network calls.
+## Les trois morceaux
 
-## Requirements
+| | |
+|---|---|
+| `daemon/` | Un binaire Rust sur ton poste. Il cartographie tes repos, lit les journaux de Claude Code, et pousse des métadonnées. Voir [l'ADR 0001](docs/adr/0001-daemon-en-rust.md). |
+| `supabase/` | Le schéma : machines, repos, modules, sessions, activité. Toute la logique d'accès est en RLS ; révoquer une machine coupe ses écritures à la milliseconde. |
+| `web/` | Next.js. La carte, le journal, le relevé. |
 
-- macOS 14 (Sonoma) or later
-- Xcode 15 or later (developed with Xcode 26)
-- The `git` command-line tools (ships with Xcode)
+La conception complète est dans
+[la spec](docs/superpowers/specs/2026-08-01-vibe-map-observabilite-web-design.md),
+la personnalité du produit dans [PRODUCT.md](PRODUCT.md).
 
-## Install
+## Démarrer
 
-This is a source build for now (a signed DMG / Homebrew cask may come later).
+Il faut Rust, Node 22, et la [CLI Supabase](https://supabase.com/docs/guides/local-development)
+avec un moteur Docker (Colima fait l'affaire).
 
-```bash
-git clone https://github.com/OWNER/vibecode-traker-app.git
-cd vibecode-traker-app
-open VibeCodeTrackerApp.xcodeproj   # then press Run (⌘R)
+```sh
+supabase start                 # la pile locale
+cd web && npm install && npm run dev
 ```
 
-Or install a Release build straight into `/Applications` (it lands in Launchpad):
+Puis, dans un autre terminal :
 
-```bash
-./scripts/install.sh          # build Release, install to /Applications, launch
-./scripts/install.sh --no-open
+```sh
+cd daemon && cargo build
 ```
 
-Or build/test from the command line:
+Ouvre <http://localhost:3000>, connecte-toi, demande un code d'appairage, et
+relie la machine :
 
-```bash
-xcodebuild -scheme VibeCodeTrackerApp -destination 'platform=macOS' build
-xcodebuild -scheme VibeCodeTrackerApp -destination 'platform=macOS' test
+```sh
+VIBEMAP_SUPABASE_URL=http://127.0.0.1:54321 \
+VIBEMAP_SUPABASE_ANON_KEY=<cle anon de `supabase status`> \
+  ./daemon/target/debug/vibemap pair ABC-DEFG
 ```
 
-The checked-in `.xcodeproj` means contributors don't need any extra tooling. Maintainers who change the project structure regenerate it from `project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen) — see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+Le jeton va dans le trousseau du système, la configuration dans
+`~/.config/vibemap/config.toml`. Ensuite :
 
-## Costs
+```sh
+./daemon/target/debug/vibemap
+```
 
-Every session is costed automatically — token counts × published Anthropic list prices (Opus / Sonnet / Haiku) — on the dashboard and per project. These are **estimates** from public pricing, computed entirely on-device: no API key, no account, and no network calls.
+Il bat toutes les 30 s, cartographie toutes les 5 min, et lit les journaux
+toutes les 2 s.
 
-## Privacy
+Un hook `PostToolUse` facultatif fait gagner environ une seconde — voir
+[daemon/hooks/README.md](daemon/hooks/README.md). Sans lui, tout fonctionne.
 
-- All project, session, commit, and backlog data is read locally and stored in a local SwiftData database.
-- The app makes no network calls — there is no account, login, or API key.
-- iCloud sync is opt-in and not active in this version (requires an Apple Developer setup).
+## Vérifier
 
-## Documentation
+Les tests d'intégration parlent à la vraie pile Supabase locale, pas à un
+simulacre : c'est le seul moyen de vérifier le contrat entre les structures
+Rust et le schéma SQL.
 
-- [Architecture](docs/ARCHITECTURE.md) — layers, data flow, models
-- [Development guide](docs/DEVELOPMENT.md) — build, test, project layout
-- [Product requirements](docs/PRD.md)
-- [Architectural decisions](DECISIONS.md) · [Known blockers](BLOCKERS.md)
+```sh
+supabase status                # relever les cles
 
-## Contributing
+cd daemon
+VIBEMAP_TEST_URL=http://127.0.0.1:54321 \
+VIBEMAP_TEST_SERVICE_KEY=<service_role> \
+VIBEMAP_TEST_ANON_KEY=<anon> \
+  cargo test
+```
 
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md).
+Côté web :
 
-## License
+```sh
+cd web && npx eslint . && npm run build
+```
 
-[MIT](LICENSE) © 2026 Yannick Maillard.
+L'intégration continue ne joue que ce qui n'a besoin de personne : clippy, les
+tests hors réseau, le lint et le build web. Les tests qui touchent la base se
+lancent à la main avant chaque fusion.
 
-Vibe Code Tracker is compatible with Claude Code but is not affiliated with or endorsed by Anthropic. "Claude" is a trademark of Anthropic.
+## Pièges connus
+
+- **Le trousseau macOS bloque le daemon en silence.** À chaque recompilation la
+  signature du binaire change et le système redemande l'autorisation, sans rien
+  afficher. Passe `VIBEMAP_TOKEN=<jeton>` pour t'en dispenser pendant le
+  développement.
+- **`supabase db reset` efface les comptes.** Il faut se reconnecter et
+  réappairer la machine : le `machine_id` de la configuration devient invalide.
+- **Le temps réel Supabase est un signal, pas une source de vérité.** Ses
+  charges utiles arrivent incomplètes ; on relit toujours par l'API.
+
+## Histoire
+
+Ce dépôt a d'abord porté *Vibe Code Tracker*, une application macOS SwiftData
+qui lisait les mêmes journaux hors ligne. Elle a été retirée au profit de Vibe
+Map. Son code reste dans l'historique git, sous le commit `f435888`.
+
+## Licence
+
+MIT — voir [LICENSE](LICENSE).

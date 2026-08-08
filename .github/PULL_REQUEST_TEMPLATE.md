@@ -1,21 +1,25 @@
-## Summary
+## Ce que ça fait
 
-What does this PR do, and why?
+Quoi, et pourquoi.
 
-## Changes
+## Changements
 
 -
 
-## Testing
+## Vérifié pour de vrai
 
-- [ ] `xcodebuild test -scheme VibeCodeTrackerApp -destination 'platform=macOS'` passes
-- [ ] No new warnings
-- [ ] Added/updated tests for new logic
+Dire ce qui a été lancé, et ce qui a été vu à l'écran.
 
-## Checklist
+- [ ] `cargo clippy --all-targets -- -D warnings` propre
+- [ ] `cargo test` au vert, pile Supabase locale comprise
+- [ ] `npx eslint . && npm run build` propres
+- [ ] Vu dans un navigateur, pas seulement en test
 
-- [ ] Commits follow Conventional Commits
-- [ ] Comments are in English; no `print()` / unjustified force-unwraps
-- [ ] Updated docs / CHANGELOG if behavior changed
+## Rappels
+
+- [ ] Aucun contenu de fichier, aucun prompt ne part vers Supabase
+- [ ] Toute table nouvelle a ses policies RLS **et** ses `grant`
+- [ ] Les tests ont été écrits avant le code
+- [ ] Commits en Conventional Commits
 
 Closes #
