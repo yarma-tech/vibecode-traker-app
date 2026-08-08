@@ -28,6 +28,21 @@ export type Evenement = {
 };
 
 /**
+ * Le relevé cumulé d'un repo : ses jetons, son coût, ses sessions. Somme de
+ * toute son histoire, pas de la fenêtre. Le coût vaut `null` quand aucune
+ * session n'a de modèle connu : des jetons sans coût valent mieux qu'un coût faux.
+ */
+export type Releve = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  cout_usd: number | null;
+  sessions: number;
+  sessions_tarifees: number;
+};
+
+/**
  * Un conflit, au module où les deux agents se rencontrent. La base n'en rend
  * qu'un par rencontre, même si le rouge remonte jusqu'à la racine sur le plan.
  */
@@ -57,6 +72,7 @@ export function Direct({
   evenementsInitiaux,
   conflitsInitiaux,
   agentsInitiaux,
+  releveInitial,
   fenetreSecondes,
 }: {
   repoId: string;
@@ -66,17 +82,19 @@ export function Direct({
   evenementsInitiaux: Evenement[];
   conflitsInitiaux: Conflit[];
   agentsInitiaux: number;
+  releveInitial: Releve | null;
   fenetreSecondes: number;
 }) {
   const [etats, setEtats] = useState(etatsInitiaux);
   const [evenements, setEvenements] = useState(evenementsInitiaux);
   const [conflits, setConflits] = useState(conflitsInitiaux);
   const [presents, setPresents] = useState(agentsInitiaux);
+  const [releve, setReleve] = useState(releveInitial);
 
   const relire = useCallback(async () => {
     const supabase = createClient();
 
-    const [etat, journal, alarmes, agents] = await Promise.all([
+    const [etat, journal, alarmes, agents, bilan] = await Promise.all([
       supabase.rpc("etat_modules", { p_repo_id: repoId }),
       supabase
         .from("activity_events")
@@ -86,12 +104,14 @@ export function Direct({
         .limit(LIGNES_DU_JOURNAL),
       supabase.rpc("conflits", { p_repo_id: repoId }),
       supabase.rpc("agents_actifs", { p_repo_id: repoId }),
+      supabase.rpc("releve_repo", { p_repo_id: repoId }),
     ]);
 
     if (etat.data) setEtats(etat.data as Etat[]);
     if (journal.data) setEvenements(journal.data as Evenement[]);
     if (alarmes.data) setConflits(alarmes.data as Conflit[]);
     if (typeof agents.data === "number") setPresents(agents.data);
+    if (bilan.data) setReleve((bilan.data as Releve[])[0] ?? null);
   }, [repoId]);
 
   // Le temps réel n'est qu'un signal : sa charge utile arrive incomplète, et
@@ -120,7 +140,7 @@ export function Direct({
 
   return (
     <>
-      <Bandeau agents={presents} conflits={conflits} etats={etats} />
+      <Bandeau agents={presents} conflits={conflits} etats={etats} releve={releve} />
 
       <div className="releve">
         <div className="releve-plan">

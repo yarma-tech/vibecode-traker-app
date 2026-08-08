@@ -6,7 +6,10 @@
 use chrono::{TimeZone, Utc};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use vibemap::journal::{depuis_hook, lire, localiser, racine_git, rattacher, Nature, Suivi};
+use vibemap::journal::{
+    depuis_hook, lire, lire_usage, localiser, racine_git, rattacher, rattacher_usage, Nature,
+    Suivi,
+};
 
 /// Une ligne d'assistant telle qu'elle apparait dans un vrai journal.
 fn ligne(tool: &str, input: serde_json::Value, id: &str, instant: &str) -> String {
@@ -23,6 +26,135 @@ fn ligne(tool: &str, input: serde_json::Value, id: &str, instant: &str) -> Strin
         }
     })
     .to_string()
+}
+
+/// Une ligne d'assistant qui ne porte que sa consommation, sans outil.
+fn ligne_usage(model: &str, usage: serde_json::Value, instant: &str) -> String {
+    serde_json::json!({
+        "type": "assistant",
+        "timestamp": instant,
+        "sessionId": "9adbb340-9563-4b1d-878e-4e2d5032ac67",
+        "cwd": "/Users/moi/Developer/atelier",
+        "gitBranch": "main",
+        "message": {
+            "role": "assistant",
+            "model": model,
+            "content": [{ "type": "text", "text": "bonjour" }],
+            "usage": usage
+        }
+    })
+    .to_string()
+}
+
+/// Une ligne de consommation pour une session et un dossier donnes.
+fn ligne_usage_pour(
+    session: &str,
+    cwd: &str,
+    model: &str,
+    usage: serde_json::Value,
+    instant: &str,
+) -> String {
+    serde_json::json!({
+        "type": "assistant",
+        "timestamp": instant,
+        "sessionId": session,
+        "cwd": cwd,
+        "gitBranch": "main",
+        "message": { "role": "assistant", "model": model, "usage": usage }
+    })
+    .to_string()
+}
+
+#[test]
+fn les_usages_s_agregent_par_session_dans_leur_repo() {
+    let racine = "/Users/moi/Developer/atelier";
+    let a = ligne_usage_pour(
+        "s1",
+        racine,
+        "claude-opus-4-8",
+        serde_json::json!({
+            "input_tokens": 10, "output_tokens": 100,
+            "cache_read_input_tokens": 1000, "cache_creation_input_tokens": 50
+        }),
+        "2026-08-04T12:00:00.000Z",
+    );
+    let b = ligne_usage_pour(
+        "s1",
+        racine,
+        "claude-sonnet-4-5",
+        serde_json::json!({
+            "input_tokens": 5, "output_tokens": 20,
+            "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0
+        }),
+        "2026-08-04T12:05:00.000Z",
+    );
+    let usages = lire_usage(&format!("{a}\n{b}"));
+
+    let lots = rattacher_usage(&usages, &repos_connus(&[(racine, "repo-1")]));
+
+    assert_eq!(lots.len(), 1);
+    assert_eq!(lots[0].repo_id, "repo-1");
+    assert_eq!(lots[0].branche.as_deref(), Some("main"));
+    assert_eq!(lots[0].sessions.len(), 1);
+    let s = &lots[0].sessions[0];
+    assert_eq!(s.session_id, "s1");
+    assert_eq!(s.input, 15);
+    assert_eq!(s.output, 120);
+    assert_eq!(s.cache_read, 1000);
+    assert_eq!(s.cache_creation, 50);
+    // Le dernier modele vu l'emporte : un agent peut changer en cours de route.
+    assert_eq!(s.model, "claude-sonnet-4-5");
+    assert_eq!(s.debut, Utc.with_ymd_and_hms(2026, 8, 4, 12, 0, 0).unwrap());
+    assert_eq!(s.fin, Utc.with_ymd_and_hms(2026, 8, 4, 12, 5, 0).unwrap());
+}
+
+#[test]
+fn un_usage_hors_de_tout_repo_connu_est_ignore() {
+    let usages = lire_usage(&ligne_usage_pour(
+        "s1",
+        "/ailleurs/projet",
+        "claude-opus-4-8",
+        serde_json::json!({ "input_tokens": 10, "output_tokens": 100 }),
+        "2026-08-04T12:00:00.000Z",
+    ));
+
+    let lots = rattacher_usage(
+        &usages,
+        &repos_connus(&[("/Users/moi/Developer/atelier", "repo-1")]),
+    );
+
+    assert!(lots.is_empty(), "un usage hors repo cartographie ne sort pas");
+}
+
+#[test]
+fn une_ligne_assistant_donne_sa_consommation() {
+    let contenu = ligne_usage(
+        "claude-opus-4-8-20260101",
+        serde_json::json!({
+            "input_tokens": 12,
+            "output_tokens": 340,
+            "cache_read_input_tokens": 8000,
+            "cache_creation_input_tokens": 1500
+        }),
+        "2026-08-04T12:00:00.000Z",
+    );
+
+    let usages = lire_usage(&contenu);
+
+    assert_eq!(usages.len(), 1);
+    let u = &usages[0];
+    assert_eq!(u.session_id, "9adbb340-9563-4b1d-878e-4e2d5032ac67");
+    assert_eq!(u.model, "claude-opus-4-8-20260101");
+    assert_eq!(u.input, 12);
+    assert_eq!(u.output, 340);
+    assert_eq!(u.cache_read, 8000);
+    assert_eq!(u.cache_creation, 1500);
+    assert_eq!(u.cwd, "/Users/moi/Developer/atelier");
+    assert_eq!(u.branche.as_deref(), Some("main"));
+    assert_eq!(
+        u.instant,
+        Utc.with_ymd_and_hms(2026, 8, 4, 12, 0, 0).unwrap()
+    );
 }
 
 #[test]
@@ -509,11 +641,11 @@ fn la_relecture_ne_rend_que_les_lignes_ajoutees() {
     let mut suivi = Suivi::new();
     let debut = Utc.with_ymd_and_hms(2026, 8, 4, 11, 0, 0).unwrap();
 
-    let premier_tour = suivi.nouveaux(&dossier, debut);
+    let premier_tour = suivi.nouveaux(&dossier, debut).evenements;
     assert_eq!(premier_tour.len(), 1, "le premier tour rend la ligne posee");
 
     assert!(
-        suivi.nouveaux(&dossier, debut).is_empty(),
+        suivi.nouveaux(&dossier, debut).evenements.is_empty(),
         "sans ecriture nouvelle, un second tour ne rend rien"
     );
 
@@ -530,9 +662,35 @@ fn la_relecture_ne_rend_que_les_lignes_ajoutees() {
     std::io::Write::write_all(&mut fichier, format!("{suite}\n").as_bytes())
         .expect("ajout au journal");
 
-    let second_tour = suivi.nouveaux(&dossier, debut);
+    let second_tour = suivi.nouveaux(&dossier, debut).evenements;
     assert_eq!(second_tour.len(), 1);
     assert_eq!(second_tour[0].tool_use_id, "toolu_b");
+}
+
+#[test]
+fn un_tour_rapporte_aussi_la_consommation() {
+    let dossier = dossier_neuf("conso");
+    let contenu = format!(
+        "{}\n",
+        ligne_usage(
+            "claude-sonnet-4-5",
+            serde_json::json!({
+                "input_tokens": 5,
+                "output_tokens": 50,
+                "cache_read_input_tokens": 100,
+                "cache_creation_input_tokens": 10
+            }),
+            "2026-08-04T12:00:00.000Z",
+        )
+    );
+    poser_journal(&dossier, "session.jsonl", &contenu);
+
+    let horizon = Utc.with_ymd_and_hms(2026, 8, 4, 11, 0, 0).unwrap();
+    let lecture = Suivi::new().nouveaux(&dossier, horizon);
+
+    assert_eq!(lecture.usages.len(), 1, "le tour rapporte la consommation");
+    assert_eq!(lecture.usages[0].model, "claude-sonnet-4-5");
+    assert_eq!(lecture.usages[0].output, 50);
 }
 
 #[test]
@@ -553,7 +711,7 @@ fn le_passe_lointain_ne_remonte_pas_au_premier_tour() {
     poser_journal(&dossier, "session.jsonl", &format!("{vieux}\n{recent}\n"));
 
     let horizon = Utc.with_ymd_and_hms(2026, 8, 4, 11, 50, 0).unwrap();
-    let evenements = Suivi::new().nouveaux(&dossier, horizon);
+    let evenements = Suivi::new().nouveaux(&dossier, horizon).evenements;
 
     assert_eq!(evenements.len(), 1);
     assert_eq!(evenements[0].tool_use_id, "toolu_recent");

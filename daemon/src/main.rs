@@ -237,12 +237,12 @@ async fn suivre(
 ) {
     let horizon = chrono::Utc::now()
         - chrono::Duration::seconds(config.journal_lookback_seconds as i64);
-    let evenements = suivi.nouveaux(&config.journaux(), horizon);
-    if evenements.is_empty() {
+    let lecture = suivi.nouveaux(&config.journaux(), horizon);
+    if lecture.evenements.is_empty() && lecture.usages.is_empty() {
         return;
     }
 
-    for lot in journal::rattacher(&evenements, carte) {
+    for lot in journal::rattacher(&lecture.evenements, carte) {
         let resultat = client
             .pousser_activite(
                 &config.machine_id,
@@ -259,6 +259,26 @@ async fn suivre(
                 chrono::Utc::now().format("%H:%M:%S")
             ),
             Err(erreur) => eprintln!("activite non envoyee : {erreur}"),
+        }
+    }
+
+    for lot in journal::rattacher_usage(&lecture.usages, carte) {
+        let resultat = client
+            .pousser_cout(
+                &config.machine_id,
+                &lot.repo_id,
+                lot.branche.as_deref(),
+                &lot.sessions,
+            )
+            .await;
+
+        match resultat {
+            Ok(0) => {}
+            Ok(sessions) => println!(
+                "{} cout : {sessions} session(s)",
+                chrono::Utc::now().format("%H:%M:%S")
+            ),
+            Err(erreur) => eprintln!("cout non envoye : {erreur}"),
         }
     }
 }

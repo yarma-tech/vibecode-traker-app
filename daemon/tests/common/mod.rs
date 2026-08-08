@@ -273,6 +273,56 @@ impl TestContext {
         texte.trim().parse().unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
     }
 
+    /// Le releve de consommation d'un repo, tel que le bandeau le lira.
+    pub async fn releve_repo(&self, repo_id: &str) -> Value {
+        self.appeler("releve_repo", json!({ "p_repo_id": repo_id }))
+            .await
+            .into_iter()
+            .next()
+            .unwrap_or(Value::Null)
+    }
+
+    /// Lance la purge des evenements et rend le nombre de lignes effacees.
+    pub async fn purger(&self) -> i64 {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/rpc/purger_activite", self.url))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .json(&json!({}))
+            .send()
+            .await
+            .expect("appel de purger_activite");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        assert!(code.is_success(), "purger_activite a echoue ({code}) : {texte}");
+        texte.trim().parse().unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
+    }
+
+    /// Pose un evenement daté à la main, pour éprouver la purge sans attendre.
+    pub async fn poser_evenement_ancien(
+        &self,
+        repo_id: &str,
+        session_id: &str,
+        occurred_at: &str,
+    ) {
+        self.ecrire_service(
+            "activity_events",
+            json!([{
+                "user_id":     self.user_id,
+                "session_id":  session_id,
+                "repo_id":     repo_id,
+                "module_path": "",
+                "file_path":   "vieux.ts",
+                "kind":        "write",
+                "occurred_at": occurred_at,
+                "tool_use_id": Uuid::new_v4().to_string(),
+            }]),
+        )
+        .await;
+    }
+
     /// Appel d'une fonction de la base avec la cle de service.
     async fn appeler(&self, nom: &str, corps: Value) -> Vec<Value> {
         let reponse = self
