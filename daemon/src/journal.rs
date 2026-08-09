@@ -56,6 +56,11 @@ pub struct Evenement {
 #[derive(Debug, Clone)]
 pub struct Usage {
     pub session_id: String,
+    /// Identifiant stable de cette ligne de consommation. Il vient du `uuid` que
+    /// Claude Code pose sur chaque ligne, ou a defaut d'une empreinte de son
+    /// contenu. Deux lectures de la meme ligne rendent le meme identifiant : c'est
+    /// lui qui rend l'agregation des jetons idempotente au rejeu.
+    pub usage_id: String,
     /// Dossier courant de l'agent. Sert a retrouver le repo, reste ici.
     pub cwd: String,
     pub branche: Option<String>,
@@ -183,8 +188,27 @@ fn lire_usage_une_ligne(ligne: &str) -> Option<Usage> {
         .filter(|b| !b.is_empty())
         .map(str::to_string);
 
+    let input = jeton("input_tokens");
+    let output = jeton("output_tokens");
+    let cache_read = jeton("cache_read_input_tokens");
+    let cache_creation = jeton("cache_creation_input_tokens");
+
+    // Le `uuid` de la ligne est l'identifiant naturel de cette consommation.
+    // Faute de `uuid`, l'`id` du message ; faute des deux, une empreinte de ce
+    // qui rend la ligne unique. L'essentiel est qu'une meme ligne relue donne le
+    // meme identifiant.
+    let usage_id = entree
+        .get("uuid")
+        .and_then(Value::as_str)
+        .or_else(|| entree.pointer("/message/id").and_then(Value::as_str))
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            empreinte_usage(session_id, instant, input, output, cache_read, cache_creation)
+        });
+
     Some(Usage {
         session_id: session_id.to_string(),
+        usage_id,
         cwd: cwd.to_string(),
         branche,
         model: entree
@@ -192,12 +216,32 @@ fn lire_usage_une_ligne(ligne: &str) -> Option<Usage> {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string(),
-        input: jeton("input_tokens"),
-        output: jeton("output_tokens"),
-        cache_read: jeton("cache_read_input_tokens"),
-        cache_creation: jeton("cache_creation_input_tokens"),
+        input,
+        output,
+        cache_read,
+        cache_creation,
         instant,
     })
+}
+
+/// Une empreinte de secours quand une ligne de consommation n'a pas de `uuid`.
+///
+/// Stable pour un contenu donne : deux lectures de la meme ligne rendent la meme
+/// empreinte, ce qui suffit a l'idempotence.
+fn empreinte_usage(
+    session_id: &str,
+    instant: DateTime<Utc>,
+    input: i64,
+    output: i64,
+    cache_read: i64,
+    cache_creation: i64,
+) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hachoir = Sha256::new();
+    hachoir.update(session_id.as_bytes());
+    hachoir.update(instant.to_rfc3339().as_bytes());
+    hachoir.update(format!("{input}:{output}:{cache_read}:{cache_creation}").as_bytes());
+    format!("{:x}", hachoir.finalize())
 }
 
 /// Un outil peut viser un chemin relatif : il se lit depuis le dossier courant.
@@ -364,6 +408,9 @@ pub fn rattacher_usage(
     repos: &std::collections::BTreeMap<PathBuf, String>,
 ) -> Vec<LotUsage> {
     let mut lots: Vec<LotUsage> = Vec::new();
+    // Les identifiants de ligne vus pour chaque session, dans l'ordre. Ils
+    // servent, une fois le lot complet, a calculer la cle d'idempotence.
+    let mut ids: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
 
     for usage in usages {
         let Some((_, repo_id)) = repo_de(&usage.cwd, repos) else {
@@ -386,6 +433,10 @@ pub fn rattacher_usage(
         if usage.branche.is_some() {
             lot.branche = usage.branche.clone();
         }
+
+        ids.entry(usage.session_id.clone())
+            .or_default()
+            .push(usage.usage_id.clone());
 
         match lot
             .sessions
@@ -413,11 +464,38 @@ pub fn rattacher_usage(
                 cache_creation: usage.cache_creation,
                 debut: usage.instant,
                 fin: usage.instant,
+                cle_usage: None,
             }),
         }
     }
 
+    // Le lot est complet : chaque session recoit la cle des lignes qu'elle porte.
+    for lot in &mut lots {
+        for session in &mut lot.sessions {
+            if let Some(vus) = ids.get(&session.session_id) {
+                session.cle_usage = Some(cle_idempotence(vus));
+            }
+        }
+    }
+
     lots
+}
+
+/// Une empreinte de l'ensemble des lignes de consommation d'un lot de session.
+///
+/// Stable et insensible a l'ordre d'arrivee : les identifiants sont tries avant
+/// d'etre hachees. Le meme ensemble de lignes rejoue rend la meme cle, donc la
+/// base sait qu'elle a deja compte ces jetons.
+fn cle_idempotence(ids: &[String]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut tries: Vec<&String> = ids.iter().collect();
+    tries.sort();
+    let mut hachoir = Sha256::new();
+    for id in tries {
+        hachoir.update(id.as_bytes());
+        hachoir.update(b"\n");
+    }
+    format!("{:x}", hachoir.finalize())
 }
 
 /// La racine connue la plus profonde qui contient ce dossier.
@@ -441,9 +519,18 @@ fn repo_de<'a>(
 /// relire des megaoctets a chaque tour. Un fichier vu pour la premiere fois
 /// n'apporte que ce qui est plus recent que l'horizon, sans quoi le premier
 /// demarrage rejouerait des semaines d'activite.
+///
+/// Ces decalages se persistent sur disque (`enregistrer`) : sans cela, un
+/// redemarrage repartait a zero et recomptait la fenetre de rattrapage — les
+/// evenements etaient absorbes par la contrainte d'unicite, mais les jetons,
+/// additifs, doublaient. Le fichier ne retient qu'une position par journal, rien
+/// qui puisse sortir de la machine.
 #[derive(Debug, Default)]
 pub struct Suivi {
     decalages: HashMap<PathBuf, u64>,
+    /// Ou ecrire la position de lecture. `None` : un suivi ephemere, sans
+    /// memoire entre deux vies (utile aux tests purs).
+    chemin: Option<PathBuf>,
 }
 
 /// Ce qu'un tour de lecture tire des journaux : ce que les agents ont fait, et
@@ -456,8 +543,61 @@ pub struct Lecture {
 }
 
 impl Suivi {
+    /// Un suivi ephemere, sans memoire entre deux vies. Reserve aux tests purs.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Recree un suivi depuis la position ecrite sur disque.
+    ///
+    /// Un fichier absent, illisible ou a moitie ecrit ne fait pas paniquer : on
+    /// repart d'une position vide. Le daemon relira alors dans la fenetre de
+    /// rattrapage, ce qui est borne, et l'idempotence cote base absorbe le reste.
+    /// Un daemon qui refuse de demarrer parce que son fichier d'etat est corrompu
+    /// serait pire que la relecture qu'il evite.
+    pub fn charger(chemin: &Path) -> Self {
+        let decalages = std::fs::read(chemin)
+            .ok()
+            .and_then(|octets| serde_json::from_slice::<HashMap<String, u64>>(&octets).ok())
+            .map(|table| {
+                table
+                    .into_iter()
+                    .map(|(chemin, decalage)| (PathBuf::from(chemin), decalage))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Self {
+            decalages,
+            chemin: Some(chemin.to_path_buf()),
+        }
+    }
+
+    /// Ecrit la position de lecture, sans jamais laisser un fichier a moitie ecrit.
+    ///
+    /// On ecrit dans un fichier temporaire voisin, puis on le renomme : sur un
+    /// systeme POSIX, le `rename` est atomique. Tuer le daemon en pleine ecriture
+    /// laisse donc l'ancien fichier intact, jamais un fichier tronque. Un suivi
+    /// sans chemin (les tests purs) ne fait rien.
+    pub fn enregistrer(&self) -> std::io::Result<()> {
+        let Some(chemin) = &self.chemin else {
+            return Ok(());
+        };
+
+        if let Some(dossier) = chemin.parent() {
+            std::fs::create_dir_all(dossier)?;
+        }
+
+        let table: std::collections::BTreeMap<String, u64> = self
+            .decalages
+            .iter()
+            .map(|(chemin, decalage)| (chemin.to_string_lossy().to_string(), *decalage))
+            .collect();
+        let contenu = serde_json::to_vec_pretty(&table).map_err(std::io::Error::other)?;
+
+        let temporaire = chemin.with_extension("json.tmp");
+        std::fs::write(&temporaire, &contenu)?;
+        std::fs::rename(&temporaire, chemin)
     }
 
     pub fn nouveaux(&mut self, racine: &Path, horizon: DateTime<Utc>) -> Lecture {

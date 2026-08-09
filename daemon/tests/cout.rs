@@ -38,6 +38,10 @@ fn conso(
         cache_creation,
         debut: Utc.with_ymd_and_hms(2026, 8, 4, 12, 0, 0).unwrap(),
         fin: Utc.with_ymd_and_hms(2026, 8, 4, 12, 30, 0).unwrap(),
+        // Sans cle : ces lots fabriques a la main gardent l'agregation additive
+        // d'origine (issue #7). L'idempotence par cle est eprouvee dans
+        // `tests/idempotence.rs`.
+        cle_usage: None,
     }
 }
 

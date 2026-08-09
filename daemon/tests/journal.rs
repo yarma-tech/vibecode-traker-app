@@ -109,6 +109,49 @@ fn les_usages_s_agregent_par_session_dans_leur_repo() {
 }
 
 #[test]
+fn un_lot_de_consommation_porte_une_cle_stable_et_sensible_au_contenu() {
+    let racine = "/Users/moi/Developer/atelier";
+    let a = ligne_usage_pour(
+        "s1",
+        racine,
+        "claude-opus-4-8",
+        serde_json::json!({ "input_tokens": 10, "output_tokens": 1 }),
+        "2026-08-04T12:00:00.000Z",
+    );
+    let b = ligne_usage_pour(
+        "s1",
+        racine,
+        "claude-opus-4-8",
+        serde_json::json!({ "input_tokens": 5, "output_tokens": 2 }),
+        "2026-08-04T12:05:00.000Z",
+    );
+
+    let cle = |contenu: &str| {
+        rattacher_usage(&lire_usage(contenu), &repos_connus(&[(racine, "repo-1")]))[0].sessions[0]
+            .cle_usage
+            .clone()
+    };
+
+    let deux_lignes = cle(&format!("{a}\n{b}"));
+    assert!(deux_lignes.is_some(), "un lot lu porte une cle");
+    // Meme contenu, meme cle : c'est ce qui laisse la base reconnaitre un rejeu.
+    assert_eq!(deux_lignes, cle(&format!("{a}\n{b}")), "meme contenu, meme cle");
+    // Insensible a l'ordre d'arrivee : les identifiants sont tries avant hachage.
+    assert_eq!(deux_lignes, cle(&format!("{b}\n{a}")), "l'ordre n'a pas d'importance");
+
+    // Une ligne de plus : le lot est different, la cle change, les jetons
+    // nouveaux seront bien comptes.
+    let c = ligne_usage_pour(
+        "s1",
+        racine,
+        "claude-opus-4-8",
+        serde_json::json!({ "input_tokens": 7, "output_tokens": 3 }),
+        "2026-08-04T12:10:00.000Z",
+    );
+    assert_ne!(deux_lignes, cle(&format!("{a}\n{b}\n{c}")), "un contenu different, une cle differente");
+}
+
+#[test]
 fn un_usage_hors_de_tout_repo_connu_est_ignore() {
     let usages = lire_usage(&ligne_usage_pour(
         "s1",
