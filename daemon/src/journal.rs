@@ -48,6 +48,25 @@ pub struct Evenement {
     pub nature: Nature,
 }
 
+/// La consommation d'une ligne d'assistant : jetons et modele.
+///
+/// Chaque reponse de l'agent porte son propre bloc `usage`. Les additionner sur
+/// une session en donne le total. Jamais un prompt, jamais un contenu : rien que
+/// des nombres et un nom de modele.
+#[derive(Debug, Clone)]
+pub struct Usage {
+    pub session_id: String,
+    /// Dossier courant de l'agent. Sert a retrouver le repo, reste ici.
+    pub cwd: String,
+    pub branche: Option<String>,
+    pub model: String,
+    pub input: i64,
+    pub output: i64,
+    pub cache_read: i64,
+    pub cache_creation: i64,
+    pub instant: DateTime<Utc>,
+}
+
 /// La correspondance de la spec, section 5.1. Tout le reste se tait.
 fn nature(outil: &str) -> Option<Nature> {
     match outil {
@@ -131,6 +150,54 @@ fn lire_une_ligne(ligne: &str) -> Vec<Evenement> {
             })
         })
         .collect()
+}
+
+/// Transforme un morceau de journal en releves de consommation.
+///
+/// Comme `lire`, une ligne illisible est sautee sans bruit. Une ligne sans bloc
+/// `usage` n'apporte rien : ce n'est pas une reponse facturable.
+pub fn lire_usage(contenu: &str) -> Vec<Usage> {
+    contenu.lines().filter_map(lire_usage_une_ligne).collect()
+}
+
+fn lire_usage_une_ligne(ligne: &str) -> Option<Usage> {
+    let entree = serde_json::from_str::<Value>(ligne).ok()?;
+
+    if entree.get("type").and_then(Value::as_str) != Some("assistant") {
+        return None;
+    }
+
+    let session_id = entree.get("sessionId").and_then(Value::as_str)?;
+    let cwd = entree.get("cwd").and_then(Value::as_str)?;
+    let instant = entree
+        .get("timestamp")
+        .and_then(Value::as_str)
+        .and_then(|t| t.parse::<DateTime<Utc>>().ok())?;
+
+    let usage = entree.pointer("/message/usage")?;
+    let jeton = |nom: &str| usage.get(nom).and_then(Value::as_i64).unwrap_or(0);
+
+    let branche = entree
+        .get("gitBranch")
+        .and_then(Value::as_str)
+        .filter(|b| !b.is_empty())
+        .map(str::to_string);
+
+    Some(Usage {
+        session_id: session_id.to_string(),
+        cwd: cwd.to_string(),
+        branche,
+        model: entree
+            .pointer("/message/model")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        input: jeton("input_tokens"),
+        output: jeton("output_tokens"),
+        cache_read: jeton("cache_read_input_tokens"),
+        cache_creation: jeton("cache_creation_input_tokens"),
+        instant,
+    })
 }
 
 /// Un outil peut viser un chemin relatif : il se lit depuis le dossier courant.
@@ -278,6 +345,81 @@ pub fn rattacher(
     lots
 }
 
+/// Ce qu'un repo recoit d'un tour de lecture, cote consommation.
+#[derive(Debug)]
+pub struct LotUsage {
+    pub repo_id: String,
+    pub branche: Option<String>,
+    pub sessions: Vec<crate::SessionCout>,
+}
+
+/// Range la consommation par repo, puis par session.
+///
+/// Meme barriere que `rattacher` : un usage dont le dossier courant ne descend
+/// d'aucune racine connue ne franchit pas cette fonction. Les jetons d'une
+/// session s'additionnent ; le modele retenu est celui de la reponse la plus
+/// recente, car un agent peut changer de modele en cours de session.
+pub fn rattacher_usage(
+    usages: &[Usage],
+    repos: &std::collections::BTreeMap<PathBuf, String>,
+) -> Vec<LotUsage> {
+    let mut lots: Vec<LotUsage> = Vec::new();
+
+    for usage in usages {
+        let Some((_, repo_id)) = repo_de(&usage.cwd, repos) else {
+            continue;
+        };
+
+        let idx = match lots.iter().position(|lot| lot.repo_id == *repo_id) {
+            Some(i) => i,
+            None => {
+                lots.push(LotUsage {
+                    repo_id: repo_id.clone(),
+                    branche: None,
+                    sessions: Vec::new(),
+                });
+                lots.len() - 1
+            }
+        };
+        let lot = &mut lots[idx];
+
+        if usage.branche.is_some() {
+            lot.branche = usage.branche.clone();
+        }
+
+        match lot
+            .sessions
+            .iter_mut()
+            .find(|s| s.session_id == usage.session_id)
+        {
+            Some(s) => {
+                s.input += usage.input;
+                s.output += usage.output;
+                s.cache_read += usage.cache_read;
+                s.cache_creation += usage.cache_creation;
+                s.debut = s.debut.min(usage.instant);
+                // La reponse la plus recente fixe le modele et la borne haute.
+                if usage.instant >= s.fin {
+                    s.fin = usage.instant;
+                    s.model = usage.model.clone();
+                }
+            }
+            None => lot.sessions.push(crate::SessionCout {
+                session_id: usage.session_id.clone(),
+                model: usage.model.clone(),
+                input: usage.input,
+                output: usage.output,
+                cache_read: usage.cache_read,
+                cache_creation: usage.cache_creation,
+                debut: usage.instant,
+                fin: usage.instant,
+            }),
+        }
+    }
+
+    lots
+}
+
 /// La racine connue la plus profonde qui contient ce dossier.
 ///
 /// Compare segment par segment : « atelier-bis » ne descend pas de « atelier »,
@@ -304,13 +446,22 @@ pub struct Suivi {
     decalages: HashMap<PathBuf, u64>,
 }
 
+/// Ce qu'un tour de lecture tire des journaux : ce que les agents ont fait, et
+/// ce qu'ils ont consomme. Les deux sortent d'une seule passe sur chaque
+/// fichier, pour que le decalage n'avance qu'une fois.
+#[derive(Debug, Default)]
+pub struct Lecture {
+    pub evenements: Vec<Evenement>,
+    pub usages: Vec<Usage>,
+}
+
 impl Suivi {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn nouveaux(&mut self, racine: &Path, horizon: DateTime<Utc>) -> Vec<Evenement> {
-        let mut evenements = Vec::new();
+    pub fn nouveaux(&mut self, racine: &Path, horizon: DateTime<Utc>) -> Lecture {
+        let mut lecture = Lecture::default();
 
         for chemin in journaux(racine) {
             let Ok(infos) = std::fs::metadata(&chemin) else {
@@ -340,15 +491,21 @@ impl Suivi {
             };
             self.decalages.insert(chemin, depart + avance);
 
-            evenements.extend(
+            lecture.evenements.extend(
                 lire(&texte)
                     .into_iter()
                     .filter(|e| !premiere_vue || e.instant >= horizon),
             );
+            lecture.usages.extend(
+                lire_usage(&texte)
+                    .into_iter()
+                    .filter(|u| !premiere_vue || u.instant >= horizon),
+            );
         }
 
-        evenements.sort_by_key(|e| e.instant);
-        evenements
+        lecture.evenements.sort_by_key(|e| e.instant);
+        lecture.usages.sort_by_key(|u| u.instant);
+        lecture
     }
 }
 

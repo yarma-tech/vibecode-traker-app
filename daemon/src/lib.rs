@@ -30,6 +30,24 @@ pub struct Activite {
     pub occurred_at: DateTime<Utc>,
 }
 
+/// La consommation d'une session, agregee et prete a partir.
+///
+/// Les jetons s'additionnent au fil des reponses de l'agent ; le modele et les
+/// bornes de temps viennent de ce que ce lot a vu. Le cout se calcule cote base,
+/// a partir du modele : un modele inconnu doit montrer les jetons sans cout,
+/// jamais un cout faux.
+#[derive(Debug, Clone)]
+pub struct SessionCout {
+    pub session_id: String,
+    pub model: String,
+    pub input: i64,
+    pub output: i64,
+    pub cache_read: i64,
+    pub cache_creation: i64,
+    pub debut: DateTime<Utc>,
+    pub fin: DateTime<Utc>,
+}
+
 /// Ce qui peut mal se passer en parlant a Supabase.
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
@@ -277,6 +295,42 @@ impl Supabase {
             .await?;
 
         Ok(poses.as_array().map(Vec::len).unwrap_or(0))
+    }
+
+    /// Annonce la consommation de chaque session, jetons et modele compris.
+    ///
+    /// Un lot ne transporte que ce qu'il a vu : `noter_session` ajoute ces jetons
+    /// au total deja connu. Le cout ne part pas d'ici, il se calcule a la lecture
+    /// depuis le modele. Rend le nombre de sessions annoncees.
+    pub async fn pousser_cout(
+        &self,
+        machine_id: &str,
+        repo_id: &str,
+        branche: Option<&str>,
+        sessions: &[SessionCout],
+    ) -> Result<usize, ApiError> {
+        for session in sessions {
+            self.envoyer(
+                "rpc/noter_session",
+                Some("return=minimal"),
+                json!({
+                    "p_id":             session.session_id,
+                    "p_repo_id":        repo_id,
+                    "p_machine_id":     machine_id,
+                    "p_branch":         branche,
+                    "p_started_at":     session.debut,
+                    "p_last_event_at":  session.fin,
+                    "p_input":          session.input,
+                    "p_output":         session.output,
+                    "p_cache_read":     session.cache_read,
+                    "p_cache_creation": session.cache_creation,
+                    "p_model":          session.model,
+                }),
+            )
+            .await?;
+        }
+
+        Ok(sessions.len())
     }
 
     async fn envoyer(

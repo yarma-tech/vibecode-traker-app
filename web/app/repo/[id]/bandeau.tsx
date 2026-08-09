@@ -1,22 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Conflit, Etat } from "./direct";
+import type { Conflit, Etat, Releve } from "./direct";
 
 /**
  * Le bandeau de relevé : une ligne, séparée par des filets, comme la barre
  * d'état d'un instrument. Ni gros chiffre isolé, ni micro-courbe.
  *
- * Les jetons et la dépense viendront s'y poser avec l'issue #7.
+ * Quatre cellules : les agents et les conflits, live sur la fenêtre glissante ;
+ * les jetons et la dépense, mémoire longue du repo qui survit à la purge.
  */
 export function Bandeau({
   agents,
   conflits,
   etats,
+  releve,
 }: {
   agents: number;
   conflits: Conflit[];
   etats: Etat[];
+  releve: Releve | null;
 }) {
   const [maintenant, setMaintenant] = useState<number | null>(null);
   useEffect(() => {
@@ -50,8 +53,67 @@ export function Bandeau({
         </span>{" "}
         <span className="glose">{ou(conflits, maintenant)}</span>
       </div>
+
+      <div>
+        <span className="cle">jetons</span>{" "}
+        <span className="valeur">{compact(totalJetons(releve))}</span>{" "}
+        <span className="glose">{gloseJetons(releve)}</span>
+      </div>
+
+      <div>
+        <span className="cle">dépense</span>{" "}
+        <span className="valeur">
+          {releve && releve.cout_usd !== null ? dollars(releve.cout_usd) : "—"}
+        </span>{" "}
+        <span className="glose">{gloseDepense(releve)}</span>
+      </div>
     </div>
   );
+}
+
+/** Tous les jetons de la session confondus : entrée, sortie et cache. */
+function totalJetons(releve: Releve | null): number {
+  if (!releve) return 0;
+  return (
+    releve.input_tokens +
+    releve.output_tokens +
+    releve.cache_read_tokens +
+    releve.cache_creation_tokens
+  );
+}
+
+function gloseJetons(releve: Releve | null): string {
+  if (!releve || totalJetons(releve) === 0) return "rien encore";
+  const cache = releve.cache_read_tokens + releve.cache_creation_tokens;
+  return cache > 0 ? `dont ${compact(cache)} de cache` : "sans cache";
+}
+
+function gloseDepense(releve: Releve | null): string {
+  if (!releve || releve.sessions === 0) return "aucune session";
+  // Aucune session tarifée : le coût est absent, pas nul. On le dit.
+  if (releve.sessions_tarifees === 0) return "modèle inconnu";
+
+  const pluriel = releve.sessions > 1 ? "s" : "";
+  const base = `sur ${releve.sessions} session${pluriel}`;
+  const sansPrix = releve.sessions - releve.sessions_tarifees;
+  return sansPrix > 0 ? `${base}, ${sansPrix} sans prix` : base;
+}
+
+/** Un compte de jetons en notation courte : « 1,2 M », « 12 k ». */
+function compact(n: number): string {
+  return new Intl.NumberFormat("fr-FR", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(n);
+}
+
+/** Une dépense en dollars, avec plus de décimales quand elle est infime. */
+function dollars(cout: number): string {
+  const decimales = cout > 0 && cout < 1 ? 4 : 2;
+  return `${cout.toLocaleString("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: decimales,
+  })} $`;
 }
 
 function ou(conflits: Conflit[], maintenant: number | null): string {

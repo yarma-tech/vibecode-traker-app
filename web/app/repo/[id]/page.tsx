@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Direct, type Conflit, type Etat, type Evenement } from "./direct";
+import { Direct, type Conflit, type Etat, type Evenement, type Releve } from "./direct";
 import { type Module } from "./plan";
 
 /** Combien d'événements le journal reçoit au premier rendu. */
@@ -32,7 +32,7 @@ export default async function PageRepo({
 
   // La fenêtre d'activité est un réglage de la base : l'écran la lit, il ne la
   // décide pas. Ainsi une seule valeur gouverne les couleurs et ce qu'on en dit.
-  const [modules, etats, evenements, conflits, agents, fenetre] = await Promise.all([
+  const [modules, etats, evenements, conflits, agents, releve, fenetre] = await Promise.all([
     supabase
       .from("modules")
       .select("path,parent_path,depth,loc,file_count")
@@ -47,6 +47,7 @@ export default async function PageRepo({
       .limit(LIGNES_DU_JOURNAL),
     supabase.rpc("conflits", { p_repo_id: id }),
     supabase.rpc("agents_actifs", { p_repo_id: id }),
+    supabase.rpc("releve_repo", { p_repo_id: id }),
     supabase.rpc("fenetre_activite_secondes"),
   ]);
 
@@ -80,6 +81,7 @@ export default async function PageRepo({
         evenementsInitiaux={(evenements.data ?? []) as Evenement[]}
         conflitsInitiaux={(conflits.data ?? []) as Conflit[]}
         agentsInitiaux={(agents.data as number | null) ?? 0}
+        releveInitial={(releve.data as Releve[] | null)?.[0] ?? null}
         fenetreSecondes={(fenetre.data as number | null) ?? 600}
       />
     </main>
