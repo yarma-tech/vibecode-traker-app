@@ -5,14 +5,16 @@ import { Machines, type Machine } from "./machines";
 import { Accueil, type Apercu } from "./accueil";
 import { Deconnexion } from "./deconnexion";
 import { Appairage } from "./appairage";
+import { PremierLancement } from "./premier-lancement";
+import { demoDemande, montrerPremierLancement } from "@/lib/ecrans";
 import Link from "next/link";
 
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ erreur?: string; code?: string }>;
+  searchParams: Promise<{ erreur?: string; code?: string; demo?: string }>;
 }) {
-  const { erreur, code } = await searchParams;
+  const { erreur, code, demo } = await searchParams;
 
   // Filet de securite : si la liste blanche de Supabase change et qu'un code
   // d'autorisation atterrit ici, on l'emmene a l'echangeur plutot que
@@ -41,6 +43,29 @@ export default async function Page({
   // L'apercu rend tous les repos deja tries par activite, avec leur bande
   // d'etat et leur badge de compte : l'ecran lit cette seule fonction.
   const { data: repos } = await supabase.rpc("apercu_repos");
+
+  const machines = (data ?? []) as Machine[];
+  const demoEcran = demoDemande(demo);
+
+  // Premier lancement : tant qu'aucune machine n'est appairée, l'accueil cède la
+  // place à l'onboarding, qui explique le produit et se remplit tout seul dès
+  // qu'une machine répond (issue #12). `?demo=onboarding` le force en dev.
+  if (montrerPremierLancement(machines.length, demoEcran)) {
+    return (
+      <main className="tableau">
+        <header className="entete">
+          <span className="marque">Vibe Map</span>
+          <Link className="lien" href="/reglages">
+            réglages
+          </Link>
+          <span className="compte">{user.email}</span>
+          <Deconnexion />
+        </header>
+
+        <PremierLancement demo={demoEcran === "onboarding"} />
+      </main>
+    );
+  }
 
   return (
     <main className="tableau">
