@@ -1,0 +1,111 @@
+name: Release
+
+# La distribution est la contrepartie du choix de Rust (ADR 0001, « Comment on
+# limite ces risques », point 6) : « un binaire qu'on ne sait pas produire
+# n'existe pas ». Un tag `v*` compile les binaires, calcule leurs sommes de
+# controle, et publie le tout en release GitHub.
+on:
+  push:
+    tags:
+      - "v*"
+
+# Il faut le droit d'ecrire une release depuis le workflow.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Construire ${{ matrix.cible }}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: daemon
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS arm64 se compile nativement sur les runners Apple Silicon.
+          - runner: macos-14
+            cible: aarch64-apple-darwin
+          # Linux x86_64 se compile nativement sur les runners Ubuntu : pas de
+          # linker croise a installer, contrairement a une compilation depuis
+          # macOS.
+          - runner: ubuntu-latest
+            cible: x86_64-unknown-linux-gnu
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Ajouter la cible
+        env:
+          CIBLE: ${{ matrix.cible }}
+        run: rustup target add "$CIBLE"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            daemon/target
+          key: cargo-release-${{ matrix.cible }}-${{ hashFiles('daemon/Cargo.lock') }}
+
+      - name: Compiler en release
+        env:
+          CIBLE: ${{ matrix.cible }}
+        run: cargo build --release --target "$CIBLE"
+
+      # Une archive par cible, nommee avec la version et la cible, plus un
+      # fichier de somme de controle sha256 a cote. Le nom de l'archive est ce
+      # que la formule Homebrew et le README referencent.
+      - name: Empaqueter
+        id: paquet
+        env:
+          CIBLE: ${{ matrix.cible }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          nom="vibemap-${version}-${CIBLE}"
+          mkdir -p "dist/${nom}"
+          cp "target/${CIBLE}/release/vibemap" "dist/${nom}/"
+          cp ../README.md ../LICENSE "dist/${nom}/"
+          tar -czf "dist/${nom}.tar.gz" -C dist "${nom}"
+          cd dist
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${nom}.tar.gz" > "${nom}.tar.gz.sha256"
+          else
+            shasum -a 256 "${nom}.tar.gz" > "${nom}.tar.gz.sha256"
+          fi
+          echo "archive=daemon/dist/${nom}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "somme=daemon/dist/${nom}.tar.gz.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Verser les artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibemap-${{ matrix.cible }}
+          path: |
+            ${{ github.workspace }}/${{ steps.paquet.outputs.archive }}
+            ${{ github.workspace }}/${{ steps.paquet.outputs.somme }}
+
+  publier:
+    name: Publier la release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer les artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artefacts
+          merge-multiple: true
+
+      # Une seule release, tous les binaires et toutes leurs sommes de controle
+      # attaches. Sur un tag, `gh release create` cree la release et televerse.
+      - name: Creer la release GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          DEPOT: ${{ github.repository }}
+        run: |
+          gh release create "$TAG" \
+            --repo "$DEPOT" \
+            --title "vibemap $TAG" \
+            --generate-notes \
+            artefacts/*.tar.gz artefacts/*.sha256

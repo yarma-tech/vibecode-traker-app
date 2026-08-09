@@ -26,6 +26,27 @@ La conception complète est dans
 [la spec](docs/superpowers/specs/2026-08-01-vibe-map-observabilite-web-design.md),
 la personnalité du produit dans [PRODUCT.md](PRODUCT.md).
 
+## Installer
+
+Sur macOS, en une commande :
+
+```sh
+brew install yarma-tech/vibemap/vibemap
+```
+
+Puis `vibemap --version` pour vérifier. Sur Linux x86_64, chaque
+[release GitHub](https://github.com/yarma-tech/vibecode-traker-app/releases)
+publie l'archive `vibemap-<version>-x86_64-unknown-linux-gnu.tar.gz` et sa somme
+de contrôle sha256 ; il suffit de la décompresser et de placer `vibemap` dans le
+`PATH`. La compilation croisée (macOS arm64, Linux x86_64), les sommes de
+contrôle et la publication de la release sont automatisées à chaque tag `v*`
+(voir [`.github/workflows/release.yml`](.github/workflows/release.yml) et
+[`Formula/vibemap.rb`](Formula/vibemap.rb)).
+
+Pour un démarrage automatique à l'ouverture de session, voir le plist launchd
+[`daemon/launchd/fr.yarma.vibemap.plist`](daemon/launchd/fr.yarma.vibemap.plist),
+qui référence le binaire installé par Homebrew.
+
 ## Démarrer
 
 Il faut Rust, Node 22, et la [CLI Supabase](https://supabase.com/docs/guides/local-development)

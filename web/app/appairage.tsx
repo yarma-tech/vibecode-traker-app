@@ -81,7 +81,13 @@ export function Appairage() {
 
   return (
     <div className="appairage">
-      <p className="etape">Sur la machine à relier :</p>
+      <p className="etape">Sur la machine à relier, installe vibemap :</p>
+
+      <pre className="commande">
+        <span className="invite">$</span> brew install yarma-tech/vibemap/vibemap
+      </pre>
+
+      <p className="etape">Puis relie la machine :</p>
 
       <pre className="commande">
         <span className="invite">$</span> VIBEMAP_SUPABASE_URL=
@@ -96,15 +102,6 @@ export function Appairage() {
         <span className="pastille" aria-hidden="true" />
         En attente d&apos;une machine. Ce code vaut encore {restant} min et ne
         sert qu&apos;une fois.
-      </p>
-
-      {/* Tant qu'il n'y a ni formule Homebrew ni binaire publie, `vibemap`
-          n'existe dans aucun PATH. Le dire vaut mieux que de laisser
-          l'utilisateur chercher une commande introuvable. */}
-      <p className="pas-encore">
-        <code>vibemap</code> n&apos;est pas encore distribué. En attendant,
-        lance le binaire du projet :{" "}
-        <code>./daemon/target/release/vibemap</code>
       </p>
     </div>
   );

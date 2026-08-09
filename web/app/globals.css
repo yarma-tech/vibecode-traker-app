@@ -364,14 +364,6 @@ code {
   text-decoration-thickness: 1px;
 }
 
-/* Dette assumee et affichee : la commande n'est pas encore distribuee. */
-.pas-encore {
-  margin: 0.7rem 0 0;
-  font-size: 0.75rem;
-  color: var(--ink-3);
-  line-height: 1.5;
-}
-
 /* ---------- liste des repos ---------- */
 
 .repos {
