@@ -1135,3 +1135,131 @@ code {
   background: var(--edit);
   border-color: var(--edit);
 }
+
+/* ---------- machine injoignable, état gelé (issue #11) ---------- */
+
+/* Le repère du direct : un point qui bat tant que la machine répond, le mot
+   « en direct » à côté. Il ne s'agit pas d'une décoration — c'est la promesse
+   que ce qu'on lit est vivant. */
+.pouls {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  margin: 0 0 0.7rem;
+}
+
+.pouls-point {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--edit);
+  align-self: center;
+  animation: battement 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pouls-point { animation: none; }
+}
+
+/* Figé : la promesse tombe. Le point cesse de battre et se vide de sa couleur,
+   le mot devient « figé ». Lisible en niveaux de gris : le point creux et le
+   mot suffisent, la couleur ne fait que confirmer. */
+.pouls.fige {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.pouls.fige .pouls-point {
+  animation: none;
+  background: transparent;
+  border: 1px solid var(--ink-3);
+}
+
+.pouls-depuis {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+/* Le bandeau figé perd sa saturation : ce qu'il montre est daté, plus vivant.
+   La désaturation dit le gel sans couleur ; l'heure de chaque valeur le date. */
+.bandeau.fige {
+  filter: grayscale(1);
+  opacity: 0.85;
+}
+
+.heure-releve {
+  display: block;
+  margin-top: 0.1rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.heure-releve::before {
+  content: "relevé ";
+  color: var(--ink-3);
+}
+
+/* Le plan gelé garde toutes ses parcelles — jamais vidé — mais perd sa
+   saturation : le dernier état connu, reconnaissable, sans prétendre au direct.
+   La désaturation porte l'information même pour qui ne distingue pas les teintes. */
+.plan.fige {
+  filter: grayscale(1);
+  opacity: 0.9;
+}
+
+/* « état gelé à HH:MM » : la troisième marque de péremption, au-dessus du plan.
+   Encadrée, pour qu'on ne la confonde pas avec une parcelle. */
+.plan-gele {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--rule-2);
+  border-radius: 3px;
+  background: var(--paper-2);
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+}
+
+.plan-gele-cle {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.plan-gele-heure {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-gele-note {
+  color: var(--ink-3);
+}
+
+/* Le rail : une bande muette perd sa couleur d'état, un rang injoignable se
+   désature. La machine à jour, elle, garde sa bande et son mot : les deux
+   coexistent sans confusion (une figée, une vivante, côte à côte). */
+.bande.muette {
+  background: var(--rule-2);
+}
+
+.rang.injoignable .repo-nom,
+.rang.injoignable .proprietaire {
+  color: var(--ink-3);
+}
+
+.dit-etat.muette {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.dit-etat.muette .agents {
+  color: var(--ink-3);
+  font-weight: 400;
+}

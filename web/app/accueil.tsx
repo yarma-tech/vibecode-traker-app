@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { depuisTexte, estFige } from "@/lib/figement";
 
 /**
  * Une ligne de l'apercu : tout ce qu'il faut pour peindre la bande d'etat d'un
@@ -24,6 +25,8 @@ export type Apercu = {
   modules_lus: number;
   etat: "conflit" | "ecrit" | "lu" | "inactif";
   dernier_evenement: string | null;
+  /** Dernier battement de la machine du repo, ou `null` si jamais vue. */
+  derniere_presence: string | null;
 };
 
 type Filtre = "tous" | "perso" | "pro";
@@ -55,6 +58,21 @@ export function Accueil({ initiaux }: { initiaux: Apercu[] }) {
   const [vise, setVise] = useState(0);
   const champRef = useRef<HTMLInputElement>(null);
 
+  // L'horloge ne démarre qu'après le montage, comme ailleurs : rendue sur le
+  // serveur, elle ne correspondrait pas à celle du navigateur. Tant qu'elle
+  // vaut `null`, aucune machine n'est déclarée muette : le premier rendu reste
+  // celui du serveur. Ensuite elle avance seule, pour que la bascule en muet se
+  // produise au fil du temps, même sans nouvel événement.
+  const [maintenant, setMaintenant] = useState<number | null>(null);
+  useEffect(() => {
+    const arrivee = setTimeout(() => setMaintenant(Date.now()), 0);
+    const horloge = setInterval(() => setMaintenant(Date.now()), 1000);
+    return () => {
+      clearTimeout(arrivee);
+      clearInterval(horloge);
+    };
+  }, []);
+
   const relire = useCallback(async () => {
     const { data } = await createClient().rpc("apercu_repos");
     if (data) setRepos(data as Apercu[]);
@@ -71,6 +89,9 @@ export function Accueil({ initiaux }: { initiaux: Apercu[] }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, relire)
       .on("postgres_changes", { event: "*", schema: "public", table: "repos" }, relire)
       .on("postgres_changes", { event: "*", schema: "public", table: "account_mappings" }, relire)
+      // Le battement des machines passe par `machines` : c'est ce signal qui
+      // ranime une bande figée dès que le daemon repart, sans rechargement.
+      .on("postgres_changes", { event: "*", schema: "public", table: "machines" }, relire)
       .subscribe();
 
     const horloge = setInterval(relire, RELECTURE_MS);
@@ -218,31 +239,55 @@ export function Accueil({ initiaux }: { initiaux: Apercu[] }) {
         </div>
       ) : (
         <ul className="rangs">
-          {visibles.map((repo, i) => (
-            <li
-              key={repo.id}
-              className={i === selection ? "rang vise" : "rang"}
-              aria-current={i === selection ? "true" : undefined}
-            >
-              <span className={`bande ${repo.etat}`} aria-hidden="true" />
-              <Link className="rang-lien" href={`/repo/${repo.id}`}>
-                {repo.remote_owner && <span className="proprietaire">{repo.remote_owner} /</span>}
-                <span className="repo-nom">{repo.name}</span>
-              </Link>
-              {repo.compte && <span className={`badge ${repo.compte}`}>@{repo.compte}</span>}
-              <span className={`dit-etat ${repo.etat}`}>
-                {repo.etat === "conflit" && <span aria-hidden="true">⚠ </span>}
-                {DIT[repo.etat]}
-                {repo.agents > 0 && (
-                  <span className="agents">
-                    {" · "}
-                    {repo.agents} agent{repo.agents > 1 ? "s" : ""}
+          {visibles.map((repo, i) => {
+            // Muette : la machine se tait au-delà du seuil. L'état d'activité
+            // (« en cours », « au repos »…) devient alors une photo périmée ;
+            // le rang le dit franchement — injoignable, et depuis quand — au
+            // lieu de laisser croire à un direct. C'est ce qui distingue une
+            // machine figée d'un repo simplement au repos (machine à jour).
+            const muette = maintenant !== null && estFige(repo.derniere_presence, maintenant);
+
+            return (
+              <li
+                key={repo.id}
+                className={
+                  `${i === selection ? "rang vise" : "rang"}${muette ? " injoignable" : ""}`
+                }
+                aria-current={i === selection ? "true" : undefined}
+              >
+                <span
+                  className={`bande ${muette ? "muette" : repo.etat}`}
+                  aria-hidden="true"
+                />
+                <Link className="rang-lien" href={`/repo/${repo.id}`}>
+                  {repo.remote_owner && <span className="proprietaire">{repo.remote_owner} /</span>}
+                  <span className="repo-nom">{repo.name}</span>
+                </Link>
+                {repo.compte && <span className={`badge ${repo.compte}`}>@{repo.compte}</span>}
+                {muette ? (
+                  <span className="dit-etat muette">
+                    injoignable
+                    <span className="agents">
+                      {" · "}
+                      {maintenant !== null ? depuisTexte(repo.derniere_presence, maintenant) : ""}
+                    </span>
+                  </span>
+                ) : (
+                  <span className={`dit-etat ${repo.etat}`}>
+                    {repo.etat === "conflit" && <span aria-hidden="true">⚠ </span>}
+                    {DIT[repo.etat]}
+                    {repo.agents > 0 && (
+                      <span className="agents">
+                        {" · "}
+                        {repo.agents} agent{repo.agents > 1 ? "s" : ""}
+                      </span>
+                    )}
                   </span>
                 )}
-              </span>
-              <span className="rang-poids">{repo.loc_total.toLocaleString("fr-FR")} lignes</span>
-            </li>
-          ))}
+                <span className="rang-poids">{repo.loc_total.toLocaleString("fr-FR")} lignes</span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

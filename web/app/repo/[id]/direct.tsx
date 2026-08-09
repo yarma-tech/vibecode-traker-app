@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { depuisTexte, estFige } from "@/lib/figement";
 import { Bandeau } from "./bandeau";
 import { Journal } from "./journal";
 import { Plan, type Module } from "./plan";
@@ -79,6 +80,7 @@ const LIGNES_DU_JOURNAL = 60;
 
 export function Direct({
   repoId,
+  machineId,
   modules,
   locTotal,
   etatsInitiaux,
@@ -88,8 +90,10 @@ export function Direct({
   releveInitial,
   worktreesInitiaux,
   fenetreSecondes,
+  dernierBattementInitial,
 }: {
   repoId: string;
+  machineId: string;
   modules: Module[];
   locTotal: number;
   etatsInitiaux: Etat[];
@@ -99,6 +103,7 @@ export function Direct({
   releveInitial: Releve | null;
   worktreesInitiaux: Worktree[];
   fenetreSecondes: number;
+  dernierBattementInitial: string | null;
 }) {
   const [etats, setEtats] = useState(etatsInitiaux);
   const [evenements, setEvenements] = useState(evenementsInitiaux);
@@ -106,11 +111,27 @@ export function Direct({
   const [presents, setPresents] = useState(agentsInitiaux);
   const [releve, setReleve] = useState(releveInitial);
   const [worktrees, setWorktrees] = useState(worktreesInitiaux);
+  const [dernierBattement, setDernierBattement] = useState(dernierBattementInitial);
+
+  // L'heure ne s'installe qu'après le montage : rendue sur le serveur, elle ne
+  // correspondrait pas à celle du navigateur et l'hydratation s'en plaindrait.
+  // Tant qu'elle vaut `null`, rien n'est figé : le premier rendu reste celui du
+  // serveur. Ensuite l'horloge avance seule, pour que la bascule en état gelé
+  // se produise au fil du temps, même sans nouvel événement.
+  const [maintenant, setMaintenant] = useState<number | null>(null);
+  useEffect(() => {
+    const arrivee = setTimeout(() => setMaintenant(Date.now()), 0);
+    const horloge = setInterval(() => setMaintenant(Date.now()), 1000);
+    return () => {
+      clearTimeout(arrivee);
+      clearInterval(horloge);
+    };
+  }, []);
 
   const relire = useCallback(async () => {
     const supabase = createClient();
 
-    const [etat, journal, alarmes, agents, bilan, arbres] = await Promise.all([
+    const [etat, journal, alarmes, agents, bilan, arbres, battement] = await Promise.all([
       supabase.rpc("etat_modules", { p_repo_id: repoId }),
       supabase
         .from("activity_events")
@@ -122,6 +143,7 @@ export function Direct({
       supabase.rpc("agents_actifs", { p_repo_id: repoId }),
       supabase.rpc("releve_repo", { p_repo_id: repoId }),
       supabase.rpc("worktrees_ouverts", { p_repo_id: repoId }),
+      supabase.from("machines").select("last_seen_at").eq("id", machineId).maybeSingle(),
     ]);
 
     if (etat.data) setEtats(etat.data as Etat[]);
@@ -132,7 +154,12 @@ export function Direct({
     // Une liste vide est une réponse légitime : le dernier worktree fermé
     // doit vider le canal, pas garder l'ancien état à l'écran.
     if (arbres.data) setWorktrees(arbres.data as Worktree[]);
-  }, [repoId]);
+    // Le battement rétabli par le retour du daemon dégèle l'écran sans
+    // rechargement : on relit donc la présence à chaque passage.
+    if (battement.data) {
+      setDernierBattement((battement.data as { last_seen_at: string | null }).last_seen_at);
+    }
+  }, [repoId, machineId]);
 
   // Le temps réel n'est qu'un signal : sa charge utile arrive incomplète, et
   // un champ absent y vaut `undefined`, pas `null`. On relit donc par l'API.
@@ -153,6 +180,13 @@ export function Direct({
         { event: "*", schema: "public", table: "worktrees" },
         relire,
       )
+      // Le battement de la machine passe par `machines` : c'est ce signal qui
+      // dégèle l'écran dès que le daemon repart, sans que le lecteur recharge.
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "machines" },
+        relire,
+      )
       .subscribe();
 
     const horloge = setInterval(relire, RELECTURE_MS);
@@ -165,9 +199,34 @@ export function Direct({
 
   const lettres = agents(evenements, conflits);
 
+  // Figé dès que la machine se tait au-delà du seuil. Faux tant que l'horloge
+  // n'a pas démarré : le premier rendu reste vivant, comme sur le serveur.
+  const fige = maintenant !== null && estFige(dernierBattement, maintenant);
+
   return (
     <>
-      <Bandeau agents={presents} conflits={conflits} etats={etats} releve={releve} />
+      <p className={fige ? "pouls fige" : "pouls"} role="status">
+        <i className="pouls-point" aria-hidden="true" />
+        {fige ? (
+          <>
+            figé<span className="pouls-depuis">
+              {" · injoignable "}
+              {maintenant !== null ? depuisTexte(dernierBattement, maintenant) : ""}
+            </span>
+          </>
+        ) : (
+          "en direct"
+        )}
+      </p>
+
+      <Bandeau
+        agents={presents}
+        conflits={conflits}
+        etats={etats}
+        releve={releve}
+        fige={fige}
+        dernierBattement={dernierBattement}
+      />
 
       <div className="releve">
         <div className="releve-plan">
@@ -176,6 +235,8 @@ export function Direct({
             locTotal={locTotal}
             etats={etats}
             worktrees={worktrees}
+            fige={fige}
+            dernierBattement={dernierBattement}
           />
         </div>
         <Journal

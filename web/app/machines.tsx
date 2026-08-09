@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+// La bascule muette/figée et son « depuis N » sont partagés avec le rail et
+// l'écran d'un repo : une seule règle du silence, impossible à contredire.
+import { depuisTexte as depuis, estFige as muette } from "@/lib/figement";
 
 export type Machine = {
   id: string;
@@ -10,26 +13,6 @@ export type Machine = {
   last_seen_at: string | null;
   revoked_at: string | null;
 };
-
-/** Seuil au-dela duquel une machine est declaree muette (spec, section 8). */
-const SILENCE_MS = 90_000;
-
-function depuis(instant: string | null, maintenant: number): string {
-  if (!instant) return "jamais vue";
-
-  const secondes = Math.max(0, Math.round((maintenant - Date.parse(instant)) / 1000));
-  if (secondes < 60) return `il y a ${secondes} s`;
-
-  const minutes = Math.round(secondes / 60);
-  if (minutes < 60) return `il y a ${minutes} min`;
-
-  const heures = Math.round(minutes / 60);
-  return heures < 24 ? `il y a ${heures} h` : `il y a ${Math.round(heures / 24)} j`;
-}
-
-function muette(instant: string | null, maintenant: number): boolean {
-  return !instant || maintenant - Date.parse(instant) > SILENCE_MS;
-}
 
 export function Machines({ initiales }: { initiales: Machine[] }) {
   const [machines, setMachines] = useState(initiales);

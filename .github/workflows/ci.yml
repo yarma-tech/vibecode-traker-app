@@ -58,6 +58,11 @@ jobs:
       - name: Lint
         run: npx eslint .
 
+      # Les tests unitaires de la logique pure (bascule figé, âge du battement)
+      # tournent ici : ils ne parlent a personne, juste des fonctions.
+      - name: Tests unitaires
+        run: npm run test
+
       - name: Build
         run: npm run build
         env:

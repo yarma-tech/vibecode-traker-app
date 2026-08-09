@@ -511,6 +511,18 @@ impl TestContext {
             .to_string()
     }
 
+    /// Pose la date du dernier battement d'une machine, sans attendre le daemon.
+    ///
+    /// Permet d'éprouver la bascule en état gelé : un battement vieux de plus de
+    /// 90 s doit faire déclarer la machine injoignable côté écran.
+    pub async fn poser_derniere_presence(&self, machine_id: &str, quand: &str) {
+        self.ecrire(
+            &format!("machines?id=eq.{machine_id}"),
+            json!({ "last_seen_at": quand }),
+        )
+        .await;
+    }
+
     /// Relit `last_seen_at` en contournant la RLS, pour verifier ce qui a ete ecrit.
     pub async fn last_seen_at(&self, machine_id: &str) -> Option<chrono::DateTime<chrono::Utc>> {
         let rows: Value = self

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { decouper } from "@/lib/treemap";
+import { heureFigement } from "@/lib/figement";
 import type { Etat, Worktree } from "./direct";
 
 export type Module = {
@@ -60,11 +61,15 @@ export function Plan({
   locTotal,
   etats,
   worktrees,
+  fige,
+  dernierBattement,
 }: {
   modules: Module[];
   locTotal: number;
   etats: Etat[];
   worktrees: Worktree[];
+  fige: boolean;
+  dernierBattement: string | null;
 }) {
   const [ouvert, setOuvert] = useState<string>("");
 
@@ -138,6 +143,14 @@ export function Plan({
 
   return (
     <>
+      {fige && (
+        <p className="plan-gele" role="status">
+          <span className="plan-gele-cle">état gelé</span>
+          <span className="plan-gele-heure">à {heureFigement(dernierBattement)}</span>
+          <span className="plan-gele-note">dernier état connu, la machine ne répond plus</span>
+        </p>
+      )}
+
       {sousWorktree && (
         <div
           className="worktrees-bandeau"
@@ -163,7 +176,9 @@ export function Plan({
         </nav>
       )}
 
-      <div className={sousWorktree ? "plan sous-worktree" : "plan"}>
+      <div
+        className={`plan${sousWorktree ? " sous-worktree" : ""}${fige ? " fige" : ""}`}
+      >
         {parcelles.map(({ donnee, x, y, largeur, hauteur }) => {
           const peutDescendre = descendable(donnee);
           const etat = parModule.get(donnee.path);
