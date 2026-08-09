@@ -54,9 +54,9 @@ export function PremierLancement({ demo = false }: { demo?: boolean }) {
               1
             </span>
             <span className="demarrage-fait">
-              <b>Lance le daemon</b> sur la machine où travaillent tes agents. Il
-              observe les dossiers de sa configuration, sans jamais lire le contenu
-              de tes fichiers.
+              <b>Lance <code>vibemap</code></b> sur la machine où travaillent tes
+              agents. Il observe les dossiers de sa configuration, sans jamais lire
+              le contenu de tes fichiers.
             </span>
           </li>
           <li className="demarrage-etape">

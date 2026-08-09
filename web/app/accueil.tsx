@@ -158,8 +158,8 @@ export function Accueil({ initiaux }: { initiaux: Apercu[] }) {
       <div className="vide">
         <p className="vide-titre">Aucun repo cartographié.</p>
         <p className="vide-suite">
-          Le daemon explore les dossiers listés dans sa configuration toutes les
-          cinq minutes. Le premier passage a lieu dès son démarrage.
+          <code>vibemap</code> explore les dossiers listés dans sa configuration
+          toutes les cinq minutes. Le premier passage a lieu dès son démarrage.
         </p>
       </div>
     );
@@ -242,7 +242,7 @@ export function Accueil({ initiaux }: { initiaux: Apercu[] }) {
           {visibles.map((repo, i) => {
             // Muette : la machine se tait au-delà du seuil. L'état d'activité
             // (« en cours », « au repos »…) devient alors une photo périmée ;
-            // le rang le dit franchement — injoignable, et depuis quand — au
+            // le rang le dit franchement — muette, et depuis quand — au
             // lieu de laisser croire à un direct. C'est ce qui distingue une
             // machine figée d'un repo simplement au repos (machine à jour).
             const muette = maintenant !== null && estFige(repo.derniere_presence, maintenant);
@@ -251,7 +251,7 @@ export function Accueil({ initiaux }: { initiaux: Apercu[] }) {
               <li
                 key={repo.id}
                 className={
-                  `${i === selection ? "rang vise" : "rang"}${muette ? " injoignable" : ""}`
+                  `${i === selection ? "rang vise" : "rang"}${muette ? " muette" : ""}`
                 }
                 aria-current={i === selection ? "true" : undefined}
               >
@@ -266,7 +266,7 @@ export function Accueil({ initiaux }: { initiaux: Apercu[] }) {
                 {repo.compte && <span className={`badge ${repo.compte}`}>@{repo.compte}</span>}
                 {muette ? (
                   <span className="dit-etat muette">
-                    injoignable
+                    muette
                     <span className="agents">
                       {" · "}
                       {maintenant !== null ? depuisTexte(repo.derniere_presence, maintenant) : ""}

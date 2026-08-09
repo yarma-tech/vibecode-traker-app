@@ -216,7 +216,7 @@ export function Direct({
         {fige ? (
           <>
             figé<span className="pouls-depuis">
-              {" · injoignable "}
+              {" · muette "}
               {maintenant !== null ? depuisTexte(dernierBattement, maintenant) : ""}
             </span>
           </>
