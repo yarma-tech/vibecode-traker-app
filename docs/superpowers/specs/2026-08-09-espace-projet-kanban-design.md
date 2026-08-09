@@ -110,12 +110,14 @@ Par repo :
    - **Curseur `null` (premier passage)** : ne poste aucun commit, pose `last_commit_sha = HEAD`. « Terminé » ne se peuplera qu'à partir des commits suivants.
    - **Curseur présent** : `git log <last_sha>..HEAD --no-merges` → liste des nouveaux commits, du plus ancien au plus récent (sha, message, branche courante, date d'auteur).
 2. Pour chaque nouveau commit : `git diff-tree --no-commit-id --name-only -r <sha>` → fichiers touchés. On les replie en chemins relatifs à la racine (mêmes conventions que `plan.rs` : racine = chaîne vide). L'ensemble posté = { fichiers exacts } ∪ { tous les dossiers parents de chaque fichier, jusqu'à la racine }, dédupliqué.
-3. Poste en une transaction : `insert commits ... on conflict (repo_id, sha) do nothing`, puis `insert commit_paths`, puis `update repos.last_commit_sha = HEAD`.
+3. **Un commit à la fois, du plus ancien au plus récent.** Pour chaque nouveau commit, en une transaction : `insert commits ... on conflict (repo_id, sha) do nothing` (un seul commit), puis `insert commit_paths` de ce commit **en un seul statement**, puis appel de la fonction de fermeture `select fermer_taches_du_commit(<commit_id>)` (§5.3). Une fois tous les commits traités : `update repos.last_commit_sha = HEAD`.
+
+Cette granularité — un commit par transaction, chemins d'un commit en un statement, ordre chronologique, fermeture appelée explicitement par `commit_id` — est **contractuelle** : elle est ce qui rend la fermeture (§5.3) déterministe et attribuable à un commit unique. Le daemon ne batche pas plusieurs commits dans une même insertion de `commit_paths`.
 
 Propriétés :
 
-- **Idempotent.** `unique (repo_id, sha)` + `on conflict do nothing` : rejouer une passe ne crée pas de doublon (même doctrine que le `tool_use_id` du journal).
-- **Ordre chronologique.** Les commits sont postés du plus ancien au plus récent, pour que les triggers de fermeture voient les versions dans l'ordre.
+- **Idempotent.** `unique (repo_id, sha)` + `on conflict do nothing` : rejouer une passe ne crée pas de doublon (même doctrine que le `tool_use_id` du journal). Si l'insertion du commit ne crée rien (déjà présent), le daemon n'appelle pas la fermeture pour ce sha.
+- **Ordre chronologique.** Les commits sont traités du plus ancien au plus récent. Au sein d'une même passe, la version d'une tâche ne change pas d'un commit à l'autre (les incréments de version ne viennent que de l'activité, Trigger 3) ; l'ordre ne détermine donc qu'une chose : quel commit est **crédité** de la fermeture si deux commits d'une même passe touchent la même tâche vivante — le plus ancien la ferme, le suivant ne trouve plus de tâche non-`done` à cette ancre.
 - **Rien de sensible.** Ni diff, ni contenu, ni chemin absolu. Voir la doctrine `root_hash` du spec du 2026-08-01.
 - **Voie authentifiée existante.** Écrit sous jeton machine → RLS `repo_accessible`. Aucune nouvelle voie réseau.
 - **Curseur par repo.** Pas d'état global ; un repo sans nouveau commit ne poste rien.
@@ -128,31 +130,40 @@ Toute la logique de transition vit en base. Fonctions `security definer`, `searc
 
 ### 5.1 Routage — quelle tâche pour un chemin
 
-Fonction `tache_pour_chemin(p_repo_id uuid, p_path text) returns uuid` :
+Une ancre A **préfixe** un chemin P si `A = P` ou `P` commence par `A || '/'`, avec `A = ''` (racine) qui matche tout chemin du repo — une tâche ancrée à la racine est donc un fourre-tout qui capte toute activité et tout commit du repo (sharp edge assumé).
 
-Rend l'`id` de la tâche dont l'`anchor_path` **préfixe** `p_path`, la plus profonde d'abord. Un `anchor_path` A préfixe un chemin P si `A = P` ou `P` commence par `A || '/'`, avec `A = ''` (racine) qui matche tout. Tri : `length(anchor_path)` décroissant. Départage si égalité de profondeur : la tâche non-`done` la plus récemment mise à jour, sinon la `done` la plus récente.
+Deux fonctions de routage, car activité et commit ne cherchent pas la même chose :
+
+- `tache_pour_event(p_repo_id, p_path) returns uuid` — pour l'activité. Rend la tâche, **tous statuts confondus**, dont l'ancre préfixe `p_path`, la plus profonde d'abord (`length(anchor_path)` décroissant). L'activité doit pouvoir viser une tâche `done` (pour la rouvrir en V2, Trigger 3). Départage à profondeur égale : la tâche non-`done` la plus récemment mise à jour, sinon la `done` la plus récente. (À profondeur égale il ne peut y avoir qu'**une** non-`done` — contrainte §3.1 — donc pas d'ambiguïté entre deux tâches vivantes.)
+- `tache_a_fermer(p_repo_id, p_path) returns uuid` — pour le commit. Rend la tâche **non-`done`** dont l'ancre préfixe `p_path`, la plus profonde d'abord. Un commit ferme ; une tâche `done` est déjà fermée et ne se rouvre jamais sur un commit. On cherche donc la tâche *fermable* la plus spécifique.
+
+Ces deux routages **diffèrent volontairement** : c'est le point de §5.5. Cette différence n'est réelle que dans une configuration où une tâche `done` à une ancre profonde coexiste avec une tâche vivante à une ancre plus courte sur les mêmes fichiers ; alors une activité rouvre la `done` profonde (V2) tandis qu'un commit ferme la vivante plus courte. Comportement voulu : l'activité vise le plus spécifique, le commit ferme le plus spécifique *encore ouvert*.
 
 ### 5.2 Trigger 1 — `todo → doing` (sur insert `activity_events`)
 
-À chaque event `kind = 'write'` : on route `file_path` (le chemin le plus précis dont on dispose) vers une tâche via §5.1. Si la tâche trouvée est `todo` → `status = 'doing'`, `updated_at = now()`. Si aucune tâche ne matche, rien : l'activité colore le plan par ailleurs, indépendamment du Kanban.
+À chaque event `kind = 'write'` : on route `file_path` (le chemin le plus précis dont on dispose) via `tache_pour_event`. Si la tâche trouvée est `todo` → `status = 'doing'`, `updated_at = now()`. Si elle est `doing`, rien. Si elle est `done`, c'est le Trigger 3. Si aucune tâche ne matche, rien : l'activité colore le plan par ailleurs, indépendamment du Kanban.
 
-### 5.3 Trigger 2 — `→ done` (sur insert `commits`, après insertion des `commit_paths`)
+### 5.3 Fermeture — `→ done` (fonction `fermer_taches_du_commit`, appelée par le daemon)
 
-Le daemon insère un commit puis ses chemins. On déclenche la fermeture **après** que les chemins sont posés (statement-level trigger sur `commit_paths`, ou fonction appelée en fin de transaction d'ingestion). Pour le commit :
+Le mécanisme est **figé** : pas de trigger implicite sur `commit_paths` (dont le timing dépendrait du batching du daemon). C'est une fonction explicite `fermer_taches_du_commit(p_commit_id uuid)`, `security definer`, que le daemon appelle une fois par commit juste après avoir inséré ses chemins (§4 step 3). Elle est donc invoquée avec les chemins déjà en base, pour un `commit_id` unique et sans équivoque. Elle :
 
-1. On collecte ses `commit_paths`.
-2. Pour chacun on route (§5.1) et on retient la tâche **non-`done`** à l'ancre la plus profonde parmi tous les chemins.
-3. Si une telle tâche existe : `status = 'done'`, `updated_at = now()`, et `insert task_commits(task_id, commit_id, version = tasks.version)`.
+1. Collecte les `commit_paths` du commit.
+2. Route chacun via `tache_a_fermer` (§5.1) — qui, parce que `commit_paths` contient les **dossiers parents repliés** (§4 step 2), atteint aussi bien une tâche ancrée à un fichier qu'une tâche ancrée à un dossier parent. Retient la tâche non-`done` à l'ancre la plus profonde parmi tous les chemins.
+3. Si une telle tâche existe : `status = 'done'`, `updated_at = now()`, et `insert task_commits(task_id, p_commit_id, version = tasks.version)`.
 
-Le saut `todo → done` direct est autorisé (agent qui committe sans qu'on ait observé d'event `write`).
+Le saut `todo → done` direct est autorisé (agent qui committe sans qu'on ait observé d'event `write`). Un commit qui ne route vers aucune tâche non-`done` ne ferme rien (il reste visible comme fait git, mais ne bouge aucune carte).
 
 ### 5.4 Trigger 3 — `done → doing` version suivante (sur insert `activity_events`)
 
-Toujours au sein du Trigger 1 (même event) : si la tâche routée est `done` **et** qu'aucune tâche non-`done` à une ancre au moins aussi profonde ne la coiffe → `version = version + 1`, `status = 'doing'`, `updated_at = now()`. C'est l'itération V2. Jamais `→ todo`.
+Toujours au sein du Trigger 1 (même event, même appel à `tache_pour_event`) : si la tâche routée est `done` → `version = version + 1`, `status = 'doing'`, `updated_at = now()`. C'est l'itération V2. Jamais `→ todo`. Comme `tache_pour_event` a déjà rendu la tâche la plus profonde tous statuts confondus, il n'y a pas de garde supplémentaire à poser : si une tâche non-`done` plus profonde existait sur ce chemin, `tache_pour_event` l'aurait rendue à sa place et on serait dans le Trigger 1.
 
 ### 5.5 Priorité des règles
 
-L'ancre la plus profonde tranche d'abord **quelle** tâche est concernée par un event. L'état courant de cette tâche décide ensuite **quelle** transition s'applique (`todo→doing` vs `done→doing v+1`). Un event ne touche qu'une tâche : la plus profonde. Les tâches à des ancres plus courtes ne bougent pas sur le même event.
+Pour un **event d'activité** : `tache_pour_event` rend la tâche à l'ancre la plus profonde, tous statuts confondus ; son état courant décide de la transition (`todo→doing` Trigger 1, `done→doing v+1` Trigger 3, `doing` rien). Un event ne touche qu'une tâche.
+
+Pour un **commit** : `tache_a_fermer` rend la tâche non-`done` à l'ancre la plus profonde ; un commit ne ferme qu'une tâche.
+
+Les deux routages ne sont pas identiques (§5.1) : l'activité considère tous les statuts (elle peut rouvrir une `done`), le commit ne considère que les tâches fermables. Dans la configuration ordinaire — au plus une tâche vivante par ancre, pas de `done` masquée sous une vivante — les deux rendent la même tâche et la distinction est invisible. Elle ne compte que dans le cas croisé décrit en §5.1.
 
 ### 5.6 Drag manuel
 
