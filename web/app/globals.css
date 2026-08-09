@@ -8,13 +8,18 @@
   --paper-2: oklch(0.948 0.005 155);
   --ink: oklch(0.235 0.012 160);
   --ink-2: oklch(0.475 0.011 160);
-  --ink-3: oklch(0.625 0.009 160);
+  /* Ton le plus clair des textes : il porte toutes les etiquettes en chasse
+     fixe de petite taille (adresse, poids, proprietaire, heures, legende). Cale
+     a 0.53 pour tenir AA 4.5:1 sur paper et paper-2, la ou 0.625 echouait. */
+  --ink-3: oklch(0.53 0.009 160);
   --rule: oklch(0.873 0.007 160);
   --rule-2: oklch(0.775 0.01 160);
 
   --read: oklch(0.505 0.115 252);
   --read-f: oklch(0.935 0.032 252);
-  --edit: oklch(0.575 0.125 68);
+  /* Assombri de 0.575 a 0.52 : l'ambre doit tenir AA en texte sur paper ET sur
+     son propre fond ambre (l'etat « muette » d'une machine). */
+  --edit: oklch(0.52 0.125 68);
   --edit-f: oklch(0.935 0.045 78);
   --conf: oklch(0.505 0.185 27);
   --conf-f: oklch(0.925 0.05 27);
@@ -37,7 +42,9 @@
     --paper-2: oklch(0.228 0.011 160);
     --ink: oklch(0.94 0.006 160);
     --ink-2: oklch(0.735 0.01 160);
-    --ink-3: oklch(0.585 0.011 160);
+    /* Eclairci de 0.585 a 0.615 : meme exigence AA 4.5:1 sur le sombre pour les
+       memes etiquettes en chasse fixe. */
+    --ink-3: oklch(0.615 0.011 160);
     --rule: oklch(0.318 0.012 160);
     --rule-2: oklch(0.408 0.014 160);
     --read: oklch(0.735 0.125 252);
@@ -73,6 +80,20 @@ button {
 :focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
+}
+
+/* Filet de securite d'accessibilite : sous prefers-reduced-motion, TOUT mouvement
+   se coupe — les battements (direct, attente d'appairage), le chatoiement du
+   squelette, et jusqu'aux transitions de survol. Les regles specifiques plus bas
+   restent, comme documentation locale de chaque intention. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 code {
@@ -121,10 +142,16 @@ code {
   cursor: default;
 }
 
+/* Un echec n'est pas un conflit : il ne prend donc pas le rouge, reserve a la
+   seule alarme du produit (deux agents qui se marchent dessus). Il se signale
+   par un filet a gauche et son role d'alerte, jamais par la couleur d'un etat. */
 .echec {
   margin-top: 1rem;
-  color: var(--conf);
+  color: var(--ink);
   font-size: 0.8125rem;
+  font-weight: 600;
+  border-left: 2px solid var(--rule-2);
+  padding-left: 0.6rem;
 }
 
 /* ---------- tableau de bord ---------- */
@@ -514,10 +541,12 @@ code {
   text-overflow: ellipsis;
 }
 
+/* ink-2 et non ink-3 : le poids se pose aussi sur les fonds teintes (lu, ecrit,
+   conflit), ou le ton le plus clair tomberait sous AA. */
 .parcelle-poids {
   font-family: var(--mono);
   font-size: 0.625rem;
-  color: var(--ink-3);
+  color: var(--ink-2);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -1249,8 +1278,8 @@ code {
   background: var(--rule-2);
 }
 
-.rang.injoignable .repo-nom,
-.rang.injoignable .proprietaire {
+.rang.muette .repo-nom,
+.rang.muette .proprietaire {
   color: var(--ink-3);
 }
 
