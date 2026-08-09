@@ -162,3 +162,54 @@ fn la_somme_des_filles_fait_la_mere() {
     // Les fichiers poses dans src ont leur propre parcelle.
     assert_eq!(module(&plan, "src/.").loc, 3, "a.rs seul est pose dans src");
 }
+
+/// Ajoute un remote `origin` au depot, sans jamais toucher au reseau.
+fn poser_remote(racine: &Path, url: &str) {
+    Command::new("git")
+        .args(["remote", "add", "origin", url])
+        .current_dir(racine)
+        .status()
+        .expect("git remote add");
+}
+
+/// Le badge de compte (@perso / @pro) se deduit du proprietaire du remote git.
+/// Ce proprietaire se lit dans l'URL du remote `origin`, jamais par un appel a
+/// l'API GitHub : le test tourne hors reseau et le prouve par construction.
+#[test]
+fn le_proprietaire_vient_de_l_url_ssh_du_remote() {
+    let racine = depot_temporaire();
+    poser_remote(&racine, "git@github.com:yarma-tech/vibemap.git");
+
+    let plan = vibemap::scanner(&racine).expect("le scan doit reussir");
+
+    assert_eq!(plan.remote_owner.as_deref(), Some("yarma-tech"));
+    assert_eq!(
+        plan.remote_url.as_deref(),
+        Some("git@github.com:yarma-tech/vibemap.git"),
+        "l'URL brute voyage aussi, le web n'a rien d'autre a interroger"
+    );
+}
+
+/// La forme HTTPS donne le meme proprietaire que la forme SSH : le badge ne
+/// depend pas de la maniere dont la machine a clone le depot.
+#[test]
+fn le_proprietaire_vient_de_l_url_https_du_remote() {
+    let racine = depot_temporaire();
+    poser_remote(&racine, "https://github.com/acme-corp/facturation.git");
+
+    let plan = vibemap::scanner(&racine).expect("le scan doit reussir");
+
+    assert_eq!(plan.remote_owner.as_deref(), Some("acme-corp"));
+}
+
+/// Un depot sans remote n'a pas de proprietaire : pas de badge, et surtout pas
+/// de plantage. Le champ reste vide, l'ecran s'en accommode.
+#[test]
+fn un_depot_sans_remote_n_a_pas_de_proprietaire() {
+    let racine = depot_temporaire();
+
+    let plan = vibemap::scanner(&racine).expect("le scan doit reussir");
+
+    assert_eq!(plan.remote_owner, None);
+    assert_eq!(plan.remote_url, None);
+}

@@ -218,6 +218,52 @@ impl TestContext {
         .await
     }
 
+    /// L'apercu de l'accueil : tous les repos de l'appelant, tries par activite.
+    ///
+    /// Appele avec le jeton de l'utilisateur, comme le fait la page web : la RLS
+    /// filtre alors la liste aux seuls repos de cet utilisateur, sans quoi la
+    /// cle de service verrait ceux de toute la base de test.
+    pub async fn apercu_repos(&self, fenetre_secondes: i64) -> Vec<Value> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/rpc/apercu_repos", self.url))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(&self.user_token)
+            .json(&json!({ "p_fenetre_secondes": fenetre_secondes }))
+            .send()
+            .await
+            .expect("appel de apercu_repos");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        assert!(code.is_success(), "apercu_repos a echoue ({code}) : {texte}");
+
+        serde_json::from_str::<Value>(&texte)
+            .expect("reponse JSON de apercu_repos")
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Pose le proprietaire du remote d'un repo, comme le ferait un scan.
+    pub async fn poser_remote_owner(&self, repo_id: &str, owner: &str) {
+        self.ecrire(
+            &format!("repos?id=eq.{repo_id}"),
+            json!({ "remote_owner": owner }),
+        )
+        .await;
+    }
+
+    /// Regle une fois la correspondance proprietaire -> compte, comme le ferait
+    /// l'ecran des reglages.
+    pub async fn regler_compte(&self, owner: &str, label: &str) {
+        self.ecrire_service(
+            "account_mappings",
+            json!([{ "user_id": self.user_id, "owner": owner, "label": label }]),
+        )
+        .await;
+    }
+
     /// Les conflits de tous les repos, ramenes a ceux d'une machine.
     ///
     /// La cle de service ignore la RLS et verrait donc les repos de tous les

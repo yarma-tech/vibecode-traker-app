@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Connexion } from "./connexion";
 import { Machines, type Machine } from "./machines";
+import { Accueil, type Apercu } from "./accueil";
 import { Deconnexion } from "./deconnexion";
 import { Appairage } from "./appairage";
 import Link from "next/link";
@@ -37,65 +38,24 @@ export default async function Page({
     .select("id,label,platform,last_seen_at,revoked_at")
     .order("label");
 
-  const { data: repos } = await supabase
-    .from("repos")
-    .select("id,name,remote_owner,loc_total,file_count")
-    .order("loc_total", { ascending: false });
-
-  // La liste des repos lit la meme fonction que le bandeau du plan : les deux
-  // comptes ne peuvent donc pas diverger.
-  const { data: conflits } = await supabase.rpc("conflits");
-
-  const enConflit = new Map<string, { module_path: string }>();
-  for (const conflit of (conflits ?? []) as { repo_id: string; module_path: string }[]) {
-    if (!enConflit.has(conflit.repo_id)) enConflit.set(conflit.repo_id, conflit);
-  }
+  // L'apercu rend tous les repos deja tries par activite, avec leur bande
+  // d'etat et leur badge de compte : l'ecran lit cette seule fonction.
+  const { data: repos } = await supabase.rpc("apercu_repos");
 
   return (
     <main className="tableau">
       <header className="entete">
         <span className="marque">Vibe Map</span>
+        <Link className="lien" href="/reglages">
+          réglages
+        </Link>
         <span className="compte">{user.email}</span>
         <Deconnexion />
       </header>
 
       <h2 className="titre">Repos</h2>
 
-      {(repos ?? []).length === 0 ? (
-        <div className="vide">
-          <p className="vide-titre">Aucun repo cartographié.</p>
-          <p className="vide-suite">
-            Le daemon explore les dossiers listés dans sa configuration toutes
-            les cinq minutes. Le premier passage a lieu dès son démarrage.
-          </p>
-        </div>
-      ) : (
-        <ul className="repos">
-          {(repos ?? []).map((repo) => {
-            const conflit = enConflit.get(repo.id);
-
-            return (
-              <li key={repo.id} className={conflit ? "repo alarme" : "repo"}>
-                <Link className="repo-lien" href={`/repo/${repo.id}`}>
-                  {repo.remote_owner && (
-                    <span className="proprietaire">{repo.remote_owner} /</span>
-                  )}
-                  <span className="repo-nom">{repo.name}</span>
-                </Link>
-                {conflit && (
-                  <span className="repo-alarme">
-                    <span aria-hidden="true">⚠</span> conflit,{" "}
-                    {conflit.module_path || "la racine"}
-                  </span>
-                )}
-                <span className="repo-poids">
-                  {repo.loc_total.toLocaleString("fr-FR")} lignes
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <Accueil initiaux={(repos ?? []) as Apercu[]} />
 
       <h2 className="titre">Machines</h2>
 
