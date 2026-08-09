@@ -851,3 +851,287 @@ code {
   font-size: 0.625rem;
   color: var(--ink-3);
 }
+
+/* ---------- accueil : recherche, filtre, tableau des repos ---------- */
+
+.accueil-repos {
+  margin-top: 0.25rem;
+}
+
+/* La barre de recherche et le filtre de compte, sur une ligne qui se replie
+   sous 390 px sans jamais pousser l'ecran a defiler en largeur. */
+.barre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.champ-recherche {
+  position: relative;
+  flex: 1 1 14rem;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.champ-loupe {
+  position: absolute;
+  right: 0.55rem;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-3);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.02rem 0.28rem;
+  pointer-events: none;
+}
+
+.champ {
+  width: 100%;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 1px solid var(--rule-2);
+  border-radius: 4px;
+  padding: 0.4rem 3rem 0.4rem 0.65rem;
+}
+
+.champ::placeholder {
+  color: var(--ink-3);
+}
+
+.champ:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.filtre-compte {
+  display: inline-flex;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.onglet {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  background: none;
+  border: 1px solid var(--rule-2);
+  border-radius: 4px;
+  padding: 0.28rem 0.55rem;
+  transition: background 160ms var(--ease), border-color 160ms var(--ease);
+}
+
+.onglet:hover {
+  border-color: var(--ink-3);
+}
+
+.onglet.actif {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+/* ---------- les rangs de repos ---------- */
+
+.rangs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+
+/* Chaque repo porte a gauche une bande d'etat : c'est elle qui dit, sans un
+   mot, ce qui se passe. La ligne selectionnee au clavier se souligne d'un fond. */
+.rang {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  padding: 0.6rem 0.4rem 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.rang.vise {
+  background: var(--paper-2);
+}
+
+/* La bande : un filet vertical, la seule couleur du rang. Le rouge du conflit
+   est la seule teinte saturee, comme partout ailleurs dans le produit. */
+.bande {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--rule-2);
+}
+
+.bande.conflit {
+  background: var(--conf);
+}
+
+.bande.ecrit {
+  background: var(--edit);
+}
+
+.bande.lu {
+  background: var(--read);
+}
+
+.rang-lien {
+  color: inherit;
+  text-decoration: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.rang-lien:hover .repo-nom {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Le badge de compte, deduit du proprietaire du remote. Discret : une pastille
+   mono, jamais un aplat de couleur. */
+.badge {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-2);
+  border: 1px solid var(--rule-2);
+  border-radius: 20px;
+  padding: 0.02rem 0.4rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.badge.pro {
+  color: var(--edit);
+  border-color: var(--edit);
+}
+
+.badge.perso {
+  color: var(--read);
+  border-color: var(--read);
+}
+
+.dit-etat {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Le conflit demande une decision : seul etat a se dire en rouge et en gras. */
+.dit-etat.conflit {
+  color: var(--conf);
+  font-weight: 700;
+}
+
+.dit-etat.ecrit {
+  color: var(--edit);
+}
+
+.dit-etat .agents {
+  color: var(--ink-3);
+}
+
+.rang-poids {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sans-resultat {
+  text-align: left;
+  background-image: none;
+}
+
+.sans-resultat code {
+  font-family: var(--mono);
+  color: var(--ink);
+}
+
+/* Sous 430 px, le poids passe a la ligne plutot que de serrer le nom : le
+   tableau reste lisible et l'ecran ne defile jamais en largeur. */
+@media (max-width: 430px) {
+  /* L'entete se replie plutot que de deborder : l'adresse et la deconnexion
+     descendent d'une ligne quand la place manque. */
+  .entete {
+    flex-wrap: wrap;
+  }
+
+  .compte {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rang {
+    flex-wrap: wrap;
+    row-gap: 0.2rem;
+  }
+
+  .dit-etat {
+    margin-left: auto;
+  }
+
+  .rang-poids {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+
+/* ---------- reglages : classement des comptes ---------- */
+
+.comptes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.compte-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.compte-owner {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  font-weight: 620;
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.compte-choix {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.onglet.actif.perso {
+  background: var(--read);
+  border-color: var(--read);
+}
+
+.onglet.actif.pro {
+  background: var(--edit);
+  border-color: var(--edit);
+}
