@@ -31,11 +31,20 @@ export default async function PageRepo({
   // La RLS suffit à garantir que ce repo appartient bien à cet utilisateur.
   const { data: repo } = await supabase
     .from("repos")
-    .select("id,name,remote_owner,current_branch,loc_total,file_count,scanned_at")
+    .select("id,name,remote_owner,current_branch,loc_total,file_count,scanned_at,machine_id")
     .eq("id", id)
     .maybeSingle();
 
   if (!repo) notFound();
+
+  // Le dernier battement de la machine qui porte ce repo : c'est lui, comparé à
+  // maintenant, qui décide si l'écran est figé. La base porte l'heure, l'écran
+  // juge de l'âge.
+  const { data: machine } = await supabase
+    .from("machines")
+    .select("last_seen_at")
+    .eq("id", repo.machine_id)
+    .maybeSingle();
 
   // La fenêtre d'activité est un réglage de la base : l'écran la lit, il ne la
   // décide pas. Ainsi une seule valeur gouverne les couleurs et ce qu'on en dit.
@@ -84,6 +93,7 @@ export default async function PageRepo({
 
       <Direct
         repoId={id}
+        machineId={repo.machine_id}
         modules={(modules.data ?? []) as Module[]}
         locTotal={repo.loc_total}
         etatsInitiaux={(etats.data ?? []) as Etat[]}
@@ -93,6 +103,7 @@ export default async function PageRepo({
         releveInitial={(releve.data as Releve[] | null)?.[0] ?? null}
         worktreesInitiaux={(worktrees.data ?? []) as Worktree[]}
         fenetreSecondes={(fenetre.data as number | null) ?? 600}
+        dernierBattementInitial={(machine?.last_seen_at as string | null) ?? null}
       />
     </main>
   );
