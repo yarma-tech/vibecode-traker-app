@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { decouper } from "@/lib/treemap";
 import { heureFigement } from "@/lib/figement";
+import { ecrirePlanCache } from "@/lib/squelette";
 import type { Etat, Worktree } from "./direct";
 
 export type Module = {
@@ -57,6 +58,7 @@ function depuis(instant: string, maintenant: number): string {
 }
 
 export function Plan({
+  repoId,
   modules,
   locTotal,
   etats,
@@ -64,6 +66,7 @@ export function Plan({
   fige,
   dernierBattement,
 }: {
+  repoId: string;
   modules: Module[];
   locTotal: number;
   etats: Etat[];
@@ -117,6 +120,20 @@ export function Plan({
       ),
     [affiches],
   );
+
+  // On grave la géométrie du plan racine dans le cache local : à la prochaine
+  // visite, le squelette de chargement repeint EXACTEMENT ces plaques, pour que
+  // rien ne saute quand les données arrivent (issue #12, critère 2). Seul le
+  // premier niveau vaut d'être mémorisé : c'est lui que le chargement montre.
+  useEffect(() => {
+    if (ouvert !== "") return;
+    const memoire = typeof window !== "undefined" ? window.localStorage : null;
+    ecrirePlanCache(
+      repoId,
+      parcelles.map(({ x, y, largeur, hauteur }) => ({ x, y, largeur, hauteur })),
+      memoire,
+    );
+  }, [ouvert, parcelles, repoId]);
 
   const descendable = (m: Module) =>
     modules.some((autre) => autre.parent_path === m.path);

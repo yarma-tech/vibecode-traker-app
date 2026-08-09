@@ -10,16 +10,29 @@ import {
   type Worktree,
 } from "./direct";
 import { type Module } from "./plan";
+import { SqueletteRepo } from "./squelette";
+import { demoDemande } from "@/lib/ecrans";
 
 /** Combien d'événements le journal reçoit au premier rendu. */
 const LIGNES_DU_JOURNAL = 60;
 
 export default async function PageRepo({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ demo?: string }>;
 }) {
   const { id } = await params;
+  const { demo } = await searchParams;
+  const demoEcran = demoDemande(demo);
+
+  // Écran de chargement atteignable en dev sans provoquer la vraie attente
+  // (issue #12, critère 6). En vrai, c'est `loading.tsx` qui l'affiche.
+  if (demoEcran === "chargement") {
+    return <SqueletteRepo />;
+  }
+
   const supabase = await createClient();
 
   const {
@@ -69,6 +82,22 @@ export default async function PageRepo({
       supabase.rpc("fenetre_activite_secondes"),
     ]);
 
+  // Repo sans activité, forcé en dev : on vide les canaux d'activité pour
+  // montrer la géométrie pleine et sans couleur, sans toucher aux modules
+  // (issue #12, critère 6). En vrai, un repo neuf est déjà dans cet état.
+  const sansActivite = demoEcran === "sans-activite";
+  const etatsInitiaux = sansActivite ? [] : ((etats.data ?? []) as Etat[]);
+  const evenementsInitiaux = sansActivite ? [] : ((evenements.data ?? []) as Evenement[]);
+  const conflitsInitiaux = sansActivite ? [] : ((conflits.data ?? []) as Conflit[]);
+  const agentsInitiaux = sansActivite ? 0 : ((agents.data as number | null) ?? 0);
+  const releveInitial = sansActivite ? null : ((releve.data as Releve[] | null)?.[0] ?? null);
+  // En démonstration, on fait battre la machine à l'instant : l'écran sans
+  // activité doit rester atteignable même si le vrai daemon s'est tu depuis
+  // (sinon on basculerait en état gelé, un autre écran — issue #12, critère 6).
+  const dernierBattementInitial = sansActivite
+    ? new Date().toISOString()
+    : ((machine?.last_seen_at as string | null) ?? null);
+
   return (
     <main className="tableau large">
       <header className="entete">
@@ -96,14 +125,14 @@ export default async function PageRepo({
         machineId={repo.machine_id}
         modules={(modules.data ?? []) as Module[]}
         locTotal={repo.loc_total}
-        etatsInitiaux={(etats.data ?? []) as Etat[]}
-        evenementsInitiaux={(evenements.data ?? []) as Evenement[]}
-        conflitsInitiaux={(conflits.data ?? []) as Conflit[]}
-        agentsInitiaux={(agents.data as number | null) ?? 0}
-        releveInitial={(releve.data as Releve[] | null)?.[0] ?? null}
+        etatsInitiaux={etatsInitiaux}
+        evenementsInitiaux={evenementsInitiaux}
+        conflitsInitiaux={conflitsInitiaux}
+        agentsInitiaux={agentsInitiaux}
+        releveInitial={releveInitial}
         worktreesInitiaux={(worktrees.data ?? []) as Worktree[]}
         fenetreSecondes={(fenetre.data as number | null) ?? 600}
-        dernierBattementInitial={(machine?.last_seen_at as string | null) ?? null}
+        dernierBattementInitial={dernierBattementInitial}
       />
     </main>
   );

@@ -1263,3 +1263,211 @@ code {
   color: var(--ink-3);
   font-weight: 400;
 }
+
+/* ---------- premier lancement, aucune machine appairee (issue #12) ---------- */
+
+/* Trois etapes a gauche, code d'appairage a droite. La page se remplit toute
+   seule des qu'une machine repond : aucun bouton « continuer » n'est offert. */
+.demarrage {
+  margin-top: 2rem;
+}
+
+.demarrage-tete {
+  max-width: 42rem;
+  margin-bottom: 2rem;
+}
+
+.demarrage-titre {
+  font-size: 1.35rem;
+  font-weight: 660;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.6rem;
+}
+
+.demarrage-pitch {
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.demarrage-corps {
+  display: grid;
+  /* minmax(0, …) : sans quoi la longue commande d'appairage (une clé d'un seul
+     tenant) imposerait sa largeur minimale et écraserait la colonne des étapes. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .demarrage-corps {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+}
+
+.demarrage-etapes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.demarrage-etape {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.demarrage-rang {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid var(--rule-2);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.demarrage-fait {
+  color: var(--ink-2);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.demarrage-fait b {
+  color: var(--ink);
+  font-weight: 640;
+}
+
+/* Le code d'appairage n'a pas ici le filet superieur qu'il porte sur l'accueil
+   normal : il est deja isole dans sa colonne. */
+.demarrage-appairage .appairage {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* ---------- repo cartographie sans activite (issue #12) ---------- */
+
+/* Geometrie pleine et nette, couleur absente : la seule phrase utile avant de
+   lancer un agent. Elle dit quoi faire ensuite, jamais « rien a afficher ». */
+.repo-calme {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule-2);
+  border-radius: 3px;
+  background: var(--paper-2);
+}
+
+.repo-calme-titre {
+  font-weight: 620;
+  font-size: 0.875rem;
+}
+
+.repo-calme-suite {
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+}
+
+/* ---------- chargement, squelette aux proportions reelles (issue #12) ---------- */
+
+/* Le squelette repeint la charpente de l'ecran, plan compris, en attendant les
+   donnees. Aucun tourniquet : juste les plaques du plan, aux proportions du
+   cache local, qui se coloreront sur place sans que rien ne saute. */
+.squelette-trait {
+  display: block;
+  border-radius: 3px;
+  background: var(--paper-2);
+  animation: chatoiement 1.4s var(--ease) infinite;
+}
+
+.squelette-compte {
+  width: 12rem;
+  height: 0.7rem;
+  margin-left: auto;
+}
+
+.squelette-titre {
+  width: 18rem;
+  max-width: 70%;
+  height: 1.6rem;
+  margin: 1.25rem 0 0.6rem;
+}
+
+.squelette-mesures {
+  width: 28rem;
+  max-width: 90%;
+  height: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.squelette-annonce {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  margin: 0 0 0.9rem;
+}
+
+.squelette-bandeau .squelette-valeur {
+  width: 3.5rem;
+  height: 0.8rem;
+  margin-top: 0.15rem;
+}
+
+/* Le plan du squelette : meme cadre que le vrai plan, pour que l'echange ne
+   deplace aucun pixel. Ses plaques portent leur propre chatoiement. */
+.squelette-plan .squelette-plaque {
+  background: var(--paper-2);
+  border: 1px solid var(--rule-2);
+  cursor: default;
+  animation: chatoiement 1.4s var(--ease) infinite;
+}
+
+.squelette-journal {
+  gap: 0.6rem;
+  padding: 0.85rem;
+}
+
+.squelette-ligne {
+  height: 0.7rem;
+  width: 100%;
+}
+
+.squelette-ligne:nth-child(3n) {
+  width: 70%;
+}
+
+.squelette-ligne:nth-child(3n + 1) {
+  width: 88%;
+}
+
+/* Le chatoiement est un mouvement d'ambiance : il s'immobilise sous
+   prefers-reduced-motion, ne laissant qu'un plan gris, immobile et lisible. */
+@keyframes chatoiement {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .squelette-trait,
+  .squelette-plan .squelette-plaque {
+    animation: none;
+  }
+}

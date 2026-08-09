@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { depuisTexte, estFige } from "@/lib/figement";
+import { repoSansActivite } from "@/lib/ecrans";
 import { Bandeau } from "./bandeau";
 import { Journal } from "./journal";
 import { Plan, type Module } from "./plan";
@@ -203,6 +204,11 @@ export function Direct({
   // n'a pas démarré : le premier rendu reste vivant, comme sur le serveur.
   const fige = maintenant !== null && estFige(dernierBattement, maintenant);
 
+  // Repo cartographié mais sans activité : géométrie pleine, couleur absente. On
+  // ne le dit pas quand la machine est figée — l'état gelé a déjà son bandeau,
+  // et « lance un agent » n'aurait aucun sens sur une machine qui ne répond plus.
+  const calme = !fige && repoSansActivite(etats.length, evenements.length, null);
+
   return (
     <>
       <p className={fige ? "pouls fige" : "pouls"} role="status">
@@ -228,9 +234,22 @@ export function Direct({
         dernierBattement={dernierBattement}
       />
 
+      {calme && (
+        <p className="repo-calme" role="status">
+          <span className="repo-calme-titre">
+            Repo cartographié, aucune activité pour l&apos;instant.
+          </span>
+          <span className="repo-calme-suite">
+            Lance un agent dans ce repo&nbsp;: ses modules s&apos;allument ici, en
+            direct, dès la première lecture ou écriture.
+          </span>
+        </p>
+      )}
+
       <div className="releve">
         <div className="releve-plan">
           <Plan
+            repoId={repoId}
             modules={modules}
             locTotal={locTotal}
             etats={etats}
