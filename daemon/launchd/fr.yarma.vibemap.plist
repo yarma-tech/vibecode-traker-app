@@ -2,13 +2,22 @@
 <!--
   Agent launchd du daemon Vibe Map.
 
+  Ce plist reference le binaire INSTALLE par Homebrew. Apres
+  `brew install yarma-tech/vibemap/vibemap`, `vibemap` vit dans le prefixe
+  Homebrew : /opt/homebrew/bin sur Apple Silicon, /usr/local/bin sur Intel.
+  Ce fichier vise le premier ; sur un Mac Intel, remplacer le chemin par
+  /usr/local/bin/vibemap.
+
   A installer par l'utilisateur, jamais automatiquement :
     cp daemon/launchd/fr.yarma.vibemap.plist ~/Library/LaunchAgents/
-    sed -i '' "s|CHEMIN_DU_BINAIRE|$PWD/daemon/target/release/vibemap|" ~/Library/LaunchAgents/fr.yarma.vibemap.plist
     launchctl load ~/Library/LaunchAgents/fr.yarma.vibemap.plist
 
   Pour l'arreter :
     launchctl unload ~/Library/LaunchAgents/fr.yarma.vibemap.plist
+
+  En developpement, avant toute installation Homebrew, pointer plutot le binaire
+  du projet (une seule ligne a changer dans ProgramArguments) :
+    <string>/chemin/vers/vibecode-traker-app/daemon/target/release/vibemap</string>
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -18,7 +27,7 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>CHEMIN_DU_BINAIRE</string>
+    <string>/opt/homebrew/bin/vibemap</string>
   </array>
 
   <!-- Demarre a l'ouverture de session. -->

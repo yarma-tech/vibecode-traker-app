@@ -35,7 +35,7 @@ jobs:
       # compte, et se lancent a la main avant chaque fusion (voir le README).
       # Ce qui tourne ici est tout ce qui n'a besoin de personne.
       - name: Tests hors reseau
-        run: cargo test --test journal --test config --test plan --test worktree --test reprise --test robustesse
+        run: cargo test --test journal --test config --test plan --test worktree --test reprise --test robustesse --test version
 
   web:
     name: Web (Next)

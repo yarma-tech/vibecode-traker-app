@@ -133,8 +133,20 @@ async fn main() -> ExitCode {
             aide();
             ExitCode::SUCCESS
         }
+        Some("--version" | "-V") => {
+            version();
+            ExitCode::SUCCESS
+        }
         _ => battre(arguments.first().map(PathBuf::from)).await,
     }
+}
+
+/// `vibemap --version` : la version du paquet, prise de `Cargo.toml`.
+///
+/// Une seule source de verite pour le numero, celui que la release et la formule
+/// Homebrew publient. On l'affiche pour que l'utilisateur sache ce qu'il a.
+fn version() {
+    println!("vibemap {}", env!("CARGO_PKG_VERSION"));
 }
 
 fn aide() {
@@ -142,7 +154,8 @@ fn aide() {
         "vibemap\n\n\
            vibemap pair <code>   relie cette machine au compte qui a affiche le code\n\
            vibemap [config]      bat, cartographie et suit les agents\n\
-           vibemap hook          poste l'appel d'outil recu sur l'entree standard\n\n\
+           vibemap hook          poste l'appel d'outil recu sur l'entree standard\n\
+           vibemap --version     affiche la version du paquet\n\n\
          Variables d'environnement :\n\
          \x20 VIBEMAP_SUPABASE_URL       racine de l'API (defaut : {URL_PAR_DEFAUT})\n\
          \x20 VIBEMAP_SUPABASE_ANON_KEY  cle publique du projet\n\
