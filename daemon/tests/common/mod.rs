@@ -352,6 +352,24 @@ impl TestContext {
         texte.trim().parse().unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
     }
 
+    /// Dit si la purge des evenements est bien programmee cote base (pg_cron).
+    pub async fn purge_planifiee(&self) -> bool {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/rpc/purge_planifiee", self.url))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .json(&json!({}))
+            .send()
+            .await
+            .expect("appel de purge_planifiee");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        assert!(code.is_success(), "purge_planifiee a echoue ({code}) : {texte}");
+        texte.trim() == "true"
+    }
+
     /// Pose un evenement daté à la main, pour éprouver la purge sans attendre.
     pub async fn poser_evenement_ancien(
         &self,

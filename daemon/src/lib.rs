@@ -7,6 +7,7 @@ mod appairage;
 mod config;
 pub mod journal;
 mod plan;
+pub mod reprise;
 pub mod trousseau;
 mod worktree;
 
@@ -48,6 +49,11 @@ pub struct SessionCout {
     pub cache_creation: i64,
     pub debut: DateTime<Utc>,
     pub fin: DateTime<Utc>,
+    /// Empreinte des lignes de consommation de ce lot. La base ne rajoute les
+    /// jetons qu'une fois par cle : rejouer le meme lot ne double donc rien.
+    /// `None` fait retomber sur l'ancien comportement purement additif (les
+    /// tests de #7 qui fabriquent des lots a la main s'en servent).
+    pub cle_usage: Option<String>,
 }
 
 /// Ce qui peut mal se passer en parlant a Supabase.
@@ -327,6 +333,9 @@ impl Supabase {
                     "p_cache_read":     session.cache_read,
                     "p_cache_creation": session.cache_creation,
                     "p_model":          session.model,
+                    // La cle rend l'ajout des jetons idempotent : un lot rejoue
+                    // porte la meme cle et n'est compte qu'une fois.
+                    "p_usage_key":      session.cle_usage,
                 }),
             )
             .await?;

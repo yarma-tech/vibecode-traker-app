@@ -70,6 +70,13 @@ fn journaux_par_defaut() -> String {
     "~/.claude/projects".to_string()
 }
 
+/// Le plafond de la file d'attente locale, en nombre d'envois. Au-dela, le plus
+/// ancien tombe (il reste dans le journal sur disque, relu au redemarrage). Dix
+/// mille envois tiennent une longue coupure sans faire enfler la memoire.
+fn file_plafond_par_defaut() -> usize {
+    10_000
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Config {
     /// Racine de l'API Supabase.
@@ -114,6 +121,10 @@ pub struct Config {
     /// Ou Claude Code ecrit ses journaux de session.
     #[serde(default = "journaux_par_defaut")]
     pub claude_projects: String,
+
+    /// Taille plafond de la file d'attente locale, en nombre d'envois.
+    #[serde(default = "file_plafond_par_defaut")]
+    pub file_plafond: usize,
 }
 
 impl Config {

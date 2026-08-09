@@ -9,10 +9,118 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::{Duration, Instant};
 use vibemap::journal::{self, Suivi};
-use vibemap::{Config, Supabase};
+use vibemap::reprise::{Backoff, Debordement, FileAttente};
+use vibemap::{Activite, ApiError, Config, SessionCout, Supabase};
 
 const URL_PAR_DEFAUT: &str = "http://127.0.0.1:54321";
+
+/// Un envoi vers Supabase, mis de cote si le reseau tombe.
+///
+/// La file ne retient que ce qui doit vraiment survivre a une coupure : les
+/// appels d'outils et la consommation. Le battement et les worktrees se
+/// corrigent d'eux-memes au tour suivant, ils n'ont rien a faire ici.
+enum Envoi {
+    Activite {
+        repo_id: String,
+        branche: Option<String>,
+        activites: Vec<Activite>,
+    },
+    Cout {
+        repo_id: String,
+        branche: Option<String>,
+        sessions: Vec<SessionCout>,
+    },
+}
+
+impl Envoi {
+    async fn tenter(&self, client: &Supabase, machine_id: &str) -> Result<(), ApiError> {
+        match self {
+            Envoi::Activite { repo_id, branche, activites } => client
+                .pousser_activite(machine_id, repo_id, branche.as_deref(), activites)
+                .await
+                .map(|_| ()),
+            Envoi::Cout { repo_id, branche, sessions } => client
+                .pousser_cout(machine_id, repo_id, branche.as_deref(), sessions)
+                .await
+                .map(|_| ()),
+        }
+    }
+}
+
+/// La file d'attente locale et sa temporisation de renvoi.
+///
+/// Ce qui echoue est mis de cote et retente plus tard, l'attente doublant a
+/// chaque echec sans jamais depasser cinq minutes : on ne martele pas Supabase.
+/// Un envoi qui part remet la temporisation a son pas de depart.
+struct Tampon {
+    file: FileAttente<Envoi>,
+    backoff: Backoff,
+    prochaine_tentative: Option<Instant>,
+    enfiles: usize,
+}
+
+impl Tampon {
+    fn new(plafond: usize) -> Self {
+        Self {
+            file: FileAttente::new(plafond),
+            backoff: Backoff::new(Duration::from_secs(2), Duration::from_secs(300)),
+            prochaine_tentative: None,
+            enfiles: 0,
+        }
+    }
+
+    /// Met un envoi en attente. Si la file deborde, le plus ancien tombe : il
+    /// reste dans le journal sur disque, que le prochain redemarrage relira.
+    fn mettre_de_cote(&mut self, envoi: Envoi) {
+        self.enfiles += 1;
+        if let Debordement::Jete(_) = self.file.pousser(envoi) {
+            eprintln!(
+                "file d'attente pleine : un envoi ancien est abandonne \
+                 (il sera relu au prochain redemarrage)"
+            );
+        }
+    }
+
+    /// Tente d'ecouler la file, dans l'ordre. Rend `true` si tout est parti.
+    ///
+    /// Tant que la temporisation court, on ne retente rien. Au premier echec, on
+    /// arme la prochaine tentative et on s'arrete : l'ordre est preserve, et
+    /// Supabase n'est pas martele.
+    async fn ecouler(&mut self, client: &Supabase, machine_id: &str) -> bool {
+        if let Some(quand) = self.prochaine_tentative {
+            if Instant::now() < quand {
+                return self.file.est_vide();
+            }
+        }
+
+        while !self.file.est_vide() {
+            let resultat = {
+                let envoi = self.file.premier().expect("la file n'est pas vide");
+                envoi.tenter(client, machine_id).await
+            };
+            match resultat {
+                Ok(()) => {
+                    self.file.tirer();
+                    self.backoff.reset();
+                    self.prochaine_tentative = None;
+                }
+                Err(erreur) => {
+                    let attente = self.backoff.prochain();
+                    self.prochaine_tentative = Some(Instant::now() + attente);
+                    eprintln!(
+                        "reseau indisponible, renvoi dans {} s ({} en attente) : {erreur}",
+                        attente.as_secs(),
+                        self.file.len()
+                    );
+                    return false;
+                }
+            }
+        }
+        true
+    }
+}
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -153,7 +261,13 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
     // aucun evenement ne saurait a quel repo se rattacher.
     let mut carte = BTreeMap::new();
     cartographier(&client, &config, &mut carte).await;
-    let mut suivi = Suivi::new();
+
+    // La position de lecture se recharge depuis le disque : un redemarrage
+    // reprend exactement ou il s'etait arrete, sans recompter la fenetre de
+    // rattrapage. Elle vit a cote de la configuration.
+    let chemin_offsets = chemin.with_file_name("offsets.json");
+    let mut suivi = Suivi::charger(&chemin_offsets);
+    let mut tampon = Tampon::new(config.file_plafond);
 
     loop {
         tokio::select! {
@@ -171,7 +285,7 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
                 cartographier(&client, &config, &mut carte).await;
             }
             _ = veille.tick() => {
-                suivre(&client, &config, &carte, &mut suivi).await;
+                suivre(&client, &config, &carte, &mut suivi, &mut tampon).await;
             }
             _ = chantier.tick() => {
                 relever_worktrees(&client, &carte).await;
@@ -235,6 +349,13 @@ async fn cartographier(
 
 /// Lit ce que les agents ont fait depuis le dernier tour, et l'envoie.
 ///
+/// Le nouveau travail est d'abord mis en file, puis la file est ecoulee dans
+/// l'ordre. La position de lecture n'est persistee QUE lorsque la file est vide,
+/// c'est-a-dire quand tout a bien ete accepte par Supabase. Une coupure laisse
+/// donc la position en arriere : au redemarrage, le daemon relit ce qui n'etait
+/// pas parti, et l'idempotence (unicite des evenements, cle des jetons) absorbe
+/// les doublons. Aucun evenement perdu, aucun jeton recompte.
+///
 /// Un evenement dont le repo n'est pas encore cartographie est perdu : le
 /// journal a deja avance. Un repo tout neuf perd donc au plus une periode de
 /// cartographie d'activite, ce qui vaut mieux que de relire les journaux
@@ -244,51 +365,38 @@ async fn suivre(
     config: &Config,
     carte: &BTreeMap<PathBuf, String>,
     suivi: &mut Suivi,
+    tampon: &mut Tampon,
 ) {
     let horizon = chrono::Utc::now()
         - chrono::Duration::seconds(config.journal_lookback_seconds as i64);
     let lecture = suivi.nouveaux(&config.journaux(), horizon);
-    if lecture.evenements.is_empty() && lecture.usages.is_empty() {
-        return;
-    }
+
+    let retard = !tampon.file.est_vide();
+    tampon.enfiles = 0;
 
     for lot in journal::rattacher(&lecture.evenements, carte) {
-        let resultat = client
-            .pousser_activite(
-                &config.machine_id,
-                &lot.repo_id,
-                lot.branche.as_deref(),
-                &lot.activites,
-            )
-            .await;
-
-        match resultat {
-            Ok(0) => {}
-            Ok(poses) => println!(
-                "{} activite : {poses} appel(s)",
-                chrono::Utc::now().format("%H:%M:%S")
-            ),
-            Err(erreur) => eprintln!("activite non envoyee : {erreur}"),
-        }
+        tampon.mettre_de_cote(Envoi::Activite {
+            repo_id: lot.repo_id,
+            branche: lot.branche,
+            activites: lot.activites,
+        });
+    }
+    for lot in journal::rattacher_usage(&lecture.usages, carte) {
+        tampon.mettre_de_cote(Envoi::Cout {
+            repo_id: lot.repo_id,
+            branche: lot.branche,
+            sessions: lot.sessions,
+        });
     }
 
-    for lot in journal::rattacher_usage(&lecture.usages, carte) {
-        let resultat = client
-            .pousser_cout(
-                &config.machine_id,
-                &lot.repo_id,
-                lot.branche.as_deref(),
-                &lot.sessions,
-            )
-            .await;
+    let du_travail = tampon.enfiles > 0 || retard;
+    let vide = tampon.ecouler(client, &config.machine_id).await;
 
-        match resultat {
-            Ok(0) => {}
-            Ok(sessions) => println!(
-                "{} cout : {sessions} session(s)",
-                chrono::Utc::now().format("%H:%M:%S")
-            ),
-            Err(erreur) => eprintln!("cout non envoye : {erreur}"),
+    if du_travail && vide {
+        println!("{} activite ecoulee", chrono::Utc::now().format("%H:%M:%S"));
+        // Tout est parti : on peut avancer la position de lecture sur disque.
+        if let Err(erreur) = suivi.enregistrer() {
+            eprintln!("position de lecture non ecrite : {erreur}");
         }
     }
 }
