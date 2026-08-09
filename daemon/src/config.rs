@@ -43,6 +43,12 @@ fn scan_par_defaut() -> u64 {
     300
 }
 
+/// Les worktrees se relevent toutes les 30 s (spec, section 3.1) : c'est le pas
+/// qui tient la cible « apparait en moins de 60 s ».
+fn worktree_par_defaut() -> u64 {
+    30
+}
+
 fn racines_par_defaut() -> Vec<String> {
     vec!["~/Developer".to_string()]
 }
@@ -92,6 +98,10 @@ pub struct Config {
     /// Periode entre deux cartographies, en secondes.
     #[serde(default = "scan_par_defaut")]
     pub scan_seconds: u64,
+
+    /// Periode entre deux releves des worktrees, en secondes.
+    #[serde(default = "worktree_par_defaut")]
+    pub worktree_seconds: u64,
 
     /// Periode entre deux lectures des journaux d'agents, en secondes.
     #[serde(default = "journal_par_defaut")]
