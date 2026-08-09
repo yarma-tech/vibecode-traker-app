@@ -29,3 +29,9 @@ xcuserdata/
 # CI / test output
 *.xcresult
 TestResults/
+
+# Brainstorm visual companion
+.superpowers/
+
+# Playwright MCP artefacts
+.playwright-mcp/
