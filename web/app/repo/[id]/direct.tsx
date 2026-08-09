@@ -43,6 +43,19 @@ export type Releve = {
 };
 
 /**
+ * Un worktree ouvert du repo. Canal strictement séparé de l'activité : il
+ * porte sa propre branche, celle du badge, jamais la branche principale du repo.
+ * Un module peut être `écrit` (ambre) ET sous worktree (hachure verte) en même
+ * temps, sans que l'un masque l'autre.
+ */
+export type Worktree = {
+  repo_id: string;
+  path: string;
+  branch: string;
+  detected_at: string;
+};
+
+/**
  * Un conflit, au module où les deux agents se rencontrent. La base n'en rend
  * qu'un par rencontre, même si le rouge remonte jusqu'à la racine sur le plan.
  */
@@ -73,6 +86,7 @@ export function Direct({
   conflitsInitiaux,
   agentsInitiaux,
   releveInitial,
+  worktreesInitiaux,
   fenetreSecondes,
 }: {
   repoId: string;
@@ -83,6 +97,7 @@ export function Direct({
   conflitsInitiaux: Conflit[];
   agentsInitiaux: number;
   releveInitial: Releve | null;
+  worktreesInitiaux: Worktree[];
   fenetreSecondes: number;
 }) {
   const [etats, setEtats] = useState(etatsInitiaux);
@@ -90,11 +105,12 @@ export function Direct({
   const [conflits, setConflits] = useState(conflitsInitiaux);
   const [presents, setPresents] = useState(agentsInitiaux);
   const [releve, setReleve] = useState(releveInitial);
+  const [worktrees, setWorktrees] = useState(worktreesInitiaux);
 
   const relire = useCallback(async () => {
     const supabase = createClient();
 
-    const [etat, journal, alarmes, agents, bilan] = await Promise.all([
+    const [etat, journal, alarmes, agents, bilan, arbres] = await Promise.all([
       supabase.rpc("etat_modules", { p_repo_id: repoId }),
       supabase
         .from("activity_events")
@@ -105,6 +121,7 @@ export function Direct({
       supabase.rpc("conflits", { p_repo_id: repoId }),
       supabase.rpc("agents_actifs", { p_repo_id: repoId }),
       supabase.rpc("releve_repo", { p_repo_id: repoId }),
+      supabase.rpc("worktrees_ouverts", { p_repo_id: repoId }),
     ]);
 
     if (etat.data) setEtats(etat.data as Etat[]);
@@ -112,6 +129,9 @@ export function Direct({
     if (alarmes.data) setConflits(alarmes.data as Conflit[]);
     if (typeof agents.data === "number") setPresents(agents.data);
     if (bilan.data) setReleve((bilan.data as Releve[])[0] ?? null);
+    // Une liste vide est une réponse légitime : le dernier worktree fermé
+    // doit vider le canal, pas garder l'ancien état à l'écran.
+    if (arbres.data) setWorktrees(arbres.data as Worktree[]);
   }, [repoId]);
 
   // Le temps réel n'est qu'un signal : sa charge utile arrive incomplète, et
@@ -124,6 +144,13 @@ export function Direct({
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "activity_events" },
+        relire,
+      )
+      // Ouverture (INSERT) comme fermeture (UPDATE de closed_at) d'un worktree :
+      // les deux passent par cette table, d'où l'écoute de tout événement.
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "worktrees" },
         relire,
       )
       .subscribe();
@@ -144,7 +171,12 @@ export function Direct({
 
       <div className="releve">
         <div className="releve-plan">
-          <Plan modules={modules} locTotal={locTotal} etats={etats} />
+          <Plan
+            modules={modules}
+            locTotal={locTotal}
+            etats={etats}
+            worktrees={worktrees}
+          />
         </div>
         <Journal
           evenements={evenements}

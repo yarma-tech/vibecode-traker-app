@@ -8,10 +8,12 @@ mod config;
 pub mod journal;
 mod plan;
 pub mod trousseau;
+mod worktree;
 
 pub use appairage::{appairer, AppairageError, Identite};
 pub use config::{Config, ConfigError};
 pub use plan::{empreinte, scanner, Module, Plan, ScanError};
+pub use worktree::{worktrees, Worktree};
 
 use chrono::{DateTime, Utc};
 use serde_json::json;
@@ -331,6 +333,35 @@ impl Supabase {
         }
 
         Ok(sessions.len())
+    }
+
+    /// Reconcilie les worktrees ouverts d'un repo, et rend leur nombre.
+    ///
+    /// Le daemon envoie la liste COMPLETE de ce que `git worktree list` voit :
+    /// la base rouvre ou cree ce qui est present, ferme ce qui a disparu. Une
+    /// liste vide est donc un ordre legitime, celui qui ferme le dernier
+    /// worktree. Ce canal ne touche jamais l'etat d'activite.
+    pub async fn pousser_worktrees(
+        &self,
+        repo_id: &str,
+        worktrees: &[crate::Worktree],
+    ) -> Result<usize, ApiError> {
+        let liste: Vec<_> = worktrees
+            .iter()
+            .map(|w| json!({ "path": w.path, "branch": w.branch }))
+            .collect();
+
+        self.envoyer(
+            "rpc/noter_worktrees",
+            Some("return=minimal"),
+            json!({
+                "p_repo_id":   repo_id,
+                "p_worktrees": liste,
+            }),
+        )
+        .await?;
+
+        Ok(worktrees.len())
     }
 
     async fn envoyer(

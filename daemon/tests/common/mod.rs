@@ -273,6 +273,12 @@ impl TestContext {
         texte.trim().parse().unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
     }
 
+    /// Les worktrees ouverts d'un repo, tels que le plan les lira.
+    pub async fn worktrees_ouverts(&self, repo_id: &str) -> Vec<Value> {
+        self.appeler("worktrees_ouverts", json!({ "p_repo_id": repo_id }))
+            .await
+    }
+
     /// Le releve de consommation d'un repo, tel que le bandeau le lira.
     pub async fn releve_repo(&self, repo_id: &str) -> Value {
         self.appeler("releve_repo", json!({ "p_repo_id": repo_id }))

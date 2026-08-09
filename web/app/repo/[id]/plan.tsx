@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { decouper } from "@/lib/treemap";
-import type { Etat } from "./direct";
+import type { Etat, Worktree } from "./direct";
 
 export type Module = {
   path: string;
@@ -59,10 +59,12 @@ export function Plan({
   modules,
   locTotal,
   etats,
+  worktrees,
 }: {
   modules: Module[];
   locTotal: number;
   etats: Etat[];
+  worktrees: Worktree[];
 }) {
   const [ouvert, setOuvert] = useState<string>("");
 
@@ -114,6 +116,15 @@ export function Plan({
   const descendable = (m: Module) =>
     modules.some((autre) => autre.parent_path === m.path);
 
+  // Un worktree est une copie de travail du repo ENTIER : chaque parcelle
+  // affichee est donc concernee. Le canal est a part de l'activite : une
+  // parcelle peut porter sa couleur d'etat ET la hachure d'un worktree.
+  const sousWorktree = worktrees.length > 0;
+
+  // Une branche peut apparaitre une seule fois, meme si git l'interdit sur deux
+  // worktrees : on se protege quand meme d'un doublon a l'affichage.
+  const branches = Array.from(new Set(worktrees.map((w) => w.branch)));
+
   if (parcelles.length === 0) {
     return (
       <div className="vide">
@@ -127,6 +138,21 @@ export function Plan({
 
   return (
     <>
+      {sousWorktree && (
+        <div
+          className="worktrees-bandeau"
+          aria-label={`worktrees ouverts : ${branches.join(", ")}`}
+        >
+          <span className="worktrees-cle">worktrees</span>
+          {branches.map((branche) => (
+            <span key={branche} className="worktree-badge">
+              <i className="worktree-vignette" aria-hidden="true" />
+              {branche}
+            </span>
+          ))}
+        </div>
+      )}
+
       {ouvert !== "" && (
         <nav className="fil">
           <button className="lien" onClick={() => setOuvert("")}>
@@ -137,17 +163,20 @@ export function Plan({
         </nav>
       )}
 
-      <div className="plan">
+      <div className={sousWorktree ? "plan sous-worktree" : "plan"}>
         {parcelles.map(({ donnee, x, y, largeur, hauteur }) => {
           const peutDescendre = descendable(donnee);
           const etat = parModule.get(donnee.path);
           const dit = etat ? DIT[etat.etat] : "inactif";
-          const etiquette = `${nom(donnee.path)}, ${lignes(donnee.loc)}, ${dit}`;
+          const surimpression = sousWorktree ? `, worktree ${branches.join(", ")}` : "";
+          const etiquette = `${nom(donnee.path)}, ${lignes(donnee.loc)}, ${dit}${surimpression}`;
 
           return (
             <button
               key={donnee.path}
-              className={etat ? `parcelle ${etat.etat}` : "parcelle"}
+              className={
+                `parcelle${etat ? ` ${etat.etat}` : ""}${sousWorktree ? " worktree" : ""}`
+              }
               style={{
                 left: `${x}%`,
                 top: `${y}%`,
@@ -192,6 +221,9 @@ export function Plan({
         </span>
         <span className="temoignage">
           <i className="temoin conflit" /> conflit
+        </span>
+        <span className="temoignage">
+          <i className="temoin worktree" /> worktree
         </span>
       </div>
     </>

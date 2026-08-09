@@ -135,11 +135,18 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
         tokio::time::interval(std::time::Duration::from_secs(config.scan_seconds));
     let mut veille =
         tokio::time::interval(std::time::Duration::from_secs(config.journal_seconds));
+    let mut chantier =
+        tokio::time::interval(std::time::Duration::from_secs(config.worktree_seconds));
 
     println!(
         "vibemap surveille depuis « {} », battement toutes les {} s, \
-         cartographie toutes les {} s, journaux toutes les {} s",
-        config.label, config.interval_seconds, config.scan_seconds, config.journal_seconds
+         cartographie toutes les {} s, journaux toutes les {} s, \
+         worktrees toutes les {} s",
+        config.label,
+        config.interval_seconds,
+        config.scan_seconds,
+        config.journal_seconds,
+        config.worktree_seconds
     );
 
     // La carte se dresse avant la premiere lecture des journaux : sans elle,
@@ -165,6 +172,9 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
             }
             _ = veille.tick() => {
                 suivre(&client, &config, &carte, &mut suivi).await;
+            }
+            _ = chantier.tick() => {
+                relever_worktrees(&client, &carte).await;
             }
             _ = tokio::signal::ctrl_c() => {
                 println!("arret demande, au revoir");
@@ -281,6 +291,30 @@ async fn suivre(
             Err(erreur) => eprintln!("cout non envoye : {erreur}"),
         }
     }
+}
+
+/// Releve les worktrees de chaque repo cartographie et les pousse.
+///
+/// Canal a part, jamais mele a l'activite : on envoie la liste COMPLETE des
+/// worktrees ouverts d'un repo, la base ferme d'elle-meme ceux qui ont disparu.
+/// Un repo sans worktree envoie une liste vide, ce qui ferme les siens : c'est
+/// ce qui fait disparaitre un worktree du plan quand on le supprime.
+async fn relever_worktrees(client: &Supabase, carte: &BTreeMap<PathBuf, String>) {
+    let mut ouverts = 0;
+
+    for (chemin, repo_id) in carte {
+        let worktrees = vibemap::worktrees(chemin);
+        match client.pousser_worktrees(repo_id, &worktrees).await {
+            Ok(n) => ouverts += n,
+            Err(erreur) => eprintln!("worktrees non envoyes : {erreur}"),
+        }
+    }
+
+    println!(
+        "{} worktrees : {ouverts} ouvert(s) sur {} repo(s)",
+        chrono::Utc::now().format("%H:%M:%S"),
+        carte.len()
+    );
 }
 
 /// `vibemap hook` : un appel d'outil, poste sans attendre le prochain tour.

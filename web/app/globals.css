@@ -19,6 +19,12 @@
   --conf: oklch(0.505 0.185 27);
   --conf-f: oklch(0.925 0.05 27);
 
+  /* Le worktree est un canal a part : ni un etat, ni une couleur saturee de
+     plus. Il se lit d'abord a sa hachure et a son trait pointille, la teinte
+     verte ne fait que confirmer. Reste donc identifiable en niveaux de gris. */
+  --wt: oklch(0.52 0.11 152);
+  --wt-trame: oklch(0.52 0.11 152 / 0.16);
+
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 
@@ -40,6 +46,8 @@
     --edit-f: oklch(0.348 0.062 68);
     --conf: oklch(0.7 0.175 27);
     --conf-f: oklch(0.33 0.08 27);
+    --wt: oklch(0.78 0.13 152);
+    --wt-trame: oklch(0.78 0.13 152 / 0.2);
   }
 }
 
@@ -541,6 +549,33 @@ code {
   box-shadow: inset 0 0 0 1px var(--conf);
 }
 
+/* Le worktree se pose PAR-DESSUS l'etat, jamais a sa place : une parcelle
+   `ecrit` (fond ambre) reste ambre sous la hachure verte. La bordure passe par
+   un `outline` pointille, distinct de la bordure d'etat qu'il n'ecrase pas ;
+   la trame est une hachure diagonale, lisible sans la couleur. */
+.parcelle.worktree {
+  outline: 1.5px dashed var(--wt);
+  outline-offset: -3px;
+}
+
+.parcelle.worktree::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0 5px,
+    var(--wt-trame) 5px 8px
+  );
+}
+
+/* Le texte de la parcelle reste au-dessus de la trame. */
+.parcelle > span {
+  position: relative;
+  z-index: 1;
+}
+
 /* Cartouche de legende. Il se pose SOUS le plan, jamais dessus : un treemap
    n'a pas de coin vide, et une legende flottante masquerait justement la
    parcelle qui vient de s'allumer. */
@@ -588,6 +623,61 @@ code {
 .temoin.conflit {
   background: var(--conf-f);
   border-color: var(--conf);
+}
+
+/* Le temoin du worktree montre ce qu'il est : une hachure cernee de pointilles,
+   reconnaissable meme en niveaux de gris. */
+.temoin.worktree {
+  border: 1px dashed var(--wt);
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0 2px,
+    var(--wt-trame) 2px 4px
+  );
+}
+
+/* Bandeau des worktrees ouverts : au-dessus du plan, une ligne de badges, un
+   par branche. Le badge porte la branche du worktree, jamais la principale. */
+.worktrees-bandeau {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+}
+
+.worktrees-cle {
+  color: var(--ink-3);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.625rem;
+}
+
+.worktree-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--ink);
+  border: 1px dashed var(--wt);
+  border-radius: 20px;
+  padding: 0.1rem 0.55rem;
+}
+
+/* La vignette du badge reprend la trame du plan : le badge et la surimpression
+   se lisent comme une seule chose. */
+.worktree-vignette {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid var(--wt);
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0 2px,
+    var(--wt-trame) 2px 4px
+  );
 }
 
 /* Bandeau de releve : une ligne, des filets, comme la barre d'etat d'un
