@@ -1,5 +1,10 @@
 # UI Clarity Pass Implementation Plan
 
+> **Document d'archive.** Il décrit *Vibe Code Tracker*, l'application macOS
+> retirée du dépôt le 2026-08-06. Le produit actuel est **Vibe Map** : voir le
+> [README](../../../README.md) et [la spec](../specs/2026-08-01-vibe-map-observabilite-web-design.md).
+> Ce plan a été exécuté sur du code qui n'existe plus ; ne pas le rejouer.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the Global Dashboard and Project Detail screens easier to scan — tiered KPIs, a real estimated-cost figure, a daily commit bar chart, a compact session table, a collapsible stack, and progressive-disclosure detail sections — backed by two shared view primitives.
