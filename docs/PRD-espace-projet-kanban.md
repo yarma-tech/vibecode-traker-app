@@ -1,6 +1,6 @@
 # PRD — Espace projet Vibe Map (Kanban lié au git)
 
-> **Statut** : brouillon v24 — relu par un agent le 2026-08-10 ; toutes les questions bloquantes sont tranchées (§10.1)
+> **Statut** : v1 — toutes les questions sont tranchées ; base de conception pour le spec du 2026-08-11 — relu par un agent le 2026-08-10 ; toutes les questions bloquantes sont tranchées (§10.1)
 > **Date** : 2026-08-10
 > **Produit** : Vibe Map (voir [PRODUCT.md](../PRODUCT.md))
 > **Conception technique** : [spec du 2026-08-09](superpowers/specs/2026-08-09-espace-projet-kanban-design.md) — **désormais en retard sur ce PRD**, voir §11
@@ -291,12 +291,13 @@ Ce troisième cas dépasse les états vides : un tableau plein mais figé ment t
 - **F13** — Lire et copier d'un geste la référence d'un travail (`VM-7`) pour la donner à l'agent qu'on lance.
 - **F14** — Demander en un clic la vérification d'une issue par un sous-agent local, et lire son verdict sur la carte avant de décider de fermer (§6.4).
 - **F15** — Savoir d'un coup d'œil si ce qu'on lit est frais : depuis quand l'espace n'a rien reçu, et distinguer « rien à faire » de « rien ne remonte » (§6.6).
+- **F16** — Voir signalé un travail dont l'emplacement n'existe plus dans le dépôt, plutôt que de le laisser attendre une activité qui ne viendra jamais.
 
 ### Non-fonctionnels
 
 - **NF1** — Une écriture d'agent déplace une carte en « En cours » sur un autre appareil en **moins de 5 secondes** ; un commit la ferme en **moins d'une minute**. Les deux chiffres diffèrent parce que les deux signaux ne sont pas lus au même rythme : les journaux d'agent sont relus toutes les 2 s, les commits demandent une lecture git. Le mécanisme d'ingestion des commits doit donc avoir sa propre cadence — pas celle de la cartographie, qui tourne toutes les 5 minutes (§11).
 - **NF2 — ce qui sort est une liste fermée, et elle est publiée.** Voir §7.1. La règle n'est plus « rien de sensible ne sort » : le produit doit aider un *ai-native builder* à suivre ses projets, et cet objectif prime. Ce qui la remplace est plus exigeant que vague : une liste explicite de ce qui part, un plancher de ce qui ne part jamais, et un endroit où l'utilisateur peut lire les deux.
-- **NF3** — Registre visuel Linear, aligné sur la carte existante : densité maîtrisée, la couleur ne dit que l'état, jamais la couleur seule. Le type est un libellé, pas une teinte supplémentaire.
+- **NF3** — Registre visuel Linear, aligné sur la carte existante : densité maîtrisée, la couleur ne dit que l'état, jamais la couleur seule. Le type est un libellé, pas une teinte supplémentaire. **Clavier d'abord** (`PRODUCT.md`) : créer un travail, le déplacer, copier sa référence, ouvrir un bloc se font sans souris — c'est l'écran du produit qui reçoit le plus de saisie, il ne peut pas être le moins accessible au clavier.
 - **NF4** — WCAG AA ; mouvement coupé sous `prefers-reduced-motion`.
 - **NF5** — Zéro configuration : aucun réglage à poser pour que l'automatisme fonctionne sur un dépôt déjà cartographié.
 - **NF6** — Un bloc à 17 issues reste lisible : la colonne montre le bloc et son avancement, jamais 17 cartes.
@@ -379,6 +380,7 @@ Le cœur du comportement. Traduction technique à faire dans le spec (§11).
 - **Toute unité suivie porte une référence, pas seulement les issues.** Sans cela, un bloc simple, une feature de PRD et une exploration auto-créée n'avaient aucun chemin vers « Terminé » — trois origines sur quatre produisaient des cartes immortelles.
 - **Le commit fait foi — et il ne ferme que ce qu'il nomme.** Un commit n'est pas lié à un emplacement, il est lié à un travail : trois travaux distincts peuvent vivre dans `web/app/checkout`, et un commit n'en règle qu'un. Le chemin ne peut donc pas fermer, il ne peut qu'entamer. La fermeture demande que le commit **désigne** le travail par sa référence (§6.3). Conséquences : la contrainte « une seule tâche vivante par emplacement » disparaît quand même — elle n'existait que pour lever une ambiguïté qui n'a plus lieu d'être — et le départage par profondeur ne joue plus pour la fermeture.
 - **Un PRD présent dans le dépôt est lu, et ses features deviennent des blocs.** La lecture est **locale** ; seuls les couples `(identifiant, titre)` sortent de la machine. C'est cette décision qui a fait tomber l'ancienne doctrine de confidentialité, remplacée par la liste fermée de §7.1.
+- **Trois chemins déclenchent une exploration** : `docs/adr/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`. Un fichier portant l'en-tête PRD en est exclu, il suit son propre cycle (§5.1). Liste volontairement étroite : une carte parasite s'efface, une décision manquée ne se rattrape pas — on élargira si l'on constate des trous, jamais l'inverse.
 - **`docs/PRD.md` est supprimé.** C'était le PRD de l'app macOS retirée le 2026-08-06 : un document mort, au nom qui promettait le contraire. Il reste dans l'historique git si on le cherche. Le dépôt n'a donc plus de PRD produit global — `PRODUCT.md` porte la personnalité, les specs portent la conception, et chaque PRD couvre un chantier.
 - **Les vides sont distingués et dessinés** (§6.6) : un tableau neuf montre un **aperçu** de ce qu'il deviendra ; un tableau vidé parce que tout est fini s'autorise un **clin d'œil** ; un tableau vide parce que **rien ne remonte** le dit franchement. Confondre les deux derniers ferait afficher une plaisanterie pendant une panne.
 - **Rien ne se gèle.** Pas d'épinglage, pas de cadenas : aucune carte n'est soustraite à l'automatisme. Un gel serait un réglage, et `PRODUCT.md` pose que le produit ne se configure pas ; il servirait surtout à figer un état que le dépôt contredit, c'est-à-dire à faire mentir le tableau. Si une carte est refermée alors qu'on venait de la rouvrir, c'est qu'un commit l'a nommée : le problème est dans le message de commit, pas dans l'absence de verrou.
@@ -391,17 +393,22 @@ Le cœur du comportement. Traduction technique à faire dans le spec (§11).
 - **Un dépôt est identifié par son distant, plus par son chemin.** L'empreinte porte désormais sur l'URL du dépôt distant (`git remote get-url origin`, normalisée) et non sur le chemin absolu. Un dossier renommé ou déplacé garde ses cartes ; deux clones de la même origine partagent un seul tableau. C'est la contrepartie du fait que le Kanban est le premier objet du produit qui contient du travail saisi à la main : il ne peut pas disparaître sur un `mv`. Un dépôt sans distant retombe sur l'empreinte du chemin, avec ce que ça implique.
 - **On ne pousse pas une carte dans « Terminé ».** Le glisser-déposer vers la troisième colonne est supprimé : un geste libre peut fermer par erreur, et « Terminé » est la seule affirmation forte du tableau. On peut en revanche en **sortir** une carte fermée à tort — l'asymétrie est le principe même du document. Seul un commit qui nomme le travail, ou la confirmation d'un verdict de vérification, y fait entrer une carte.
 - **La vérification par sous-agent est dans le périmètre** (§6.4), pas repoussée : c'est elle qui rend vivable le modèle « seul un commit qui nomme ferme », en rattrapant les travaux dont personne n'a passé la référence. Sans elle, supprimer la fermeture manuelle laisserait ces travaux ouverts pour toujours. Elle amène avec elle un daemon bidirectionnel, donc une surface d'exécution à border.
-- **Le produit change de logique, et on l'assume.** Vibe Map n'observait que. Il crée désormais de lui-même (§5.1) et se nourrit d'une intention écrite ailleurs (§6.1). C'est un déplacement volontaire : l'espace projet n'est pas la carte, il n'a pas à en avoir la retenue.
+- **Le produit change de logique, et on l'assume.** `PRODUCT.md` décrit un instrument de mesure : il observe, il ne se configure pas, il montre l'état sans le commenter. L'espace projet s'en écarte sur quatre points, tous volontaires et tous bornés :
 
-Ces décisions ont été prises au fil de la rédaction ; les questions qu'elles ferment portaient les numéros Q1 (ce que veut dire « terminé »), Q2 (ce qui ferme un travail), Q3 (où vivent les explorations), Q5 (le type se change), Q6 (pas de gel), Q7 (les états vides), Q8 (le sort de l'ancien `docs/PRD.md`), Q9 (lire le PRD), Q10 et Q11 (comment le lire), Q12 (la forme de la référence), Q13 (le périmètre de la vérification), Q14 (l'identité d'un dépôt). Elles ne figurent plus en §10.2.
+  | Écart | Ce que `PRODUCT.md` dit | Ce que l'espace projet fait | Ce qui le borne |
+  |---|---|---|---|
+  | Il **crée** | « il montre l'état » | fait naître une exploration, tire des features d'un PRD | il ne crée que ce qu'il a lu quelque part (règle 12) |
+  | Il **exécute** | « la v1 observe, elle ne pilote pas » | lance un sous-agent de vérification | sur demande, lecture seule, bornée (§6.4) |
+  | Il **commente** | « il montre l'état, il ne le commente pas » | affiche une phrase de verdict rédigée par un modèle | une phrase, jamais d'extrait de code, et seulement après un clic |
+  | Il **reçoit de la saisie** | « Vibe Map ne se configure pas » | titres, types, emplacements, découpages | aucun réglage : ce qu'on saisit est du contenu, pas de la configuration |
 
-### 10.2 À trancher
+  La carte, elle, ne bouge pas : elle reste l'instrument de mesure de `PRODUCT.md`. L'espace projet est un voisin qui a d'autres manières, pas une dérive de la carte.
 
-Le modèle est arrêté et toutes les questions bloquantes sont tranchées (§10.1). Ce qui suit relève du dessin et peut se régler pendant l'écriture du spec.
+Ces quatorze décisions ont été prises au fil de la rédaction, en réponse aux questions Q1 à Q14. Aucune ne reste ouverte.
 
-| # | Question | Options | Recommandation |
-|---|---|---|---|
-| Q4 | Quels chemins déclenchent la **création automatique** d'une exploration ? | Proposé : `docs/adr/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`. Un fichier portant l'en-tête PRD en est exclu (§5.1). Plus large (`docs/**`) = plus de bruit ; plus étroit = des décisions manquées. | Commencer étroit sur la liste proposée. Élargir si l'on constate des trous, jamais l'inverse. |
+### 10.2 Rien ne reste ouvert
+
+Les quatorze questions posées pendant la rédaction sont tranchées et récapitulées ci-dessus. Ce qui reste relève du dessin d'écran — les états vides de §6.6, la hiérarchie des marques d'une carte en §6.5 — et se règle en dessinant, pas en décidant.
 
 ## 11. Impact sur le spec technique
 
@@ -451,6 +458,7 @@ Points inconfortables, retenus en connaissance de cause.
 - **Un emplacement large ne ferme plus large**, mais il entame large : une issue ancrée à `web/` passera en cours au premier agent qui écrit sous `web/`. Bruit acceptable — « en cours » n'est pas une affirmation forte.
 - **On a échangé une promesse simple contre une liste à tenir.** « Ton code ne quitte pas ta machine » se vérifiait d'un coup d'œil au schéma. Une liste fermée se maintient : chaque fonctionnalité future devra dire si elle y ajoute une ligne, et le README devra suivre. C'est plus de travail, et c'est le prix de l'objectif produit.
 - **Deux clones ne se distinguent plus.** Identifier un dépôt par son distant est ce qui sauve le tableau d'un `mv`, mais deux copies volontairement séparées — un clone de travail, un clone d'expérimentation — partagent désormais les mêmes cartes. On assume : le besoin est rare, et il se traite par deux blocs plutôt que par deux tableaux.
+- **Un emplacement peut disparaître sous les pieds d'un travail.** Une issue ancrée à `web/app/checkout` survit au renommage du dossier : plus aucune écriture ne l'entamera, et rien ne le signalerait. Le tableau doit donc dire quand l'emplacement d'un travail vivant **n'existe plus dans le dépôt** — l'information est gratuite, la cartographie passe déjà toutes les cinq minutes. On ne corrige pas à la place de l'utilisateur : on lui dit que sa carte vise le vide.
 - **Le PRD devient une pièce du système.** Il ne se rédige plus tout à fait librement : un fichier hors convention ne peuple rien. C'est un contrat de rédaction accepté en échange d'un tableau qui ne fabrique jamais de doublon — et il vaut aussi pour les agents, qui écrivent une bonne part de ces documents.
 - **Le tableau démarre vide côté « Terminé »** (règle 10) : le premier jour, l'espace ne prouve rien.
 - **`12 / 17` compte des issues, pas de l'effort.** Neuf issues triviales et une énorme donnent `9 / 10` alors qu'il reste l'essentiel. Assumé : pas d'estimation, pas de points.

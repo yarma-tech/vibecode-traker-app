@@ -1,7 +1,14 @@
 # Espace projet Vibe Map (Kanban lié au git) : spec de conception
 
 Date : 2026-08-09
-État : en revue
+État : **remplacé** le 2026-08-11 par [`2026-08-11-espace-projet-kanban-conception.md`](2026-08-11-espace-projet-kanban-conception.md)
+
+> Ce document décrivait un modèle à un seul niveau : une tâche, un chemin, une
+> fermeture déduite des fichiers touchés par un commit. Le PRD écrit ensuite
+> ([`docs/PRD-espace-projet-kanban.md`](../../PRD-espace-projet-kanban.md)) a
+> retenu deux niveaux (bloc et issue), une fermeture par référence explicite, et
+> une identité de dépôt fondée sur le distant. Presque rien de ce qui suit ne
+> survit. Conservé pour l'historique du raisonnement, pas pour être implémenté.
 S'appuie sur : `docs/superpowers/specs/2026-08-01-vibe-map-observabilite-web-design.md` (télémétrie, daemon, RLS)
 
 ## 1. Ce qu'on construit
