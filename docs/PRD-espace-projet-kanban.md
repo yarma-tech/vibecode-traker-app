@@ -1,6 +1,6 @@
 # PRD — Espace projet Vibe Map (Kanban lié au git)
 
-> **Statut** : brouillon v23 — relu par un agent le 2026-08-10 ; toutes les questions bloquantes sont tranchées (§10.1)
+> **Statut** : brouillon v24 — relu par un agent le 2026-08-10 ; toutes les questions bloquantes sont tranchées (§10.1)
 > **Date** : 2026-08-10
 > **Produit** : Vibe Map (voir [PRODUCT.md](../PRODUCT.md))
 > **Conception technique** : [spec du 2026-08-09](superpowers/specs/2026-08-09-espace-projet-kanban-design.md) — **désormais en retard sur ce PRD**, voir §11
@@ -328,7 +328,9 @@ L'ancienne doctrine — *rien de sensible ne quitte le poste* — a tenu tant qu
 
 **Le risque résiduel, nommé.** La phrase de justification d'une vérification (§6.4) est écrite par un modèle qui vient de lire le code. Elle est plafonnée et il lui est interdit de citer du code, mais c'est la seule ligne de la liste dont le contenu n'est pas mécaniquement dérivé — c'est là que ça fuirait si ça devait fuir. Un utilisateur qui n'en veut pas doit pouvoir couper la vérification sans perdre le reste.
 
-**Ce que ça oblige ailleurs.** `README.md` (l. 12-15) promet aujourd'hui qu'« aucune table n'a de colonne où un contenu de fichier ou un prompt pourrait entrer ». Le plancher ci-dessus le tient encore pour les *prompts* et le *code* — mais les titres de PRD et les verdicts sont du texte rédigé, et la promesse doit être réécrite en conséquence. Un dépôt dont le README promet plus que le produit ne tient vaut moins qu'un README honnête.
+**Ce que ça oblige ailleurs, et quand.** Deux textes portent aujourd'hui la promesse absolue : `README.md` (l. 12-15, « aucune table n'a de colonne où un contenu de fichier ou un prompt pourrait entrer ») et la §7 du spec du 2026-08-01. Ils restent **exacts tant que l'espace projet n'est pas livré** — aucune table ne reçoit encore de titre de PRD ni de verdict. Les réécrire maintenant leur ferait décrire un produit qui n'existe pas.
+
+Ils doivent donc changer **au moment où le code arrive**, pas avant : c'est une ligne de la liste de livraison, pas une correction à faire tout de suite. Le spec du 2026-08-01 porte déjà l'avertissement en tête de sa §7. Un dépôt dont le README promet plus que le produit ne tient vaut moins qu'un README honnête — mais un README qui promet moins que ce que le produit fait n'est pas mieux.
 
 ## 8. Parcours
 
@@ -416,7 +418,7 @@ Le [spec du 2026-08-09](superpowers/specs/2026-08-09-espace-projet-kanban-design
   - **un dépôt sans distant** garde l'empreinte du chemin ; s'il en gagne un plus tard, son identité change — il faut décider si l'ancien tableau suit ou si l'on repart de zéro.
   - **plusieurs clones actifs** alimentent désormais un seul tableau : l'activité de deux machines se mélange sur les mêmes cartes, ce qui est voulu, mais rend la provenance d'un événement moins évidente.
 - **Lecture du PRD** : nouveau travail côté daemon — repérer les fichiers dont l'en-tête porte `id` / `statut` / `repo`, y lire la section `## Features à développer`, en extraire pour chaque `### Fn — titre (Priorité : Pn)` le quadruplet `(clé, titre, priorité, à-clarifier)` avec `clé = <date>/<id du PRD>/Fn`, la `date` étant traitée comme immuable. Ne poster que ça. Déterministe, testable sur fixtures ; rattachement d'un bloc existant par clé, jamais par titre.
-- **Doctrine** : le spec du 2026-08-01 (§7) et `README.md` (l. 12-15) portent l'ancienne promesse. Les deux sont à reprendre sur la liste fermée de §7.1 — c'est un changement de texte public, pas un détail interne.
+- **Doctrine** : `README.md` (l. 12-15) porte encore la promesse absolue. À réécrire sur la liste fermée de §7.1 **dans le commit qui livre la première lecture de PRD ou le premier verdict**, jamais avant — c'est un changement de texte public, il doit arriver avec le comportement qu'il décrit. Le spec du 2026-08-01 porte déjà l'avertissement.
 - **Création automatique** : le spec ne prévoit que des tâches saisies. Il faut la règle d'apparition d'un bloc *exploration* sur écriture d'un document reconnu (§5.1, Q4) — c'est la seule écriture que le système s'autorise de lui-même.
 - **Périmètre exclu** : « pas de sous-tâches » tombe — c'est devenu le cœur du produit. « Pas d'exploration » tombe aussi.
 

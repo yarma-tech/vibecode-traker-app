@@ -187,6 +187,16 @@ Aucun OAuth double. Le daemon lit le remote git de chaque repo, en extrait le pr
 
 ## 7. Confidentialité
 
+> **Dépassée sur un point, à la date du 2026-08-11.** Le PRD de l'espace projet
+> ([docs/PRD-espace-projet-kanban.md](../../PRD-espace-projet-kanban.md), §7.1)
+> remplace la règle absolue ci-dessous par une **liste fermée et publiée** : deux
+> lectures de contenu y sont admises — les titres de features d'un PRD, et le
+> verdict d'une vérification par sous-agent. Le plancher, lui, ne bouge pas :
+> ni code, ni diff, ni prompt, ni chemin absolu, ni secret. Cette section reste
+> exacte pour le produit tel qu'il tourne aujourd'hui ; elle cessera de l'être
+> le jour où l'espace projet sera livré, et le README devra suivre au même
+> moment.
+
 Ce qui sort de la machine : noms de repos, chemins **relatifs à la racine du repo**, nombres de lignes, noms de branches, horodatages, compteurs de jetons.
 
 Ce qui ne sort jamais : le contenu des fichiers, les prompts, les réponses des agents, les chemins absolus. La racine d'un repo est identifiée par une empreinte, pas par son chemin, qui contient le nom de l'utilisateur.
