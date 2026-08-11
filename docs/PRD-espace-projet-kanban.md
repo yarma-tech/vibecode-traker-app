@@ -1,6 +1,6 @@
 # PRD — Espace projet Vibe Map (Kanban lié au git)
 
-> **Statut** : brouillon v7 — modèle figé ; restent le périmètre de §6.4 et des questions de forme (§10.2)
+> **Statut** : brouillon v15 — relu par un agent le 2026-08-10 ; toutes les questions bloquantes sont tranchées (§10.1)
 > **Date** : 2026-08-10
 > **Produit** : Vibe Map (voir [PRODUCT.md](../PRODUCT.md))
 > **Conception technique** : [spec du 2026-08-09](superpowers/specs/2026-08-09-espace-projet-kanban-design.md) — **désormais en retard sur ce PRD**, voir §11
@@ -18,11 +18,11 @@ Le coût réel : après quelques jours d'absence sur un dépôt, il faut relire 
 
 ## 2. Promesse
 
-Un tableau par dépôt qui **se tient à jour tout seul**. On y écrit une fois ce qu'on veut faire ; l'avancement se déduit de ce que les agents écrivent et de ce qui part en production.
+Un tableau par dépôt qui **se tient à jour tout seul**. On y écrit une fois ce qu'on veut faire ; l'avancement se déduit de ce que les agents écrivent et de ce qu'ils committent.
 
 Un chantier long n'est pas une case opaque : on l'ouvre et on voit ce qu'il reste.
 
-Le tableau **reflète** le code, il ne le pilote pas. C'est un miroir git, pas un gestionnaire de tickets : la vérité est dans le dépôt — le PRD pour ce qui est prévu, la fusion dans `main` pour ce qui est fait.
+Le tableau **reflète** le code, il ne le pilote pas. C'est un miroir git, pas un gestionnaire de tickets : la vérité est dans le dépôt — le PRD pour ce qui est prévu, les commits pour ce qui est fait.
 
 ## 3. Utilisateur et moment d'usage
 
@@ -53,6 +53,8 @@ Conséquence directe : une feature transverse — « migrer l'authentification �
 
 Un bloc simple reste simple : une correction d'une ligne est un bloc sans issue, ancré directement. On ne découpe que ce qui le mérite.
 
+Quand on découpe un bloc simple **après coup**, son emplacement descend et devient sa première issue. Le bloc n'en garde pas : deux sources d'état sur le même objet se contrediraient tôt ou tard (règle 4).
+
 ## 5. Les types de travail
 
 Quatre types. Les trois premiers se distinguent par une seule question — **est-ce que ça existe déjà en production, et est-ce que c'est cassé ?** Le quatrième se distingue autrement : il ne produit pas du code, il produit un **document**.
@@ -70,13 +72,15 @@ Le type ne change pas la mécanique — les quatre traversent les mêmes colonne
 
 Les trois premiers types se **déclarent** : on sait ce qu'on veut avant de le faire. L'exploration se **découvre** : on ne prévoit pas « j'écrirai un ADR sur la file d'attente », on lance un agent et l'ADR apparaît.
 
-C'est donc le seul type qui peut se **créer tout seul**. Quand un agent écrit un document sous un emplacement de documentation reconnu (`docs/adr/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, `docs/PRD*.md`) et qu'aucun bloc ne couvre ce fichier, un bloc *exploration* apparaît en **En cours**, ancré à ce document, titré d'après lui. On peut le renommer, le retyper ou le supprimer ; on n'a pas eu à le saisir.
+C'est donc le seul type qui peut se **créer tout seul**. Quand un agent écrit un document sous un emplacement de documentation reconnu (`docs/adr/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`) et qu'aucun bloc ne couvre ce fichier, un bloc *exploration* apparaît en **En cours**, ancré à ce document, titré d'après lui. On peut le renommer, le retyper ou le supprimer ; on n'a pas eu à le saisir.
+
+**Un PRD lisible n'est pas une exploration.** Un fichier qui porte l'en-tête de §6.2 est déjà une source de features : le lire comme un document de conception créerait un bloc *exploration* **en plus** des blocs *feature* qu'il produit, pour le même fichier. L'en-tête l'exclut donc de la création automatique. Écrire un PRD reste visible dans l'activité, simplement ça ne fabrique pas une carte en double.
 
 Rien de nouveau à construire côté machine pour ça : le daemon remonte déjà chaque écriture de fichier avec son chemin relatif. Un document est un fichier comme un autre.
 
 **Ce qui reste hors du tableau** : une exploration qui ne produit rien sur le disque — une conversation, une lecture, un comparatif resté dans une session. Sans artefact, rien à ancrer et rien à fermer. La règle est nette : **pas de document, pas de carte**.
 
-**Conséquence sur le cycle.** Une exploration entre presque toujours directement en **En cours** — elle est constatée pendant qu'elle a lieu. La colonne « À faire » lui reste ouverte (on peut décider à l'avance qu'un ADR est nécessaire), mais elle y passe rarement. Elle est **terminée** quand son document arrive en production, au même sens que les autres (§10.1) — pour un document, cela veut dire fusionné dans `main`, donc opposable.
+**Conséquence sur le cycle.** Une exploration entre presque toujours directement en **En cours** — elle est constatée pendant qu'elle a lieu. La colonne « À faire » lui reste ouverte (on peut décider à l'avance qu'un ADR est nécessaire), mais elle y passe rarement. Elle est **terminée** au même sens que les autres (§6.3) : quand un commit la nomme par sa référence. Écrire le document l'entame ; le commit qui la nomme la ferme.
 
 L'exploration est aussi le type qui **repart** le plus souvent : un ADR remplacé, un spec révisé. Le versionnage `v2` (§9 règle 5) y est la norme, pas l'exception.
 
@@ -84,7 +88,7 @@ L'exploration est aussi le type qui **repart** le plus souvent : un ADR remplac�
 
 Trois colonnes : **À faire · En cours · Terminé**.
 
-**Bloc simple** — se comporte comme une carte unique : `À faire` à la création, `En cours` dès qu'un agent écrit à son emplacement, `Terminé` quand son travail est en production.
+**Bloc simple** — se comporte comme une carte unique : `À faire` à la création, `En cours` dès qu'un agent écrit à son emplacement, `Terminé` quand un commit le nomme (§6.3). Il porte sa propre référence, exactement comme une issue.
 
 **Bloc découpé** — son état ne se saisit pas, il **se déduit** de ses issues :
 
@@ -92,13 +96,13 @@ Trois colonnes : **À faire · En cours · Terminé**.
 |---|---|
 | toutes à faire | À faire |
 | au moins une entamée ou terminée, pas toutes terminées | En cours |
-| toutes terminées et en production | Terminé |
+| toutes terminées | Terminé |
 
 L'avancement se lit sur le bloc : **`12 / 17`** — nombre d'issues terminées sur le total. Le reste à faire s'ouvre dans le bloc, sans quitter le tableau. C'est ça, la to-do list : ce qui n'est pas encore terminé à l'intérieur d'un bloc en cours.
 
 L'étendue d'un chantier se mesure donc en **issues restantes**, pas en commits. Les commits sont la preuve, pas l'unité.
 
-« Terminé » veut dire **fusionné dans `main`** (§10.1). Un commit sur une branche de travail fait entamer, jamais terminer : tant que la pull request n'est pas passée, l'issue reste en cours même si le code existe.
+« Terminé » veut dire **un commit local l'a nommé** (§10.1). Pas « fusionné », pas « déployé » : ce que le daemon voit, c'est ton disque. Le jour où le commit part sur une branche qui n'aboutit pas, la carte est fermée à tort — c'est le prix, il est en §13.
 
 ### 6.1 D'où viennent les blocs
 
@@ -116,13 +120,62 @@ La colonne **À faire** reste la colonne de l'**intention** : tout ce qui s'y tr
 
 **Quand un PRD existe dans le dépôt, il est lu et ses features deviennent des blocs en « À faire ».** On n'a pas à retranscrire ce qu'on vient d'écrire.
 
-Le PRD reste **la source d'intention** ; le tableau en est le reflet. On ne modifie pas une feature depuis le tableau : on modifie le PRD, et le tableau suit. Ce qui est ajouté au PRD apparaît ; ce qui en est retiré ne fait pas disparaître un bloc déjà entamé — l'histoire ne s'efface pas parce qu'un document a changé d'avis.
+Le PRD reste **la source d'intention** ; le tableau en est le reflet. On ne modifie pas une feature depuis le tableau : on modifie le PRD, et le tableau suit.
 
-**Ce que ça coûte à la doctrine.** Lire un PRD, c'est lire le contenu d'un fichier. La lecture reste **locale, par le daemon** ; seuls les **titres** extraits partent. Le corps du document ne quitte pas le poste. Un titre de feature est écrit pour être lu ; un diff, non. Cette exception est inscrite dans la liste de §7.1 — c'est ce qui la rend tenable : on sait exactement ce qu'on a concédé.
+**La convention de rédaction.** Elle est tenue en amont, pas devinée en aval. Un PRD lisible a cette forme :
 
-**Ce que ça demande au PRD.** Il faut une convention pour savoir ce qui est une feature : à défaut d'autre décision, les entrées d'une liste sous une section reconnue (« Objectifs fonctionnels », « Features »). C'est ce que fait déjà ce document même — voir §7. La convention exacte reste à figer (§10.2, Q10).
+```
+---
+id: PRD-004
+titre: Export CSV
+statut: en cours      # avance avec le document
+date: 2026-08-10      # creation — n'est jamais retouchee, elle porte l'identite
+maj: 2026-08-12       # derniere revision — bouge librement
+repo: yarma-decks
+---
 
-### 6.3 Ce qui ferme une issue
+## Features à développer
+
+### F1 — Export d'une sélection (Priorité : P1)
+- **User story** : ...
+- **Exigences** : FR-001, FR-002 ...
+- **Critères d'acceptation** : - [ ] ...
+- **Hors scope** : ...
+- **[À CLARIFIER]** : ...
+```
+
+Le parseur en tire quatre choses, et rien d'autre :
+
+| Ce qu'il lit | Ce qu'il en fait |
+|---|---|
+| L'**en-tête** `id` / `titre` / `statut` / `date` / `maj` / `repo` | reconnaît le fichier comme un PRD vivant. Pas d'en-tête, pas de lecture — c'est ce qui écarte `docs/PRD.md`, l'archive du produit macOS, sans avoir à l'exclure nommément |
+| `## Features à développer` | délimite la zone à lire ; le reste du document est ignoré |
+| `### F1 — nom court (Priorité : P1)` | un bloc de type *feature*, titré `nom court` |
+| La case `[À CLARIFIER]`, si présente | le bloc est marqué **à clarifier** : il est prévu, mais pas prêt à lancer |
+
+**La clé stable est `2026-08-10/PRD-004/F1`** — date du document, identifiant, feature. Ni `F1` seul, ni `PRD-004/F1` ne suffisent : deux PRD du même dépôt ont chacun leur `F1`, et un identifiant peut être réemployé d'une série de documents à l'autre. C'est cette clé qui permet de reformuler le titre d'une feature sans créer de doublon.
+
+**Deux dates, deux rôles.** `date` porte la **création** et entre dans la clé : elle ne se retouche pas, sous peine de dédoubler toutes les cartes du PRD — les anciennes restant en place (règle 7). `maj` porte la **dernière révision** et bouge librement, c'est elle qui dit qu'un document a vécu. La séparation est dans le gabarit lui-même, à l'endroit où quelqu'un serait tenté de mettre `date` à jour.
+
+`maj` sert aussi à l'écran : un bloc peut dire d'où il vient et **de quand** — « feature du PRD-004, révisé le 12 août ». Une carte en « À faire » depuis six semaines dont le PRD a bougé hier ne raconte pas la même chose qu'une carte oubliée.
+
+**Le champ `repo` fait autorité.** Un PRD qui nomme un autre dépôt que celui où il se trouve ne peuple pas le tableau courant. On écrit parfois le PRD d'un projet dans le dépôt d'à côté ; le document dit pour qui il est écrit, et on le croit.
+
+**La priorité est affichée, jamais gérée.** `P1` est lu et montré sur le bloc, parce que c'est une information utile pour choisir quoi lancer. Mais elle ne se modifie pas depuis le tableau et ne trie rien automatiquement : elle appartient au PRD (§12).
+
+**Les critères d'acceptation restent lisibles, pas suivis.** Ils s'affichent dans le bloc, en lecture seule — ils disent *comment on saura que c'est fait*. Les issues, elles, disent *où le travail se passe* et se créent à la main avec leur emplacement. Les deux listes cohabitent sans se confondre : on ne coche pas un critère d'acceptation, on le lit.
+
+**Un PRD `draft` compte quand même.** Un brouillon est une intention, et « À faire » est la colonne de l'intention. Seul un statut qui déclare le document mort (`archivé`, `abandonné`) le fait ignorer.
+
+**Rien ne se supprime tout seul.** Une feature retirée du PRD, un PRD renommé ou effacé : le bloc **reste**, marqué « plus dans le PRD ». Le tableau ne détruit pas du travail parce qu'un document a changé d'avis — et un bloc entamé porte de l'histoire qui n'est écrite nulle part ailleurs.
+
+**Ce que ça coûte à la doctrine.** Lire un PRD, c'est lire le contenu d'un fichier. La lecture reste **locale, par le daemon** ; seuls les couples `(clé, titre)`, la priorité et le marqueur *à clarifier* partent. Le corps du document ne quitte pas le poste : ni user story, ni exigences, ni critères. Cette exception est inscrite dans la liste de §7.1 — c'est ce qui la rend tenable : on sait exactement ce qu'on a concédé.
+
+**C'est un parseur, pas un modèle.** Le daemon lit le markdown et applique la règle — quelques dizaines de lignes, aucun jeton, aucune latence. Surtout : **même fichier, même résultat**. Un modèle relisant le même PRD reformulerait légèrement d'une fois sur l'autre et fabriquerait des doublons à chaque passage ; c'est pour ça qu'il est écarté (§12).
+
+**Quand rien n'est reconnu, le produit le dit.** Un PRD hors convention ne donne aucune carte — mais l'espace projet affiche qu'il a vu un PRD sans y reconnaître de feature, plutôt que de rester muet. Un silence est indiscernable d'une panne.
+
+### 6.3 Ce qui ferme un travail
 
 Un commit n'est pas lié à un endroit du code, il est lié à un **travail**. Trois issues peuvent vivre dans `web/app/checkout` sans qu'aucun chemin ne dise laquelle un commit vient de régler. Le chemin est une trace, pas une déclaration.
 
@@ -130,20 +183,34 @@ D'où la séparation nette :
 
 | Signal | Ce qu'il prouve | Ce qu'il déclenche |
 |---|---|---|
-| **Écriture à un emplacement** (activité d'agent) | il se passe quelque chose ici | l'issue passe **en cours** |
-| **Référence dans un message de commit**, une fois fusionné dans `main` | ce travail-ci est fait | l'issue passe **terminée** |
+| **Écriture à un emplacement** (activité d'agent) | il se passe quelque chose ici | passage **en cours** |
+| **Référence dans le message d'un commit local** | ce travail-ci est fait | passage **terminé** |
 
-Chaque issue porte donc une **référence courte, stable et visible** — de la forme `#7`, unique dans le dépôt. Elle est affichée sur la carte, copiable d'un geste, et c'est ce qu'on donne à l'agent quand on le lance. L'agent la remet dans son message de commit ; à la fusion, l'issue se ferme.
+**Toute unité suivie porte une référence** — une issue, mais aussi un bloc simple, une feature tirée d'un PRD, une exploration créée toute seule. Sans elle, ces trois-là n'auraient aucun moyen de se fermer : c'est le seul signal qui désigne un travail plutôt qu'un endroit.
+
+La référence est **courte, stable, unique dans le dépôt**. Elle est affichée sur la carte, copiable d'un geste, et c'est ce qu'on donne à l'agent quand on le lance. L'agent la remet dans son message de commit ; au commit suivant, le travail se ferme. Elle s'écrit **`VM-7`**. Le préfixe n'est pas décoratif : les messages de ce dépôt contiennent déjà `feat(#7):` et `Merge pull request #17`, des numéros d'issues GitHub. Une référence en `#7` aurait fermé des cartes au hasard dès le premier jour.
+
+**Le commit local suffit, et c'est un choix.** Le daemon lit le dépôt sur la machine : il voit un commit dès qu'il existe, il ne voit pas une pull request fusionnée chez GitHub tant que personne n'a tiré. Attendre la fusion, ce serait attendre un signal que le produit ne reçoit pas. On ferme donc sur le commit local, en sachant qu'un commit sur une branche abandonnée ferme une carte à tort (§13).
+
+**Trois cas que la règle doit couvrir.**
+
+- *Une référence nomme un travail déjà terminé* — c'est une **reprise** : le travail repart en cours, en version suivante (`v2`, `v3`…). C'est le cas normal d'une itération, et un silence ferait perdre l'information.
+- *Le versionnage porte sur l'unité nommée* — l'issue si le bloc est découpé, le bloc sinon — et **seul un commit qui nomme rouvre**. Écrire dans un dossier n'est pas reprendre un travail livré : l'activité entame ce qui n'est pas fini, elle ne ressuscite rien.
+- *Les références ne sont jamais recyclées.* Un compteur par dépôt, `VM-1`, `VM-2`, sans réemploi après suppression. Un numéro recyclé rendrait un vieux message de commit capable de fermer une carte neuve, des mois plus tard.
+
+Une référence qui ne correspond à rien dans le dépôt est ignorée sans bruit : les messages de commit contiennent toutes sortes de choses.
 
 Le coût est honnête : **fermer n'est plus tout à fait gratuit**. Mais la saisie ne tombe pas sur l'humain — il donne une référence en lançant son agent, ce qu'il fait déjà quand il décrit la tâche. C'est l'agent qui écrit le message.
 
-Et quand personne n'a rien nommé ? L'issue reste **en cours**. Elle ne se ferme pas toute seule sur un chemin, et elle ne se ferme pas à tort. Deux replis, dans cet ordre : on la fait **vérifier** (§6.4), ou on la ferme à la main d'un clic.
+**On ne pousse pas une carte dans « Terminé ».** Le geste n'existe pas : pas de glisser-déposer vers la troisième colonne, pas de case à cocher. « Terminé » s'obtient, il ne s'attribue pas — c'est ce qui fait qu'une carte dans cette colonne veut dire quelque chose. Un geste libre, fait de travers un jour de fatigue, casserait la seule affirmation forte du tableau.
+
+Et quand personne n'a rien nommé ? Le travail reste **en cours** — il ne se ferme ni sur un chemin, ni sur un glissement. Le repli est de le faire **vérifier** (§6.4) : le verdict revient avec ses preuves, et on le confirme. Fermer reste possible, mais seulement comme une décision adossée à quelque chose, jamais comme un mouvement de souris.
 
 ### 6.4 Faire vérifier une issue
 
-Quand une fusion touche l'emplacement d'une issue sans la nommer, la carte propose : **« Vérifier »**. Un clic, et un sous-agent Claude Code va lire le dépôt sur la machine et répondre à une seule question — *ce travail est-il implémenté ?*
+Quand un commit touche l'emplacement d'un travail sans le nommer, la carte propose : **« Vérifier »**. Un clic, et un sous-agent Claude Code va lire le dépôt sur la machine et répondre à une seule question — *ce travail est-il implémenté ?*
 
-Il revient avec un verdict — **implémenté · partiellement · non trouvé** — une confiance, et les chemins qui l'ont convaincu. La carte affiche ce verdict à côté du bouton **Fermer**.
+Il revient avec un verdict — **implémenté · partiellement · non trouvé** — une confiance, et les chemins qui l'ont convaincu. La carte affiche ce verdict, et c'est **la seule situation où un bouton « Fermer » apparaît** : ailleurs, la troisième colonne ne s'atteint que par un commit qui nomme le travail (§6.3).
 
 **Le verdict propose, il ne ferme jamais.** Un jugement de modèle n'est pas un fait. C'est le même principe que §13 : mieux vaut rater une fermeture que d'en inventer une, et une vérification automatique qui ferme d'autorité serait exactement l'invention qu'on refuse. L'humain reste le seul à fermer — mais il décide en une seconde au lieu d'aller lire le code.
 
@@ -154,7 +221,8 @@ Ce que ça demande, et qui n'existe pas encore :
 - **Un sous-agent en lecture seule.** Il lit, il ne modifie rien, il ne committe rien.
 - **Un retour borné.** Verdict, confiance, chemins relatifs, une phrase de justification — jamais d'extrait de code, jamais de contenu de fichier. C'est la ligne la plus exposée de §7.1, et la seule qu'on doit pouvoir couper sans perdre le reste du produit.
 - **Un coût visible.** Une vérification consomme des jetons. Ils sont attribués au dépôt comme le reste (le suivi coût/jetons existe déjà), et la vérification reste **sur demande** : rien ne se vérifie tout seul.
-- **Une machine choisie.** Un dépôt peut vivre sur plusieurs machines ; la vérification part sur celle qui a eu de l'activité en dernier sur ce dépôt. Si aucune n'est joignable, la demande attend et le dit.
+- **Une machine choisie.** Depuis que l'identité d'un dépôt vient de son distant (§10.1), un tableau peut correspondre à plusieurs clones. La vérification part sur la machine qui a eu de l'**activité la plus récente** sur ce dépôt — c'est celle qui a le plus de chances d'avoir le travail sur son disque. Si son daemon ne répond pas dans le délai, la demande le dit et propose la machine suivante, plutôt que d'échouer en silence.
+- **Des bornes.** Une vérification a un **délai maximal** au-delà duquel elle est abandonnée, une **seule à la fois par dépôt**, et un **plafond de jetons** connu d'avance. Sans ces trois bornes, « un coût visible » n'est pas un garde-fou mais une constatation après coup.
 
 ## 7. Objectifs
 
@@ -163,21 +231,21 @@ Ce que ça demande, et qui n'existe pas encore :
 - **F1** — Déclarer un travail en une saisie courte : titre, type, et emplacement (ou découpage en issues).
 - **F2** — Découper un bloc en issues à tout moment, y compris après coup — un bloc simple devenu gros se découpe sans se recréer.
 - **F3** — Voir une issue passer en **entamée** dès qu'un agent écrit à son emplacement, sans intervention.
-- **F4** — Voir une issue passer en **terminée** quand le travail correspondant est en production, sans intervention.
+- **F4** — Voir un travail passer en **terminé** quand un commit le nomme, sans intervention.
 - **F5** — Voir un bloc changer de colonne tout seul quand l'état de ses issues le justifie.
 - **F6** — Lire d'un coup d'œil le reste à faire d'un bloc (`12 / 17`) et l'ouvrir pour voir quelles issues restent.
 - **F7** — Suivre un travail qui repart (livré, puis repris) sur le même bloc, avec son historique de versions et les commits qui les ont closes.
-- **F8** — Corriger le tableau à la main quand l'automatisme s'est trompé, dans n'importe quel sens.
+- **F8** — Ramener une carte fermée à tort vers « En cours ». Le mouvement inverse n'existe pas : on ne pousse jamais une carte dans « Terminé » à la main (§6.3).
 - **F9** — Voir le tableau se mettre à jour sur un appareil alors que le travail se fait sur un autre.
 - **F10** — Filtrer le tableau par type (feature / correction / technique / exploration).
 - **F11** — Voir apparaître tout seul un bloc *exploration* quand un agent écrit un document de conception, sans l'avoir déclaré ; pouvoir le renommer, le retyper ou le supprimer.
 - **F12** — Voir les features d'un PRD présent dans le dépôt apparaître en « À faire » sans les retranscrire, et se mettre à jour quand le PRD change (§6.2).
-- **F13** — Lire et copier d'un geste la référence courte d'une issue (`#7`) pour la donner à l'agent qu'on lance ; fermer une issue à la main quand aucun commit ne l'a nommée.
+- **F13** — Lire et copier d'un geste la référence d'un travail (`VM-7`) pour la donner à l'agent qu'on lance.
 - **F14** — Demander en un clic la vérification d'une issue par un sous-agent local, et lire son verdict sur la carte avant de décider de fermer (§6.4).
 
 ### Non-fonctionnels
 
-- **NF1** — Un passage en production sur une machine déplace le bloc sur un autre appareil en **moins de 5 secondes**, sans rechargement ni intervention.
+- **NF1** — Une écriture d'agent déplace une carte en « En cours » sur un autre appareil en **moins de 5 secondes** ; un commit la ferme en **moins d'une minute**. Les deux chiffres diffèrent parce que les deux signaux ne sont pas lus au même rythme : les journaux d'agent sont relus toutes les 2 s, les commits demandent une lecture git. Le mécanisme d'ingestion des commits doit donc avoir sa propre cadence — pas celle de la cartographie, qui tourne toutes les 5 minutes (§11).
 - **NF2 — ce qui sort est une liste fermée, et elle est publiée.** Voir §7.1. La règle n'est plus « rien de sensible ne sort » : le produit doit aider un *ai-native builder* à suivre ses projets, et cet objectif prime. Ce qui la remplace est plus exigeant que vague : une liste explicite de ce qui part, un plancher de ce qui ne part jamais, et un endroit où l'utilisateur peut lire les deux.
 - **NF3** — Registre visuel Linear, aligné sur la carte existante : densité maîtrisée, la couleur ne dit que l'état, jamais la couleur seule. Le type est un libellé, pas une teinte supplémentaire.
 - **NF4** — WCAG AA ; mouvement coupé sous `prefers-reduced-motion`.
@@ -196,9 +264,10 @@ L'ancienne doctrine — *rien de sensible ne quitte le poste* — a tenu tant qu
 |---|---|---|
 | Empreinte, message, branche, date d'un commit | git | dire ce qui est fait, et par quoi |
 | Chemins **relatifs** à la racine du dépôt | git, journaux d'agent | situer le travail sans nommer la machine |
+| Empreinte du dépôt distant | `git remote get-url origin`, normalisée puis hachée | reconnaître le même dépôt d'une machine à l'autre (§10.1) |
 | Nature d'un accès (lecture / écriture), horodatage, session | journaux Claude Code | allumer la carte, entamer une issue |
 | Compteurs : jetons, coût, durée | journaux Claude Code | le suivi de coût existant |
-| **Titres** extraits d'un PRD | lecture locale du PRD (§6.2) | peupler « À faire » sans retranscrire |
+| **Titres** de features, leur clé `2026-08-10/PRD-004/F1`, leur priorité, leur marqueur *à clarifier*, la date de révision du PRD | lecture locale du PRD (§6.2) | peupler « À faire » sans retranscrire, et dire de quand date l'intention. Ni user story, ni exigences, ni critères d'acceptation ne sortent |
 | **Verdicts** de vérification : état, confiance, chemins, une phrase | sous-agent local (§6.4) | décider de fermer sans aller lire le code |
 
 **Ce qui ne sort jamais** — le plancher :
@@ -214,7 +283,7 @@ L'ancienne doctrine — *rien de sensible ne quitte le poste* — a tenu tant qu
 
 ## 8. Parcours
 
-**A — Je prévois une petite chose.** « Nouveau », type *correction*, titre « Le hero déborde sur mobile », emplacement `web/app/landing/hero` par autocomplétion sur les dossiers connus. Bloc simple, colonne **À faire**. Je n'y retouche plus.
+**A — Je prévois une petite chose.** « Nouveau », type *correction*, titre « Le hero déborde sur mobile », emplacement `web/app/landing/hero` par autocomplétion sur les dossiers connus. Bloc simple, colonne **À faire**, avec sa référence. Je n'y retouche plus : je la passerai à l'agent, son commit fermera la carte.
 
 **B — Je prévois un gros chantier.** Type *feature*, « Refonte du tunnel de commande ». Je le découpe en issues, chacune avec son emplacement. Le bloc affiche `0 / 9` en **À faire**.
 
@@ -222,54 +291,63 @@ L'ancienne doctrine — *rien de sensible ne quitte le poste* — a tenu tant qu
 
 **D — Ça avance.** Les issues tombent une à une : `3 / 9`, `6 / 9`. Le bloc reste en **En cours**. J'ouvre le bloc pour voir lesquelles restent — c'est ma to-do list du chantier.
 
-**E — C'est livré.** J'avais lancé l'agent en lui donnant la référence `#42`. Ses commits la portent. La pull request est fusionnée dans `main` : `#42` se ferme, et elle seule — les deux autres issues du même dossier ne bougent pas. Quand la dernière tombe, le bloc glisse en **Terminé**, `9 / 9`, avec les commits qui l'ont clos. Je sais que c'est fait, et par quoi.
+**E — C'est livré.** J'avais lancé l'agent en lui donnant la référence de l'issue. Son commit la porte : l'issue se ferme, et elle seule — les deux autres issues du même dossier ne bougent pas. Quand la dernière tombe, le bloc glisse en **Terminé**, `9 / 9`, avec les commits qui l'ont clos. Je sais que c'est fait, et par quoi.
 
 **F — Je reprends dessus.** Trois semaines plus tard, un agent retouche le tunnel. Le bloc repart en **En cours**, marqué `v2`. Il ne redevient jamais « À faire » : ce qui a été livré une fois reste livré.
 
-**G — L'automatisme s'est trompé.** Une issue a été fermée trop tôt. Je la rouvre à la main ; le bloc revient en **En cours**. La prochaine mise en production pourra le re-fermer — le manuel corrige, il ne verrouille pas.
+**G — L'automatisme s'est trompé.** Une issue a été fermée trop tôt — un commit l'a nommée alors qu'il restait du travail. Je la ramène en **En cours** d'un geste ; le bloc suit. Le prochain commit qui la nomme pourra la refermer — corriger ne verrouille pas.
 
-**H — Je n'avais rien prévu, et pourtant.** Je lance un agent pour cadrer une idée. Il écrit `docs/adr/0012-file-attente.md`. Sans que j'aie rien saisi, un bloc *exploration* « ADR 0012 — file d'attente » apparaît en **En cours**. Quand le document arrive sur la branche de référence, le bloc passe en **Terminé**. Le lendemain, je vois dans le tableau que la décision a été prise, et laquelle.
+**I — J'ai oublié la référence.** Le travail est fait, mais aucun commit ne l'a nommé : la carte traîne en **En cours**. Je clique **Vérifier**. Trente secondes plus tard : *implémenté, confiance haute*, avec les trois fichiers qui l'attestent. Je confirme. C'est le seul chemin vers « Terminé » qui ne passe pas par un commit — et il demande une preuve, pas un glissement.
+
+**H — Je n'avais rien prévu, et pourtant.** Je lance un agent pour cadrer une idée. Il écrit `docs/adr/0012-file-attente.md`. Sans que j'aie rien saisi, un bloc *exploration* « ADR 0012 — file d'attente » apparaît en **En cours**. Le bloc porte sa propre référence ; le commit qui range l'ADR la nomme, et le bloc passe en **Terminé**. Le lendemain, je vois dans le tableau que la décision a été prise, et laquelle.
 
 ## 9. Règles produit
 
 Le cœur du comportement. Traduction technique à faire dans le spec (§11).
 
 1. **Deux signaux, deux portées.** L'**emplacement** dit qu'il se passe quelque chose — il fait *entamer*. La **référence dans le commit** dit ce qui est fait — elle seule *ferme*. On ne déduit jamais une fin d'un chemin.
-2. **Un commit ne ferme que ce qu'il nomme.** Une fusion dans `main` ferme exactement les issues que ses messages de commit désignent par leur référence — une, six, aucune. Un commit qui ne nomme rien ne ferme rien, même s'il touche l'emplacement d'une issue vivante.
+2. **Un commit ne ferme que ce qu'il nomme.** Un commit local ferme exactement les travaux que son message désigne par leur référence — un, six, aucun. Un commit qui ne nomme rien ne ferme rien, même s'il touche l'emplacement d'un travail vivant.
 3. **Plusieurs travaux peuvent partager un emplacement.** Six issues dans `web/app/checkout` cohabitent sans ambiguïté : un commit dans ce dossier les met en cours, mais ne ferme que celles qu'il nomme. C'est ce que le chemin seul ne saurait pas faire.
 4. **L'état d'un bloc découpé ne se saisit pas**, il se déduit de ses issues (§6). On ne déplace pas un bloc découpé à la main : on agit sur ses issues.
 5. **L'automatisme n'avance jamais à reculons.** `À faire → En cours`, `→ Terminé`, `Terminé → En cours v+1`. Jamais de retour en « À faire ».
-6. **Le manuel corrige, il ne verrouille pas.** Une correction manuelle peut être ré-avancée par l'automatisme.
-7. **Terminé veut dire fusionné dans `main`**, pas « committé ». Un commit sur une branche de travail fait avancer, il ne termine pas.
-8. **La colonne « À faire » n'accueille que de l'intention humaine** — une feature décidée par un PRD, une tâche créée par le PM (§6.1). Aucun automatisme n'y dépose quoi que ce soit.
-9. **Le passé n'est pas rejoué.** Au premier branchement sur un dépôt, l'historique git existant est ignoré : « Terminé » se peuple à partir de ce qui suit.
-10. **Le tableau ne réclame rien.** Pas d'échéance, pas de relance, pas de notification. Il est consulté, pas subi.
-11. **Le tableau ne crée de lui-même qu'une seule chose : une exploration**, et seulement quand un document de conception apparaît là où il n'y en avait pas (§5.1). Tout le reste se déclare. Ce qu'il crée seul, on peut toujours le renommer, le retyper ou l'effacer.
+6. **Le manuel sort de « Terminé », il n'y entre pas.** On peut ramener une carte fermée à tort ; on ne peut pas en pousser une dedans. Une correction manuelle ne verrouille rien : le prochain commit qui nomme le travail peut le refermer.
+7. **Rien ne se supprime tout seul.** L'automatisme crée (une exploration, une feature de PRD) et déplace ; il n'efface jamais. Une feature retirée du PRD laisse son bloc en place, marqué comme telle.
+8. **Terminé veut dire nommé par un commit local**, quelle que soit la branche. Le daemon voit le disque, pas la forge : attendre la fusion serait attendre un signal qui n'arrive pas.
+9. **La colonne « À faire » n'accueille que de l'intention humaine** — une feature écrite dans un PRD, une tâche créée par le PM (§6.1). Le dépôt peut être automatique ; la décision, jamais. Rien n'y entre qu'un humain n'ait écrit quelque part.
+10. **Le passé n'est pas rejoué.** Au premier branchement sur un dépôt, l'historique git existant est ignoré : « Terminé » se peuple à partir de ce qui suit.
+11. **Le tableau ne réclame rien.** Pas d'échéance, pas de relance, pas de notification. Il est consulté, pas subi.
+12. **Le tableau ne crée de lui-même que ce qu'il a lu quelque part** : une feature écrite dans un PRD (§6.2), une exploration constatée quand un document de conception apparaît (§5.1). Il n'invente jamais un travail. Ce qu'il crée seul se renomme, se retype et s'efface.
 
 ## 10. Décisions et questions ouvertes
 
 ### 10.1 Tranché
 
-- **« En production » = fusion dans `main`.** C'est le seul signal que le daemon peut lire sans configuration, et il correspond au flux par pull request déjà utilisé sur ce dépôt. Un commit sur une branche de travail fait **avancer** (l'activité entame), il ne **termine** pas. Conséquence : le daemon ne peut plus se contenter de suivre `HEAD` — il doit distinguer la branche de travail de la branche de référence (§11).
-- **Le commit fait foi — et il ne ferme que ce qu'il nomme.** Un commit n'est pas lié à un emplacement, il est lié à un travail : trois travaux distincts peuvent vivre dans `web/app/checkout`, et un commit n'en règle qu'un. Le chemin ne peut donc pas fermer, il ne peut qu'entamer. La fermeture demande que le commit **désigne** l'issue par sa référence (§6.3). Conséquences : la contrainte « une seule tâche vivante par emplacement » disparaît quand même (elle n'existait que pour lever une ambiguïté qui n'a plus lieu d'être), le départage par profondeur aussi pour la fermeture — mais chaque issue a besoin d'une **référence courte et visible**.
-- **Un PRD présent dans le dépôt est lu, et ses features deviennent des blocs.** NF2 est précisée plutôt qu'abandonnée : la lecture est **locale**, seuls les titres extraits sortent de la machine (§6.2).
+- **« Terminé » = un commit local a nommé le travail.** Le premier jet retenait « fusionné dans `main` ». Vérification faite dans le code, c'était intenable : le daemon n'appelle jamais `git fetch`, donc une pull request fusionnée chez GitHub n'existe pas sur le disque tant que personne n'a tiré ; et il ne connaît que la branche courante, pas la branche de référence. Le produit aurait attendu un signal qu'il ne reçoit pas. On ferme donc sur le **commit local**, qui est visible tout de suite et sans configuration. Ce qu'on abandonne en le faisant est écrit en §13 : une branche abandonnée ferme une carte à tort.
+- **Le PRD est lu par un parseur, pas par un modèle.** La convention de rédaction est tenue en amont — un marqueur qui déclare le fichier lisible, un identifiant par feature (`F12`). En échange, l'extraction est déterministe : même fichier, même résultat, donc pas de doublon à chaque relecture. Un modèle aurait accepté n'importe quel PRD, au prix de reformulations qui auraient fabriqué des cartes en double.
+- **La référence s'écrit `VM-7`.** Le `#7` nu était inutilisable : l'historique de ce dépôt porte déjà `feat(#7):` et `Merge pull request #17`, qui désignent des issues GitHub. Le préfixe évite qu'un message de commit ordinaire ferme une carte par accident.
+- **Toute unité suivie porte une référence, pas seulement les issues.** Sans cela, un bloc simple, une feature de PRD et une exploration auto-créée n'avaient aucun chemin vers « Terminé » — trois origines sur quatre produisaient des cartes immortelles.
+- **Le commit fait foi — et il ne ferme que ce qu'il nomme.** Un commit n'est pas lié à un emplacement, il est lié à un travail : trois travaux distincts peuvent vivre dans `web/app/checkout`, et un commit n'en règle qu'un. Le chemin ne peut donc pas fermer, il ne peut qu'entamer. La fermeture demande que le commit **désigne** le travail par sa référence (§6.3). Conséquences : la contrainte « une seule tâche vivante par emplacement » disparaît quand même — elle n'existait que pour lever une ambiguïté qui n'a plus lieu d'être — et le départage par profondeur ne joue plus pour la fermeture.
+- **Un PRD présent dans le dépôt est lu, et ses features deviennent des blocs.** La lecture est **locale** ; seuls les couples `(identifiant, titre)` sortent de la machine. C'est cette décision qui a fait tomber l'ancienne doctrine de confidentialité, remplacée par la liste fermée de §7.1.
+- **Six comportements jusque-là non définis sont fixés** (§6.2, §6.3) : une référence qui nomme un travail terminé le **rouvre en version suivante** ; le versionnage porte sur l'unité nommée et **seul un commit rouvre**, jamais l'activité ; découper un bloc simple fait **descendre son emplacement** dans sa première issue ; les références `VM-n` ne sont **jamais recyclées** ; un PRD lisible **n'est pas** une exploration ; **rien ne se supprime tout seul**.
+- **Le PRD suit un gabarit fixe** (§6.2) : en-tête `id`/`titre`/`statut`/`date`/`repo`, section `## Features à développer`, une feature par `### Fn — nom (Priorité : Pn)`. La clé stable est `2026-08-10/PRD-004/F1` — date et identifiant du document en font partie, sans quoi deux PRD du même dépôt entreraient en collision sur `F1`. Contrepartie : `date` devient immuable — le gabarit porte un champ `maj` distinct pour les révisions.
+- **Un dépôt est identifié par son distant, plus par son chemin.** L'empreinte porte désormais sur l'URL du dépôt distant (`git remote get-url origin`, normalisée) et non sur le chemin absolu. Un dossier renommé ou déplacé garde ses cartes ; deux clones de la même origine partagent un seul tableau. C'est la contrepartie du fait que le Kanban est le premier objet du produit qui contient du travail saisi à la main : il ne peut pas disparaître sur un `mv`. Un dépôt sans distant retombe sur l'empreinte du chemin, avec ce que ça implique.
+- **On ne pousse pas une carte dans « Terminé ».** Le glisser-déposer vers la troisième colonne est supprimé : un geste libre peut fermer par erreur, et « Terminé » est la seule affirmation forte du tableau. On peut en revanche en **sortir** une carte fermée à tort — l'asymétrie est le principe même du document. Seul un commit qui nomme le travail, ou la confirmation d'un verdict de vérification, y fait entrer une carte.
+- **La vérification par sous-agent est dans le périmètre** (§6.4), pas repoussée : c'est elle qui rend vivable le modèle « seul un commit qui nomme ferme », en rattrapant les travaux dont personne n'a passé la référence. Sans elle, supprimer la fermeture manuelle laisserait ces travaux ouverts pour toujours. Elle amène avec elle un daemon bidirectionnel, donc une surface d'exécution à border.
 - **Le produit change de logique, et on l'assume.** Vibe Map n'observait que. Il crée désormais de lui-même (§5.1) et se nourrit d'une intention écrite ailleurs (§6.1). C'est un déplacement volontaire : l'espace projet n'est pas la carte, il n'a pas à en avoir la retenue.
+
+Ces décisions ont été prises au fil de la rédaction ; les questions qu'elles ferment portaient les numéros Q1 (ce que veut dire « terminé »), Q2 (ce qui ferme un travail), Q9 (lire le PRD), Q10 et Q11 (comment le lire), Q12 (la forme de la référence), Q13 (le périmètre de la vérification), Q14 (l'identité d'un dépôt). Elles ne figurent plus en §10.2.
 
 ### 10.2 À trancher
 
-Le modèle est arrêté. Q13 décide du périmètre à livrer ; Q12, Q10 et Q11 sont à figer avant d'écrire le code ; le reste est du dessin.
+Le modèle est arrêté et toutes les questions bloquantes sont tranchées (§10.1). Ce qui suit relève du dessin et peut se régler pendant l'écriture du spec.
 
 | # | Question | Options | Recommandation |
 |---|---|---|---|
-| **Q12** | Quelle **forme** prend la référence d'une issue ? | `#7`, court et familier, unique par dépôt — ou préfixé (`VM-7`), plus verbeux mais lisible hors contexte. | `#7`. Le dépôt est déjà le contexte. |
-| **Q13** | La vérification par sous-agent (§6.4) est-elle **dans ce périmètre**, ou une suite ? | (a) dedans — c'est ce qui rend le modèle « le commit nomme » vivable — (b) après : livrer d'abord la fermeture manuelle, ajouter la vérification une fois le tableau utilisé | (b) : le daemon bidirectionnel est un chantier à lui seul, et on saura mieux après une semaine d'usage combien d'issues restent orphelines. Le PRD la décrit pour qu'elle soit conçue juste, pas pour qu'elle soit livrée d'abord. |
-| **Q10** | À quoi reconnaît-on une **feature dans un PRD** ? | (a) les entrées d'une liste sous une section reconnue (« Objectifs fonctionnels », « Features ») — (b) un balisage dédié dans le document — (c) tout titre de niveau donné | (a) : c'est la forme que prennent déjà les PRD de ce dépôt (§7), et elle ne demande rien à l'auteur. |
-| **Q11** | Que se passe-t-il quand une feature est **renommée** dans le PRD ? | (a) le bloc est renommé si on sait le rattacher — (b) un nouveau bloc apparaît et l'ancien reste | Sans identifiant stable dans le PRD, (b) est ce qui arrive par défaut. Un identifiant court par feature (`F7`) rendrait (a) possible — ce document en a déjà. |
 | **Q3** | Les explorations vivent-elles sur **le même tableau** que le reste ? | (a) même tableau, 4ᵉ type, isolable par le filtre F10 — (b) vue séparée à deux états (en cours / terminé) | (a) : une seule réponse à « où en est ce dépôt », zéro écran de plus, et le filtre donne la vue dédiée gratuitement. À basculer en (b) seulement si le volume d'explorations noie le tableau. |
 | Q4 | Quels chemins déclenchent la **création automatique** d'une exploration ? | Proposé : `docs/adr/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, `docs/PRD*.md`. Plus large (`docs/**`) = plus de bruit ; plus étroit = des décisions manquées. | Commencer étroit sur la liste proposée. Élargir si l'on constate des trous, jamais l'inverse. |
 | Q5 | Le **type** est-il modifiable après création ? | Une correction qui s'avère être une feature, ça arrive. | Oui, sans effet sur l'état. |
 | Q6 | Faut-il **geler** un bloc contre l'automatisme ? | (a) non — règle 6 telle quelle — (b) oui, épinglage | (a) tant que la règle 6 ne fait pas mal. |
-| Q7 | Que montre l'espace **avant qu'il y ait quoi que ce soit** ? | État vide du tableau, et colonne « Terminé » vide au premier jour (règle 9). | À dessiner. |
+| Q7 | Que montre l'espace **avant qu'il y ait quoi que ce soit** ? | État vide du tableau, et colonne « Terminé » vide au premier jour (règle 10). | À dessiner. |
 | Q8 | `docs/PRD.md` reste-t-il l'archive macOS ? | Vibe Map n'a pas de PRD produit global, seulement `PRODUCT.md` et des specs. | Laisser l'archive, ce PRD couvre le Kanban seul. |
 
 ## 11. Impact sur le spec technique
@@ -277,11 +355,16 @@ Le modèle est arrêté. Q13 décide du périmètre à livrer ; Q12, Q10 et Q11 
 Le [spec du 2026-08-09](superpowers/specs/2026-08-09-espace-projet-kanban-design.md) a été écrit sur un modèle à un seul niveau. Il devra être repris sur ces points :
 
 - **Modèle de données** : `tasks` devient deux niveaux (bloc / issue) ; l'emplacement descend sur l'issue ; le type apparaît ; l'état d'un bloc découpé est dérivé.
-- **Fermeture** : le déclencheur n'est plus « un commit touche l'ancre » mais « fusionné dans `main` » (§10.1) — le daemon doit observer les fusions sur la branche de référence, et non plus seulement suivre `HEAD`.
-- **Routage** : dédoublé. L'**activité** continue de router par emplacement (entame). La **fermeture** ne route plus par emplacement du tout : elle lit les références dans les messages des commits fusionnés. La contrainte « un seul travail vivant par emplacement » disparaît (index partiel à retirer), puisque plus rien ne dépend de sa levée d'ambiguïté.
+- **Fermeture** : le déclencheur n'est plus « un commit touche l'ancre » mais « un commit local nomme la référence ». Le curseur `last_commit_sha` sur `HEAD` du spec convient — c'est le seul point où le spec existant tombe juste.
+- **Cadence** : l'ingestion des commits ne peut pas vivre dans la boucle de cartographie (`scan_seconds = 300`, `daemon/src/config.rs`) sans rendre NF1 faux. Elle a besoin de sa propre cadence, entre celle des journaux (2 s) et celle du plan.
+- **Routage** : dédoublé. L'**activité** continue de router par emplacement (entame). La **fermeture** ne route plus par emplacement du tout : elle lit les références dans les messages des commits locaux. La contrainte « un seul travail vivant par emplacement » disparaît (index partiel à retirer), puisque plus rien ne dépend de sa levée d'ambiguïté.
 - **Références** : nouveau — chaque issue porte un identifiant court, stable et unique par dépôt, exposé dans l'UI et reconnu dans les messages de commit (forme à figer, Q12).
-- **Daemon bidirectionnel** (si Q13 = dedans) : voie de retour serveur → machine, demande sans texte libre, sous-agent en lecture seule, verdict borné à NF2. C'est un chantier de sécurité autant que de fonctionnalité — il mérite sa propre section de spec, pas un paragraphe.
-- **Lecture du PRD** : nouveau travail côté daemon — repérer le PRD, en extraire les titres de features localement, ne poster que ces titres (§6.2, Q10, Q11).
+- **Daemon bidirectionnel** : voie de retour serveur → machine, demande sans texte libre, sous-agent en lecture seule, verdict borné à §7.1, plus les trois bornes de §6.4 (délai, concurrence, jetons). C'est un chantier de sécurité autant que de fonctionnalité — il mérite sa propre section de spec, pas un paragraphe. **Dans le périmètre** (Q13).
+- **Identité des dépôts** : passer de `sha256(chemin absolu)` (`daemon/src/plan.rs:250`) à l'empreinte du distant touche `plan.rs`, la table `repos` et sa contrainte `unique (machine_id, root_hash)` — qui devient une unicité **par compte**, plus par machine. Trois pièges à traiter dans le spec :
+  - **normaliser l'URL avant de la hacher.** `git@github.com:org/repo.git`, `https://github.com/org/repo.git` et `https://github.com/org/repo` désignent le même dépôt et donneraient trois empreintes différentes. Sans normalisation, la décision ne produit rien.
+  - **un dépôt sans distant** garde l'empreinte du chemin ; s'il en gagne un plus tard, son identité change — il faut décider si l'ancien tableau suit ou si l'on repart de zéro.
+  - **plusieurs clones actifs** alimentent désormais un seul tableau : l'activité de deux machines se mélange sur les mêmes cartes, ce qui est voulu, mais rend la provenance d'un événement moins évidente.
+- **Lecture du PRD** : nouveau travail côté daemon — repérer les fichiers dont l'en-tête porte `id` / `statut` / `repo`, y lire la section `## Features à développer`, en extraire pour chaque `### Fn — titre (Priorité : Pn)` le quadruplet `(clé, titre, priorité, à-clarifier)` avec `clé = <date>/<id du PRD>/Fn`, la `date` étant traitée comme immuable. Ne poster que ça. Déterministe, testable sur fixtures ; rattachement d'un bloc existant par clé, jamais par titre.
 - **Doctrine** : le spec du 2026-08-01 (§7) et `README.md` (l. 12-15) portent l'ancienne promesse. Les deux sont à reprendre sur la liste fermée de §7.1 — c'est un changement de texte public, pas un détail interne.
 - **Création automatique** : le spec ne prévoit que des tâches saisies. Il faut la règle d'apparition d'un bloc *exploration* sur écriture d'un document reconnu (§5.1, Q4) — c'est la seule écriture que le système s'autorise de lui-même.
 - **Périmètre exclu** : « pas de sous-tâches » tombe — c'est devenu le cœur du produit. « Pas d'exploration » tombe aussi.
@@ -292,10 +375,12 @@ Le [spec du 2026-08-09](superpowers/specs/2026-08-09-espace-projet-kanban-design
 - Édition d'une feature depuis le tableau quand elle vient d'un PRD : la source est le document (§6.2).
 - Reprise de l'historique git antérieur au branchement (pas de rétro-remplissage).
 - Réconciliation d'un historique réécrit (rebase, amend) : les nouvelles empreintes comptent comme de nouveaux commits.
-- Échéances, priorités, assignés, étiquettes libres.
+- Le glisser-déposer vers « Terminé », et tout geste qui déclare un travail fini sans preuve.
+- Échéances, assignés, étiquettes libres. La **priorité** fait exception : elle est lue dans le PRD et affichée, mais ni modifiable depuis le tableau, ni utilisée pour trier automatiquement (§6.2).
 - Niveaux d'imbrication au-delà de deux : une issue ne se découpe pas à son tour.
 - Suivi d'une exploration qui ne produit aucun document (§5.1) — sans artefact, rien à ancrer.
-- Lecture du contenu des documents pour en tirer un titre intelligent : le titre auto vient du **nom du fichier**, pas de ce qu'il y a dedans (NF2).
+- Lecture du contenu d'un document pour en tirer un titre d'exploration : ce titre vient du **nom du fichier**, jamais de ce qu'il contient.
+- Extraction des features par un modèle. Un PRD hors convention ne donne pas de cartes — on corrige le PRD, on ne devine pas. Écarté pour le non-déterminisme (§6.2), pas pour le coût.
 - Multi-utilisateur, commentaires, mentions.
 - Péremption ou archivage automatique des blocs « À faire » anciens.
 - Dépendances entre issues (« celle-ci avant celle-là ») et ordonnancement imposé.
@@ -306,12 +391,14 @@ Points inconfortables, retenus en connaissance de cause.
 
 - **Le découpage reste à la charge de l'humain.** Rien ne devine que « refonte du tunnel » vaut neuf issues. Un bloc mal découpé donne un avancement mensonger.
 - **Fermer demande une référence.** Rien ne tombe sur l'humain — il donne `#42` en lançant son agent, l'agent l'écrit dans son commit — mais la chaîne a un maillon de plus, et un maillon peut sauter. La vérification (§6.4) est là pour rattraper les maillons cassés, pas pour dispenser de la référence.
-- **Vérifier, c'est exécuter.** Le bouton de §6.4 fait tourner du code sur la machine depuis une action web. Même verrouillé (pas de texte libre, lecture seule, verdict borné), c'est une porte qui n'existait pas. On l'ouvre en connaissance de cause, et pas avant d'avoir écrit comment elle se referme.
+- **Vérifier, c'est exécuter.** Le bouton de §6.4 fait tourner du code sur la machine depuis une action web. Même verrouillé (pas de texte libre, lecture seule, verdict et bornes), c'est une porte qui n'existait pas — et elle est dans le périmètre de la première livraison (Q13), pas repoussée. La section de spec qui la décrit doit être écrite avant celle qui l'utilise.
+- **Une branche abandonnée ferme quand même.** Fermer sur le commit local, c'est fermer avant de savoir si le travail survivra : une branche jamais fusionnée, un commit annulé, un `reset` — la carte reste en « Terminé ». C'est le prix de ne dépendre que du disque. Atténuation : le rangement manuel existe, et un solo qui committe abandonne rarement.
 - **Un commit non référencé ne ferme rien.** Le tableau montrera des issues en cours qui sont en réalité terminées, tant qu'on n'a pas pris l'habitude de passer la référence à l'agent. C'est le choix inverse de la fermeture au chemin : on préfère **rater une fermeture que d'en inventer une**. Une carte qui traîne se remarque ; une carte fermée à tort passe inaperçue et ment.
 - **Un emplacement large ne ferme plus large**, mais il entame large : une issue ancrée à `web/` passera en cours au premier agent qui écrit sous `web/`. Bruit acceptable — « en cours » n'est pas une affirmation forte.
 - **On a échangé une promesse simple contre une liste à tenir.** « Ton code ne quitte pas ta machine » se vérifiait d'un coup d'œil au schéma. Une liste fermée se maintient : chaque fonctionnalité future devra dire si elle y ajoute une ligne, et le README devra suivre. C'est plus de travail, et c'est le prix de l'objectif produit.
-- **Le PRD devient une pièce du système.** Un PRD mal structuré donne un tableau mal peuplé, et le renommer une feature peut créer un doublon (Q11).
-- **Le tableau démarre vide côté « Terminé »** (règle 9) : le premier jour, l'espace ne prouve rien.
+- **Deux clones ne se distinguent plus.** Identifier un dépôt par son distant est ce qui sauve le tableau d'un `mv`, mais deux copies volontairement séparées — un clone de travail, un clone d'expérimentation — partagent désormais les mêmes cartes. On assume : le besoin est rare, et il se traite par deux blocs plutôt que par deux tableaux.
+- **Le PRD devient une pièce du système.** Il ne se rédige plus tout à fait librement : un fichier hors convention ne peuple rien. C'est un contrat de rédaction accepté en échange d'un tableau qui ne fabrique jamais de doublon — et il vaut aussi pour les agents, qui écrivent une bonne part de ces documents.
+- **Le tableau démarre vide côté « Terminé »** (règle 10) : le premier jour, l'espace ne prouve rien.
 - **`12 / 17` compte des issues, pas de l'effort.** Neuf issues triviales et une énorme donnent `9 / 10` alors qu'il reste l'essentiel. Assumé : pas d'estimation, pas de points.
 - **La création automatique fera du bruit.** Un document retouché en passant peut faire naître un bloc qu'on n'avait pas demandé. C'est le prix du « rien à saisir » : on efface plus vite qu'on ne saisit. La liste de chemins reste volontairement étroite (Q4).
 - **Le titre d'une exploration auto est le nom de son fichier.** `0012-file-attente.md` donne un titre correct, `notes.md` non. Le contenu n'est jamais lu — c'est la doctrine NF2, pas une limite technique.
@@ -320,9 +407,9 @@ Points inconfortables, retenus en connaissance de cause.
 
 Le Kanban est réussi si, sur les dépôts de l'utilisateur :
 
-- Après une mise en production sur une machine, le bloc correspondant est en « Terminé » sur un autre appareil en moins de 5 secondes, sans que personne ait touché au tableau.
-- Sur une semaine d'usage réel, **aucune** intervention manuelle n'a été nécessaire pour faire avancer un travail que l'automatisme aurait dû avancer.
+- Après un commit nommant une référence sur une machine, la carte correspondante est en « Terminé » sur un autre appareil en moins d'une minute, sans que personne ait touché au tableau.
+- Sur une semaine d'usage réel, les fermetures après vérification restent l'exception : elles mesurent les fois où la référence n'a pas été passée à l'agent, pas une défaillance de l'automatisme.
 - En reprenant un dépôt laissé de côté deux semaines, l'utilisateur sait où il en est **et combien il en reste** sans ouvrir un terminal ni relire du code.
 - Le nombre de corrections manuelles reste marginal — sinon le routage est mal calibré.
 - Un chantier à double chiffre d'issues se lit sans effort : une ligne dans une colonne, le détail à la demande.
-- Les décisions de conception prises pendant la semaine sont **toutes** sur le tableau sans que personne les y ait mises, et l'utilisateur en supprime moins d'une sur cinq comme non pertinente.
+- Les décisions de conception écrites par un agent pendant la semaine apparaissent sur le tableau sans que personne les y ait mises, et l'utilisateur en supprime moins d'une sur cinq comme non pertinente. Un document créé hors des outils d'écriture d'agent (à la main, par un script) n'est pas vu — c'est une limite connue, pas un échec.
