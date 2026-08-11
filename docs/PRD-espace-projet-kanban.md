@@ -1,10 +1,9 @@
 # PRD — Espace projet Vibe Map (Kanban lié au git)
 
-> **Statut** : brouillon v15 — relu par un agent le 2026-08-10 ; toutes les questions bloquantes sont tranchées (§10.1)
+> **Statut** : brouillon v23 — relu par un agent le 2026-08-10 ; toutes les questions bloquantes sont tranchées (§10.1)
 > **Date** : 2026-08-10
 > **Produit** : Vibe Map (voir [PRODUCT.md](../PRODUCT.md))
 > **Conception technique** : [spec du 2026-08-09](superpowers/specs/2026-08-09-espace-projet-kanban-design.md) — **désormais en retard sur ce PRD**, voir §11
-> **À ne pas confondre avec** : [docs/PRD.md](PRD.md), archive de l'app macOS retirée le 2026-08-06
 
 ---
 
@@ -57,32 +56,34 @@ Quand on découpe un bloc simple **après coup**, son emplacement descend et dev
 
 ## 5. Les types de travail
 
-Quatre types. Les trois premiers se distinguent par une seule question — **est-ce que ça existe déjà en production, et est-ce que c'est cassé ?** Le quatrième se distingue autrement : il ne produit pas du code, il produit un **document**.
+Quatre types. Les trois premiers se distinguent par une seule question — **est-ce que ça existe déjà en production, et est-ce que c'est cassé ?** Le quatrième n'est pas de même nature : c'est une **phase**, celle d'avant la décision.
 
-| Type | Définition | Sortie | Existe en prod | Est cassé |
-|---|---|---|---|---|
-| **Feature** | à développer, n'existe pas encore | du code | non | — |
-| **Correction** | existe et ne marche pas comme prévu | du code | oui | oui |
-| **Technique** | existe et marche, mais coûte : refactorisation, montée de version, CI, performance | du code | oui | non |
-| **Exploration** | comprendre, décider, cadrer : PRD, ADR, spec de conception, plan | un document | — | — |
+| Type | Définition | Se termine par |
+|---|---|---|
+| **Feature** | à développer, n'existe pas encore | du code qui tourne |
+| **Correction** | existe et ne marche pas comme prévu | du code qui tourne |
+| **Technique** | existe et marche, mais coûte : refactorisation, montée de version, CI, performance | du code qui tourne |
+| **Exploration** | on ne sait pas encore quoi faire : un PRD en cours d'écriture, un cadrage, une décision à prendre | **une décision** |
 
-Le type ne change pas la mécanique — les quatre traversent les mêmes colonnes, avec les mêmes règles. Il change **la lecture** : dix corrections et deux features ne racontent pas la même semaine que l'inverse. Le type est porté par un libellé, jamais par la seule couleur.
+Le critère qui départage n'est pas le support — du code d'un côté, du markdown de l'autre — c'est **ce qui clôt le travail**. Une exploration se termine quand on a tranché. Une feature se termine quand quelque chose fonctionne.
 
-### 5.1 L'exploration, seul type qui se découvre
+Le type ne change pas la mécanique : les quatre traversent les mêmes colonnes, avec les mêmes règles. Il change **la lecture** — dix corrections et deux features ne racontent pas la même semaine que l'inverse. Il est porté par un libellé, jamais par la seule couleur, et se modifie à tout moment.
 
-Les trois premiers types se **déclarent** : on sait ce qu'on veut avant de le faire. L'exploration se **découvre** : on ne prévoit pas « j'écrirai un ADR sur la file d'attente », on lance un agent et l'ADR apparaît.
+### 5.1 L'exploration est une phase, pas un dossier
 
-C'est donc le seul type qui peut se **créer tout seul**. Quand un agent écrit un document sous un emplacement de documentation reconnu (`docs/adr/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`) et qu'aucun bloc ne couvre ce fichier, un bloc *exploration* apparaît en **En cours**, ancré à ce document, titré d'après lui. On peut le renommer, le retyper ou le supprimer ; on n'a pas eu à le saisir.
+**Un PRD non validé est une exploration.** Un seul bloc, quel que soit le nombre de features qu'il décrit. Tant que le document n'est pas validé, ce qu'il contient n'est pas décidé : le faire apparaître en douze cartes donnerait à un brouillon l'autorité d'un plan.
 
-**Un PRD lisible n'est pas une exploration.** Un fichier qui porte l'en-tête de §6.2 est déjà une source de features : le lire comme un document de conception créerait un bloc *exploration* **en plus** des blocs *feature* qu'il produit, pour le même fichier. L'en-tête l'exclut donc de la création automatique. Écrire un PRD reste visible dans l'activité, simplement ça ne fabrique pas une carte en double.
+**Et une exploration n'est pas une charge de travail.** C'est un **mémo** — la trace qu'on a réfléchi à quelque chose, pour s'en souvenir. Elle ne compte dans aucun total, aucun reste à faire, aucun avancement. Elle dit *on a commencé à y penser*, pas *il y a ça à faire*. Le compte de features s'affiche sur la carte, mais comme un ordre de grandeur, jamais comme du travail engagé.
 
-Rien de nouveau à construire côté machine pour ça : le daemon remonte déjà chaque écriture de fichier avec son chemin relatif. Un document est un fichier comme un autre.
+**À la validation, l'exploration devient les features.** Elle ne se range pas dans « Terminé » et ne laisse pas de carte derrière elle : les douze features **la remplacent** en « À faire ». Le mémo a rempli son office au moment où il se transforme en travail décidé — sa trace, désormais, ce sont les cartes qu'il a produites.
 
-**Ce qui reste hors du tableau** : une exploration qui ne produit rien sur le disque — une conversation, une lecture, un comparatif resté dans une session. Sans artefact, rien à ancrer et rien à fermer. La règle est nette : **pas de document, pas de carte**.
+C'est une conversion, pas une suppression : la règle 7 tient, rien n'est effacé. Ce qui existait sous une forme continue sous une autre.
 
-**Conséquence sur le cycle.** Une exploration entre presque toujours directement en **En cours** — elle est constatée pendant qu'elle a lieu. La colonne « À faire » lui reste ouverte (on peut décider à l'avance qu'un ADR est nécessaire), mais elle y passe rarement. Elle est **terminée** au même sens que les autres (§6.3) : quand un commit la nomme par sa référence. Écrire le document l'entame ; le commit qui la nomme la ferme.
+C'est la règle qui commande tout le reste : **sans validation, pas de feature.**
 
-L'exploration est aussi le type qui **repart** le plus souvent : un ADR remplacé, un spec révisé. Le versionnage `v2` (§9 règle 5) y est la norme, pas l'exception.
+**Ce qui n'entre pas dans le tableau.** La documentation qui ne décide rien — README, guide d'installation, commentaires d'API — n'a rien à y faire. Elle ne se termine ni par une décision ni par une capacité nouvelle. On ne la suit pas.
+
+**Une exploration qui ne produit pas de features.** Un ADR, un spec de conception : ça se termine bien par une décision, mais aucune feature n'en sort. Le mémo reste un mémo — il se ferme quand la décision est prise, sans rien engendrer. Deux formes d'exploration, donc, un seul critère : *ça finit par un choix arrêté*, et ni l'une ni l'autre ne pèse sur la charge de travail.
 
 ## 6. Colonnes et avancement
 
@@ -110,7 +111,7 @@ Trois origines, dont une seule passe par le clavier.
 
 | Origine | Ce qui la déclenche | Type produit | Arrive en |
 |---|---|---|---|
-| **Un PRD** | le dépôt contient un PRD ; ses features en sont tirées automatiquement | feature | À faire |
+| **Un PRD** | un PRD apparaît dans le dépôt (exploration), puis il est validé (ses features) | exploration, puis feature | En cours, puis À faire |
 | **Le PM** | une tâche saisie directement — une correction constatée, un chantier technique décidé | correction, technique, feature | À faire |
 | **Un agent** | un document de conception écrit là où il n'y en avait pas (§5.1) | exploration | En cours |
 
@@ -128,9 +129,10 @@ Le PRD reste **la source d'intention** ; le tableau en est le reflet. On ne modi
 ---
 id: PRD-004
 titre: Export CSV
-statut: en cours      # avance avec le document
-date: 2026-08-10      # creation — n'est jamais retouchee, elle porte l'identite
-maj: 2026-08-12       # derniere revision — bouge librement
+statut: valide        # draft | valide | en cours | livre | abandonne
+valide_le: 2026-08-12 # rempli au passage en « valide »
+date: 2026-08-10      # creation — ne change jamais, elle porte l'identite
+maj: 2026-08-12       # derniere edition — a rafraichir a chaque retouche
 repo: yarma-decks
 ---
 
@@ -148,7 +150,7 @@ Le parseur en tire quatre choses, et rien d'autre :
 
 | Ce qu'il lit | Ce qu'il en fait |
 |---|---|
-| L'**en-tête** `id` / `titre` / `statut` / `date` / `maj` / `repo` | reconnaît le fichier comme un PRD vivant. Pas d'en-tête, pas de lecture — c'est ce qui écarte `docs/PRD.md`, l'archive du produit macOS, sans avoir à l'exclure nommément |
+| L'**en-tête** — `id`, `titre`, `statut`, `valide_le`, `date`, `maj`, `repo` | reconnaît le fichier comme un PRD vivant, et dit **quand** ses features entrent sur le tableau (voir ci-dessous). Pas d'en-tête, pas de lecture |
 | `## Features à développer` | délimite la zone à lire ; le reste du document est ignoré |
 | `### F1 — nom court (Priorité : P1)` | un bloc de type *feature*, titré `nom court` |
 | La case `[À CLARIFIER]`, si présente | le bloc est marqué **à clarifier** : il est prévu, mais pas prêt à lancer |
@@ -165,7 +167,19 @@ Le parseur en tire quatre choses, et rien d'autre :
 
 **Les critères d'acceptation restent lisibles, pas suivis.** Ils s'affichent dans le bloc, en lecture seule — ils disent *comment on saura que c'est fait*. Les issues, elles, disent *où le travail se passe* et se créent à la main avec leur emplacement. Les deux listes cohabitent sans se confondre : on ne coche pas un critère d'acceptation, on le lit.
 
-**Un PRD `draft` compte quand même.** Un brouillon est une intention, et « À faire » est la colonne de l'intention. Seul un statut qui déclare le document mort (`archivé`, `abandonné`) le fait ignorer.
+**Le statut dit quand lire, jamais quoi afficher.** Un PRD a son propre cycle de vie, le tableau a le sien : l'un est déclaré par son auteur, l'autre est observé dans le dépôt. Le premier ne commande pas le second.
+
+| `statut` | Ce que le tableau en fait |
+|---|---|
+| `draft` | **un seul bloc, de type exploration** — « cadrage PRD-004 », avec le nombre de features qu'il décrit. Un brouillon bouge encore : le montrer en douze cartes donnerait à des intentions non arrêtées l'autorité d'un plan, et chaque feature retirée laisserait une carte orpheline (règle 7) |
+| `validé` | l'exploration **devient** ses features : le bloc de cadrage disparaît, remplacé par autant de blocs en **À faire**. `valide_le` date le basculement |
+| `en cours` | rien de plus — le tableau montrait déjà l'avancement réel, il n'avait pas besoin qu'on le lui dise |
+| `livré` | rien de plus. Si des features restent ouvertes, le tableau **le signale** au lieu de les fermer : « PRD marqué livré, 3 features encore ouvertes » |
+| `abandonné` | plus aucune feature nouvelle. Les cartes existantes **restent**, marquées « PRD abandonné » — le travail déjà fait ne s'efface pas |
+
+C'est `valide_le` qui déclenche la bascule, et c'est voulu : **un PRD validé est une intention arrêtée**, un brouillon est une intention en train de se former. La colonne « À faire » n'accueille que la première (règle 9). Sans validation, pas de feature (§5.1).
+
+`valide_le` sert aussi à lire le temps : *validé il y a six semaines, toujours `0 / 9`* n'est pas la même phrase que *validé hier*. C'est l'information que le tableau ne saurait pas produire tout seul.
 
 **Rien ne se supprime tout seul.** Une feature retirée du PRD, un PRD renommé ou effacé : le bloc **reste**, marqué « plus dans le PRD ». Le tableau ne détruit pas du travail parce qu'un document a changé d'avis — et un bloc entamé porte de l'histoire qui n'est écrite nulle part ailleurs.
 
@@ -224,6 +238,40 @@ Ce que ça demande, et qui n'existe pas encore :
 - **Une machine choisie.** Depuis que l'identité d'un dépôt vient de son distant (§10.1), un tableau peut correspondre à plusieurs clones. La vérification part sur la machine qui a eu de l'**activité la plus récente** sur ce dépôt — c'est celle qui a le plus de chances d'avoir le travail sur son disque. Si son daemon ne répond pas dans le délai, la demande le dit et propose la machine suivante, plutôt que d'échouer en silence.
 - **Des bornes.** Une vérification a un **délai maximal** au-delà duquel elle est abandonnée, une **seule à la fois par dépôt**, et un **plafond de jetons** connu d'avance. Sans ces trois bornes, « un coût visible » n'est pas un garde-fou mais une constatation après coup.
 
+### 6.5 Ce que porte une carte
+
+Une carte dit quatre choses avant qu'on l'ouvre : **quel travail**, **d'où il vient**, **où il en est**, **comment le nommer**.
+
+| Marque | Ce qu'elle dit | Quand elle apparaît |
+|---|---|---|
+| Titre | le travail | toujours |
+| Référence `VM-7` | ce qu'on donne à l'agent, ce qu'un commit doit écrire | toujours |
+| Pastille d'**origine** — `PRD` | la carte vient d'un document, pas du clavier ; on la corrige dans le PRD, pas ici (§6.2) | features tirées d'un PRD |
+| Type — *feature · correction · technique · exploration* | la nature du travail | toujours |
+| Priorité — `P1` | lue dans le PRD, affichée, jamais gérée ici | features tirées d'un PRD |
+| `12 / 17` | l'avancement | blocs découpés |
+| *à clarifier* | prévu, pas prêt à lancer | si le PRD le signale |
+
+**Chaque marque est un mot, jamais une couleur seule** — doctrine d'accessibilité de `PRODUCT.md`, qui vaut ici comme sur la carte.
+
+**Le risque, nommé.** Une carte peut porter jusqu'à six marques. Le registre visé est Linear — densité maîtrisée, neutres à peine teintés — pas un tableau de bord bavard. Le travail de design consiste donc à **hiérarchiser**, pas à tout afficher au même niveau : le titre et l'avancement se lisent de loin, l'origine et la priorité se lisent quand on s'approche, la référence ne sert qu'au moment de lancer un agent. Une carte qui ressemble à un formulaire aura raté sa cible même si toutes les informations y sont.
+
+### 6.6 Quand il n'y a rien à montrer
+
+Un tableau vide n'est pas un état, c'en est trois. Ils se ressemblent à l'écran et ne veulent pas dire la même chose — les confondre est la faute à éviter.
+
+**1. Le premier jour — un aperçu, pas une page blanche.** Le tableau n'a jamais rien contenu. Il montre alors **à quoi il ressemblera** : des cartes d'exemple en sourdine, non interactives, dans les trois colonnes, avec les marques réelles (`VM-7`, pastille `PRD`, `3 / 9`). On apprend le produit en le regardant plutôt qu'en lisant une notice. Une seule action est offerte — créer un travail — et une phrase dit d'où viendra le reste : un PRD dans le dépôt, ou un agent qui écrit.
+
+La colonne « Terminé » mérite son mot à elle : elle restera vide même si le dépôt a dix ans d'historique, parce que le passé n'est pas rejoué (règle 10). Sans cette phrase, le premier réflexe est de croire à un bug.
+
+**2. Le tableau vidé — tout est fini.** Plus rien en « À faire » ni en « En cours », et des cartes en « Terminé ». C'est un **succès**, et c'est le seul endroit du produit où un clin d'œil est permis : rien à faire, rien à surveiller, on peut fermer l'onglet. Trois bornes pour qu'il ne dérive pas vers l'anti-référence de `PRODUCT.md` : **image fixe**, jamais de boucle ni d'animation d'ambiance ; **coupé sous `prefers-reduced-motion`** comme le reste ; **jamais une alerte**, seulement une récompense. Le ton reste celui de la maison — un sourire, pas une fanfare.
+
+**3. Le tableau muet — rien ne remonte.** Le daemon est arrêté, la machine dort, la dernière écriture date d'hier. À l'écran, c'est exactement le même vide que le cas 2, et c'est là qu'un mot d'esprit deviendrait un mensonge. L'espace affiche donc **depuis quand il n'a rien reçu**, et le dit comme un état, pas comme une erreur : « aucun signal depuis 3 h ». La règle est simple — **le clin d'œil n'est permis que si l'on est sûr d'être dans le cas 2**, c'est-à-dire si le produit a reçu quelque chose récemment. Dans le doute, on dit ce qu'on sait.
+
+Ce troisième cas dépasse les états vides : un tableau plein mais figé ment tout autant. La fraîcheur du signal est donc une information de l'espace entier, pas une décoration de sa page vide.
+
+**4. Un PRD vu, aucune feature reconnue.** Déjà décidé en §6.2 : on le dit, on ne reste pas muet. Même principe que le cas 3 — un silence est indiscernable d'une panne.
+
 ## 7. Objectifs
 
 ### Fonctionnels
@@ -237,11 +285,12 @@ Ce que ça demande, et qui n'existe pas encore :
 - **F7** — Suivre un travail qui repart (livré, puis repris) sur le même bloc, avec son historique de versions et les commits qui les ont closes.
 - **F8** — Ramener une carte fermée à tort vers « En cours ». Le mouvement inverse n'existe pas : on ne pousse jamais une carte dans « Terminé » à la main (§6.3).
 - **F9** — Voir le tableau se mettre à jour sur un appareil alors que le travail se fait sur un autre.
-- **F10** — Filtrer le tableau par type (feature / correction / technique / exploration).
+- **F10** — Filtrer le tableau par type (feature / correction / technique / exploration), et changer le type d'une carte à tout moment.
 - **F11** — Voir apparaître tout seul un bloc *exploration* quand un agent écrit un document de conception, sans l'avoir déclaré ; pouvoir le renommer, le retyper ou le supprimer.
 - **F12** — Voir les features d'un PRD présent dans le dépôt apparaître en « À faire » sans les retranscrire, et se mettre à jour quand le PRD change (§6.2).
 - **F13** — Lire et copier d'un geste la référence d'un travail (`VM-7`) pour la donner à l'agent qu'on lance.
 - **F14** — Demander en un clic la vérification d'une issue par un sous-agent local, et lire son verdict sur la carte avant de décider de fermer (§6.4).
+- **F15** — Savoir d'un coup d'œil si ce qu'on lit est frais : depuis quand l'espace n'a rien reçu, et distinguer « rien à faire » de « rien ne remonte » (§6.6).
 
 ### Non-fonctionnels
 
@@ -267,7 +316,7 @@ L'ancienne doctrine — *rien de sensible ne quitte le poste* — a tenu tant qu
 | Empreinte du dépôt distant | `git remote get-url origin`, normalisée puis hachée | reconnaître le même dépôt d'une machine à l'autre (§10.1) |
 | Nature d'un accès (lecture / écriture), horodatage, session | journaux Claude Code | allumer la carte, entamer une issue |
 | Compteurs : jetons, coût, durée | journaux Claude Code | le suivi de coût existant |
-| **Titres** de features, leur clé `2026-08-10/PRD-004/F1`, leur priorité, leur marqueur *à clarifier*, la date de révision du PRD | lecture locale du PRD (§6.2) | peupler « À faire » sans retranscrire, et dire de quand date l'intention. Ni user story, ni exigences, ni critères d'acceptation ne sortent |
+| **Titres** de features, leur clé `2026-08-10/PRD-004/F1`, leur priorité, leur marqueur *à clarifier*, le statut du PRD et ses dates (`valide_le`, `maj`) | lecture locale du PRD (§6.2) | peupler « À faire » sans retranscrire, et dire de quand date l'intention. Ni user story, ni exigences, ni critères d'acceptation ne sortent |
 | **Verdicts** de vérification : état, confiance, chemins, une phrase | sous-agent local (§6.4) | décider de fermer sans aller lire le code |
 
 **Ce qui ne sort jamais** — le plancher :
@@ -310,7 +359,7 @@ Le cœur du comportement. Traduction technique à faire dans le spec (§11).
 3. **Plusieurs travaux peuvent partager un emplacement.** Six issues dans `web/app/checkout` cohabitent sans ambiguïté : un commit dans ce dossier les met en cours, mais ne ferme que celles qu'il nomme. C'est ce que le chemin seul ne saurait pas faire.
 4. **L'état d'un bloc découpé ne se saisit pas**, il se déduit de ses issues (§6). On ne déplace pas un bloc découpé à la main : on agit sur ses issues.
 5. **L'automatisme n'avance jamais à reculons.** `À faire → En cours`, `→ Terminé`, `Terminé → En cours v+1`. Jamais de retour en « À faire ».
-6. **Le manuel sort de « Terminé », il n'y entre pas.** On peut ramener une carte fermée à tort ; on ne peut pas en pousser une dedans. Une correction manuelle ne verrouille rien : le prochain commit qui nomme le travail peut le refermer.
+6. **Le manuel sort de « Terminé », il n'y entre pas — et ne verrouille rien.** On peut ramener une carte fermée à tort ; on ne peut pas en pousser une dedans, ni la soustraire à l'automatisme. Le prochain commit qui nomme le travail peut le refermer : aucune carte n'échappe à ce que dit le dépôt.
 7. **Rien ne se supprime tout seul.** L'automatisme crée (une exploration, une feature de PRD) et déplace ; il n'efface jamais. Une feature retirée du PRD laisse son bloc en place, marqué comme telle.
 8. **Terminé veut dire nommé par un commit local**, quelle que soit la branche. Le daemon voit le disque, pas la forge : attendre la fusion serait attendre un signal qui n'arrive pas.
 9. **La colonne « À faire » n'accueille que de l'intention humaine** — une feature écrite dans un PRD, une tâche créée par le PM (§6.1). Le dépôt peut être automatique ; la décision, jamais. Rien n'y entre qu'un humain n'ait écrit quelque part.
@@ -328,6 +377,13 @@ Le cœur du comportement. Traduction technique à faire dans le spec (§11).
 - **Toute unité suivie porte une référence, pas seulement les issues.** Sans cela, un bloc simple, une feature de PRD et une exploration auto-créée n'avaient aucun chemin vers « Terminé » — trois origines sur quatre produisaient des cartes immortelles.
 - **Le commit fait foi — et il ne ferme que ce qu'il nomme.** Un commit n'est pas lié à un emplacement, il est lié à un travail : trois travaux distincts peuvent vivre dans `web/app/checkout`, et un commit n'en règle qu'un. Le chemin ne peut donc pas fermer, il ne peut qu'entamer. La fermeture demande que le commit **désigne** le travail par sa référence (§6.3). Conséquences : la contrainte « une seule tâche vivante par emplacement » disparaît quand même — elle n'existait que pour lever une ambiguïté qui n'a plus lieu d'être — et le départage par profondeur ne joue plus pour la fermeture.
 - **Un PRD présent dans le dépôt est lu, et ses features deviennent des blocs.** La lecture est **locale** ; seuls les couples `(identifiant, titre)` sortent de la machine. C'est cette décision qui a fait tomber l'ancienne doctrine de confidentialité, remplacée par la liste fermée de §7.1.
+- **`docs/PRD.md` est supprimé.** C'était le PRD de l'app macOS retirée le 2026-08-06 : un document mort, au nom qui promettait le contraire. Il reste dans l'historique git si on le cherche. Le dépôt n'a donc plus de PRD produit global — `PRODUCT.md` porte la personnalité, les specs portent la conception, et chaque PRD couvre un chantier.
+- **Les vides sont distingués et dessinés** (§6.6) : un tableau neuf montre un **aperçu** de ce qu'il deviendra ; un tableau vidé parce que tout est fini s'autorise un **clin d'œil** ; un tableau vide parce que **rien ne remonte** le dit franchement. Confondre les deux derniers ferait afficher une plaisanterie pendant une panne.
+- **Rien ne se gèle.** Pas d'épinglage, pas de cadenas : aucune carte n'est soustraite à l'automatisme. Un gel serait un réglage, et `PRODUCT.md` pose que le produit ne se configure pas ; il servirait surtout à figer un état que le dépôt contredit, c'est-à-dire à faire mentir le tableau. Si une carte est refermée alors qu'on venait de la rouvrir, c'est qu'un commit l'a nommée : le problème est dans le message de commit, pas dans l'absence de verrou.
+- **Le type se change à tout moment, sans effet sur l'état.** Une correction qui s'avère être une feature, une exploration devinée par le tableau qui était en fait un chantier technique : l'étiquette se corrige. Elle ne sert qu'à la lecture — la bloquer aurait forcé à recréer la carte et à perdre son historique. Une feature venue d'un PRD retypée à la main garde son nouveau type : le document dit ce qui est à faire, pas comment on le range.
+- **Un seul tableau, et l'origine se lit sur la carte.** Les quatre types cohabitent dans les trois mêmes colonnes ; une vue séparée aurait rendu deux réponses à « où en est ce dépôt ». Ce qui distingue les cartes n'est pas leur emplacement mais une **pastille d'origine** : `PRD` pour une feature tirée d'un document, rien pour une carte saisie à la main. Voir §6.5.
+- **L'exploration est une phase, pas une catégorie de document** — et pas une charge de travail. Un PRD non validé est **un** bloc, quel que soit le nombre de features qu'il décrit : un **mémo** qui dit qu'on a réfléchi à quelque chose, compté dans aucun total. À la validation, il **devient** ses features et ne laisse pas de carte derrière lui. **Sans validation, pas de feature.** Ce qui départage les types n'est donc pas le support produit mais ce qui clôt le travail : une décision, ou quelque chose qui tourne.
+- **La documentation qui ne décide rien n'entre pas dans le tableau.** README, guides, commentaires d'API : ni décision, ni capacité nouvelle. Le Kanban ne les suit pas.
 - **Six comportements jusque-là non définis sont fixés** (§6.2, §6.3) : une référence qui nomme un travail terminé le **rouvre en version suivante** ; le versionnage porte sur l'unité nommée et **seul un commit rouvre**, jamais l'activité ; découper un bloc simple fait **descendre son emplacement** dans sa première issue ; les références `VM-n` ne sont **jamais recyclées** ; un PRD lisible **n'est pas** une exploration ; **rien ne se supprime tout seul**.
 - **Le PRD suit un gabarit fixe** (§6.2) : en-tête `id`/`titre`/`statut`/`date`/`repo`, section `## Features à développer`, une feature par `### Fn — nom (Priorité : Pn)`. La clé stable est `2026-08-10/PRD-004/F1` — date et identifiant du document en font partie, sans quoi deux PRD du même dépôt entreraient en collision sur `F1`. Contrepartie : `date` devient immuable — le gabarit porte un champ `maj` distinct pour les révisions.
 - **Un dépôt est identifié par son distant, plus par son chemin.** L'empreinte porte désormais sur l'URL du dépôt distant (`git remote get-url origin`, normalisée) et non sur le chemin absolu. Un dossier renommé ou déplacé garde ses cartes ; deux clones de la même origine partagent un seul tableau. C'est la contrepartie du fait que le Kanban est le premier objet du produit qui contient du travail saisi à la main : il ne peut pas disparaître sur un `mv`. Un dépôt sans distant retombe sur l'empreinte du chemin, avec ce que ça implique.
@@ -335,7 +391,7 @@ Le cœur du comportement. Traduction technique à faire dans le spec (§11).
 - **La vérification par sous-agent est dans le périmètre** (§6.4), pas repoussée : c'est elle qui rend vivable le modèle « seul un commit qui nomme ferme », en rattrapant les travaux dont personne n'a passé la référence. Sans elle, supprimer la fermeture manuelle laisserait ces travaux ouverts pour toujours. Elle amène avec elle un daemon bidirectionnel, donc une surface d'exécution à border.
 - **Le produit change de logique, et on l'assume.** Vibe Map n'observait que. Il crée désormais de lui-même (§5.1) et se nourrit d'une intention écrite ailleurs (§6.1). C'est un déplacement volontaire : l'espace projet n'est pas la carte, il n'a pas à en avoir la retenue.
 
-Ces décisions ont été prises au fil de la rédaction ; les questions qu'elles ferment portaient les numéros Q1 (ce que veut dire « terminé »), Q2 (ce qui ferme un travail), Q9 (lire le PRD), Q10 et Q11 (comment le lire), Q12 (la forme de la référence), Q13 (le périmètre de la vérification), Q14 (l'identité d'un dépôt). Elles ne figurent plus en §10.2.
+Ces décisions ont été prises au fil de la rédaction ; les questions qu'elles ferment portaient les numéros Q1 (ce que veut dire « terminé »), Q2 (ce qui ferme un travail), Q3 (où vivent les explorations), Q5 (le type se change), Q6 (pas de gel), Q7 (les états vides), Q8 (le sort de l'ancien `docs/PRD.md`), Q9 (lire le PRD), Q10 et Q11 (comment le lire), Q12 (la forme de la référence), Q13 (le périmètre de la vérification), Q14 (l'identité d'un dépôt). Elles ne figurent plus en §10.2.
 
 ### 10.2 À trancher
 
@@ -343,12 +399,7 @@ Le modèle est arrêté et toutes les questions bloquantes sont tranchées (§10
 
 | # | Question | Options | Recommandation |
 |---|---|---|---|
-| **Q3** | Les explorations vivent-elles sur **le même tableau** que le reste ? | (a) même tableau, 4ᵉ type, isolable par le filtre F10 — (b) vue séparée à deux états (en cours / terminé) | (a) : une seule réponse à « où en est ce dépôt », zéro écran de plus, et le filtre donne la vue dédiée gratuitement. À basculer en (b) seulement si le volume d'explorations noie le tableau. |
-| Q4 | Quels chemins déclenchent la **création automatique** d'une exploration ? | Proposé : `docs/adr/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, `docs/PRD*.md`. Plus large (`docs/**`) = plus de bruit ; plus étroit = des décisions manquées. | Commencer étroit sur la liste proposée. Élargir si l'on constate des trous, jamais l'inverse. |
-| Q5 | Le **type** est-il modifiable après création ? | Une correction qui s'avère être une feature, ça arrive. | Oui, sans effet sur l'état. |
-| Q6 | Faut-il **geler** un bloc contre l'automatisme ? | (a) non — règle 6 telle quelle — (b) oui, épinglage | (a) tant que la règle 6 ne fait pas mal. |
-| Q7 | Que montre l'espace **avant qu'il y ait quoi que ce soit** ? | État vide du tableau, et colonne « Terminé » vide au premier jour (règle 10). | À dessiner. |
-| Q8 | `docs/PRD.md` reste-t-il l'archive macOS ? | Vibe Map n'a pas de PRD produit global, seulement `PRODUCT.md` et des specs. | Laisser l'archive, ce PRD couvre le Kanban seul. |
+| Q4 | Quels chemins déclenchent la **création automatique** d'une exploration ? | Proposé : `docs/adr/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`. Un fichier portant l'en-tête PRD en est exclu (§5.1). Plus large (`docs/**`) = plus de bruit ; plus étroit = des décisions manquées. | Commencer étroit sur la liste proposée. Élargir si l'on constate des trous, jamais l'inverse. |
 
 ## 11. Impact sur le spec technique
 
@@ -376,6 +427,7 @@ Le [spec du 2026-08-09](superpowers/specs/2026-08-09-espace-projet-kanban-design
 - Reprise de l'historique git antérieur au branchement (pas de rétro-remplissage).
 - Réconciliation d'un historique réécrit (rebase, amend) : les nouvelles empreintes comptent comme de nouveaux commits.
 - Le glisser-déposer vers « Terminé », et tout geste qui déclare un travail fini sans preuve.
+- L'épinglage ou le gel d'une carte contre l'automatisme.
 - Échéances, assignés, étiquettes libres. La **priorité** fait exception : elle est lue dans le PRD et affichée, mais ni modifiable depuis le tableau, ni utilisée pour trier automatiquement (§6.2).
 - Niveaux d'imbrication au-delà de deux : une issue ne se découpe pas à son tour.
 - Suivi d'une exploration qui ne produit aucun document (§5.1) — sans artefact, rien à ancrer.
