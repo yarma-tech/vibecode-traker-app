@@ -325,19 +325,20 @@ async fn une_machine_revoquee_ne_peut_plus_ecrire_d_activite() {
 }
 
 /// Le hook n'a pas la carte du daemon en memoire : il doit retrouver le repo
-/// tout seul, a partir de l'empreinte de sa racine.
+/// tout seul, a partir de l'identite de sa racine (issue #28 : l'empreinte ne
+/// suffit plus, une autre machine a pu scanner la ligne en dernier).
 #[tokio::test]
-async fn le_repo_se_retrouve_par_l_empreinte_de_sa_racine() {
+async fn le_repo_se_retrouve_par_son_identite() {
     let ctx = common::TestContext::new().await;
     let machine = machine_reliee(&ctx).await;
-    let empreinte = vibemap::empreinte(std::path::Path::new("/Users/moi/Developer/atelier"));
+    let identity = "github.com/yarma-tech/atelier";
     let repo_id = ctx
-        .creer_repo_avec_empreinte(&machine.machine_id, &empreinte, &["src"])
+        .creer_repo_avec_identite(&machine.machine_id, identity, &["src"])
         .await;
     let client = vibemap::Supabase::new(&ctx.url, &machine.token);
 
     let trouve = client
-        .repo_par_empreinte(&machine.machine_id, &empreinte)
+        .repo_par_identite(identity)
         .await
         .expect("la lecture doit aboutir");
 
@@ -345,13 +346,13 @@ async fn le_repo_se_retrouve_par_l_empreinte_de_sa_racine() {
 }
 
 #[tokio::test]
-async fn une_racine_jamais_cartographiee_ne_rend_aucun_repo() {
+async fn une_identite_jamais_cartographiee_ne_rend_aucun_repo() {
     let ctx = common::TestContext::new().await;
     let machine = machine_reliee(&ctx).await;
     let client = vibemap::Supabase::new(&ctx.url, &machine.token);
 
     let trouve = client
-        .repo_par_empreinte(&machine.machine_id, "une-empreinte-inconnue")
+        .repo_par_identite("github.com/personne/jamais-vu")
         .await
         .expect("la lecture doit aboutir");
 

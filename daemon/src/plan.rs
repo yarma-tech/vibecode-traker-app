@@ -51,6 +51,10 @@ pub struct Module {
 pub struct Plan {
     pub name: String,
     pub root_hash: String,
+    /// Ce qui rend ce depot le meme d'une machine a l'autre (conception,
+    /// section 3) : l'URL du distant normalisee, ou `local:<root_hash>` en
+    /// son absence.
+    pub identity: String,
     pub remote_owner: Option<String>,
     pub remote_url: Option<String>,
     pub current_branch: Option<String>,
@@ -149,9 +153,12 @@ pub fn scanner(racine: &Path) -> Result<Plan, ScanError> {
 
     modules.sort_by_key(|module| std::cmp::Reverse(module.loc));
 
+    let root_hash = empreinte(racine);
+
     Ok(Plan {
         name: nom(racine),
-        root_hash: empreinte(racine),
+        identity: identite(racine, &root_hash),
+        root_hash,
         remote_owner: remote(racine).as_deref().and_then(proprietaire),
         remote_url: remote(racine),
         current_branch: branche(racine),
@@ -159,6 +166,56 @@ pub fn scanner(racine: &Path) -> Result<Plan, ScanError> {
         file_count,
         modules,
     })
+}
+
+/// L'identite logique d'un depot, independante de la machine qui l'observe.
+///
+/// Un scan complet n'est pas necessaire pour la calculer : le hook s'en sert
+/// pour retrouver un repo sans relire tout le disque, comme il le fait deja
+/// pour `empreinte`.
+pub fn identite(racine: &Path, root_hash: &str) -> String {
+    match remote(racine) {
+        Some(url) => normaliser_distant(&url),
+        // Sans distant, rien ne relie deux clones : l'identite retombe sur
+        // l'empreinte de cette racine-ci (PRD, Hypotheses : un tel depot ne
+        // survit pas a un deplacement de dossier).
+        None => format!("local:{root_hash}"),
+    }
+}
+
+/// Ramene les formes d'URL d'un meme distant a une seule chaine (conception,
+/// section 3) : minuscules, schema et identifiant retires, `.git` final
+/// retire, `:` de la forme SSH remplace par `/`, barre finale retiree.
+///
+/// « git@github.com:yarma-tech/vibemap.git » et
+/// « https://user@github.com/yarma-tech/vibemap.git/ » donnent tous deux
+/// « github.com/yarma-tech/vibemap ».
+pub fn normaliser_distant(url: &str) -> String {
+    let minuscules = url.trim().to_lowercase();
+
+    let avait_un_schema = minuscules.contains("://");
+    let sans_schema = minuscules
+        .split_once("://")
+        .map(|(_, reste)| reste)
+        .unwrap_or(&minuscules);
+
+    let sans_identifiant = sans_schema
+        .rsplit_once('@')
+        .map(|(_, reste)| reste)
+        .unwrap_or(sans_schema);
+
+    // La forme SSH courte (scp-like, sans schema) separe l'hote du chemin par
+    // « : » plutot que « / » : `git@github.com:owner/repo.git`. Avec un
+    // schema, un « : » appartient a un port et ne doit pas etre touche.
+    let chemin_uniforme = if avait_un_schema {
+        sans_identifiant.to_string()
+    } else {
+        sans_identifiant.replacen(':', "/", 1)
+    };
+
+    let sans_barre = chemin_uniforme.trim_end_matches('/');
+    let sans_git = sans_barre.strip_suffix(".git").unwrap_or(sans_barre);
+    sans_git.trim_end_matches('/').to_string()
 }
 
 /// Les fichiers suivis, plus les fichiers non suivis que git n'ignore pas.

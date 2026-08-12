@@ -13,7 +13,7 @@ mod worktree;
 
 pub use appairage::{appairer, AppairageError, Identite};
 pub use config::{Config, ConfigError};
-pub use plan::{empreinte, scanner, Module, Plan, ScanError};
+pub use plan::{empreinte, identite, normaliser_distant, scanner, Module, Plan, ScanError};
 pub use worktree::{worktrees, Worktree};
 
 use chrono::{DateTime, Utc};
@@ -131,31 +131,44 @@ impl Supabase {
 
     /// Envoie le plan d'un repo et rend son identifiant.
     ///
-    /// Le repo est reconnu par l'empreinte de sa racine : deux scans de suite
-    /// mettent a jour la meme ligne. Les modules sont remplaces en entier, ce
-    /// qui fait disparaitre de la carte les dossiers disparus du disque.
+    /// Le repo est reconnu par son identite logique (issue #28) : l'URL de son
+    /// distant normalisee, ou l'empreinte de sa racine en l'absence de
+    /// distant. Deux scans de suite, ou deux clones du meme distant sur deux
+    /// machines, mettent donc a jour la meme ligne. Les modules sont
+    /// remplaces en entier, ce qui fait disparaitre de la carte les dossiers
+    /// disparus du disque.
     pub async fn pousser_plan(
         &self,
         machine_id: &str,
         plan: &crate::Plan,
     ) -> Result<String, ApiError> {
-        let repo = self
-            .envoyer(
-                "repos?on_conflict=machine_id,root_hash",
-                Some("resolution=merge-duplicates,return=representation"),
-                json!([{
-                    "machine_id":     machine_id,
-                    "name":           plan.name,
-                    "root_hash":      plan.root_hash,
-                    "remote_owner":   plan.remote_owner,
-                    "remote_url":     plan.remote_url,
-                    "current_branch": plan.current_branch,
-                    "loc_total":      plan.loc_total,
-                    "file_count":     plan.file_count,
-                    "scanned_at":     chrono::Utc::now(),
-                }]),
-            )
-            .await?;
+        let champs = json!({
+            "machine_id":     machine_id,
+            "name":           plan.name,
+            "root_hash":      plan.root_hash,
+            "identity":       plan.identity,
+            "remote_owner":   plan.remote_owner,
+            "remote_url":     plan.remote_url,
+            "current_branch": plan.current_branch,
+            "loc_total":      plan.loc_total,
+            "file_count":     plan.file_count,
+            "scanned_at":     chrono::Utc::now(),
+        });
+
+        // Un distant vient peut-etre d'apparaitre sur un depot connu jusqu'ici
+        // sans lui : on rattache la ligne locale existante au lieu de laisser
+        // une seconde ligne se creer sous la nouvelle identite (conception,
+        // section 3). Un depot sans distant n'a rien a rattacher, son
+        // identite est deja celle-la.
+        let identite_locale = format!("local:{}", plan.root_hash);
+        let repo = if plan.identity != identite_locale {
+            match self.rattacher_repo_local(&identite_locale, &champs).await? {
+                Some(repo) => repo,
+                None => self.upsert_repo(&champs).await?,
+            }
+        } else {
+            self.upsert_repo(&champs).await?
+        };
 
         let repo_id = repo[0]["id"]
             .as_str()
@@ -204,21 +217,93 @@ impl Supabase {
         Ok(repo_id)
     }
 
-    /// Retrouve un repo deja cartographie par l'empreinte de sa racine.
+    /// Pose ou met a jour la ligne `repos` qui porte cette identite.
+    async fn upsert_repo(&self, champs: &serde_json::Value) -> Result<serde_json::Value, ApiError> {
+        self.envoyer(
+            "repos?on_conflict=user_id,identity",
+            Some("resolution=merge-duplicates,return=representation"),
+            json!([champs]),
+        )
+        .await
+    }
+
+    /// Reprend la ligne locale d'un depot qui vient de gagner un distant, au
+    /// lieu de laisser une seconde ligne se creer sous la nouvelle identite.
     ///
-    /// Le hook n'a pas la carte du daemon en memoire : il ne connait que le
-    /// dossier ou l'outil vient de travailler.
-    pub async fn repo_par_empreinte(
+    /// Rend `None` dans deux cas, que l'appelant traite tous deux en retombant
+    /// sur l'upsert normal (par identite) :
+    ///
+    /// - aucune ligne locale ne portait cette empreinte : ce depot a toujours
+    ///   ete connu par son distant, il n'y a rien a rattacher ;
+    /// - une ligne locale existait, mais l'identite distante qu'on veut lui
+    ///   donner est deja prise par une AUTRE ligne (409, contrainte
+    ///   `repos_identite_par_compte`). Cas reel : ce meme depot a ete clone
+    ///   ailleurs et pousse sur son distant avant que cette machine-ci
+    ///   n'ajoute le sien. La ligne deja connue sous l'identite distante porte
+    ///   l'historique vu par l'autre machine ; c'est elle qui fait autorite,
+    ///   pas celle qui vient seulement de decouvrir ce distant.
+    ///
+    ///   La ligne locale devenue orpheline n'est pas supprimee ici : des
+    ///   `sessions`, `activity_events` et `worktrees` peuvent y etre rattaches
+    ///   (`on delete cascade` sur `repo_id`) depuis avant la fusion, et les
+    ///   perdre couterait plus cher qu'une ligne morte qui ne recevra plus
+    ///   jamais d'ecriture, cette machine visant desormais l'identite
+    ///   distante a chaque scan. Un nettoyage de ces lignes orphelines est un
+    ///   chantier a part, pas une decision a prendre en silence ici.
+    async fn rattacher_repo_local(
         &self,
-        machine_id: &str,
-        root_hash: &str,
-    ) -> Result<Option<String>, ApiError> {
+        identite_locale: &str,
+        champs: &serde_json::Value,
+    ) -> Result<Option<serde_json::Value>, ApiError> {
         let reponse = self
             .http
-            .get(format!(
-                "{}/rest/v1/repos?machine_id=eq.{}&root_hash=eq.{}&select=id",
-                self.url, machine_id, root_hash
-            ))
+            .patch(format!("{}/rest/v1/repos?identity=eq.{identite_locale}", self.url))
+            .header("apikey", &self.token)
+            .bearer_auth(&self.token)
+            .header("Content-Type", "application/json")
+            .header("Prefer", "return=representation")
+            .json(champs)
+            .send()
+            .await?;
+
+        let code = reponse.status();
+
+        // PostgREST repond 409 quand l'ecriture heurte une contrainte
+        // d'unicite : l'identite distante est deja prise par une autre ligne.
+        // On ne distingue pas ce cas par le texte du corps, seulement par le
+        // code, pour ne pas dependre d'un message d'erreur Postgres qui peut
+        // changer de formulation.
+        if code == reqwest::StatusCode::CONFLICT {
+            return Ok(None);
+        }
+
+        let texte = reponse.text().await.unwrap_or_default();
+
+        if !code.is_success() {
+            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+        }
+
+        let lignes: serde_json::Value =
+            serde_json::from_str(&texte).unwrap_or(serde_json::Value::Null);
+
+        if lignes.as_array().is_some_and(|a| !a.is_empty()) {
+            Ok(Some(lignes))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Retrouve un repo deja cartographie par son identite logique.
+    ///
+    /// Le hook n'a pas la carte du daemon en memoire : il ne connait que le
+    /// dossier ou l'outil vient de travailler. L'identite (et non plus
+    /// l'empreinte de la racine, propre a cette seule machine) est ce qui
+    /// retrouve la meme ligne quelle que soit la machine qui a scanne en
+    /// dernier (issue #28).
+    pub async fn repo_par_identite(&self, identity: &str) -> Result<Option<String>, ApiError> {
+        let reponse = self
+            .http
+            .get(format!("{}/rest/v1/repos?identity=eq.{identity}&select=id", self.url))
             .header("apikey", &self.token)
             .bearer_auth(&self.token)
             .send()

@@ -472,9 +472,12 @@ async fn poster_le_hook(charge: &str) -> Result<(), String> {
         .ok_or_else(|| format!("{} n'est pas dans un depot git", evenement.cwd))?;
 
     let client = Supabase::new(&config.supabase_url, &token);
-    let empreinte = vibemap::empreinte(&racine);
+    // Meme identite que celle qu'un scan calculerait pour cette racine : le
+    // hook retrouve ainsi la ligne quelle que soit la machine qui a scanne en
+    // dernier (issue #28).
+    let identite = vibemap::identite(&racine, &vibemap::empreinte(&racine));
     let Some(repo_id) = client
-        .repo_par_empreinte(&config.machine_id, &empreinte)
+        .repo_par_identite(&identite)
         .await
         .map_err(|e| e.to_string())?
     else {
