@@ -291,6 +291,112 @@ async fn un_client_ne_peut_pas_creer_une_issue_deja_terminee() {
 }
 
 // --------------------------------------------------------------------------
+// FR-026 vise la TRANSITION vers done, jamais l'ETAT done : une carte deja
+// terminee reste modifiable sur tout le reste (#34, FR-032 - « changer le
+// type d'un travail a tout moment, sans effet sur son etat »). Une policy
+// `with check` ne peut comparer new a old ; c'est pour ça que la regle sur
+// l'update vit desormais dans un trigger, pas dans la policy.
+// --------------------------------------------------------------------------
+
+/// Le scenario produit qui a fait bouger le mecanisme : une carte terminee
+/// par un vrai commit peut etre retypee (le seul geste que #34 ajoutera)
+/// sans que son statut, sa version ou son historique de fermeture ne
+/// bougent d'un pouce.
+#[tokio::test]
+async fn un_bloc_deja_termine_peut_etre_retype_sans_toucher_a_son_statut() {
+    let ctx = common::TestContext::new().await;
+    let (client, repo_id) = repo_de_test(&ctx).await;
+
+    let bloc = ctx.creer_bloc(&repo_id, "Mal etiquete", "correction", "web/app/checkout").await;
+    let bloc_id = bloc["id"].as_str().unwrap().to_string();
+    let ref_bloc = bloc["ref"].as_i64().unwrap();
+
+    client.ingerer_commit(&repo_id, Some("main"), &commit_qui_nomme("c1", ref_bloc)).await.unwrap();
+    assert_eq!(ctx.lire_bloc(&bloc_id).await["statut"], json!("done"));
+
+    let resultat = ctx
+        .patch_bloc_avec_jeton(&ctx.user_token, &bloc_id, json!({ "type": "feature" }))
+        .await;
+    assert!(resultat.is_ok(), "retyper une carte terminee doit rester possible : {resultat:?}");
+
+    let relu = ctx.lire_bloc(&bloc_id).await;
+    assert_eq!(relu["type"], json!("feature"), "le retypage doit avoir pris");
+    assert_eq!(relu["statut"], json!("done"), "le statut ne doit pas bouger");
+    assert_eq!(relu["version"], json!(1), "la version ne doit pas bouger");
+    assert_eq!(ctx.lire_fermetures_bloc(&bloc_id).await.len(), 1, "l'historique de fermeture ne doit pas bouger");
+}
+
+/// Le contournement demande explicitement : un PATCH qui laisse `statut`
+/// inchange a `done` (en ne touchant qu'une autre colonne) n'est PAS une
+/// ecriture de `done`, c'est un no-op sur ce champ precis - il doit reussir.
+#[tokio::test]
+async fn un_update_done_vers_done_en_changeant_une_autre_colonne_reussit_sur_un_bloc() {
+    let ctx = common::TestContext::new().await;
+    let (client, repo_id) = repo_de_test(&ctx).await;
+
+    let bloc = ctx.creer_bloc(&repo_id, "Titre a corriger", "feature", "web/app/checkout").await;
+    let bloc_id = bloc["id"].as_str().unwrap().to_string();
+    let ref_bloc = bloc["ref"].as_i64().unwrap();
+    client.ingerer_commit(&repo_id, Some("main"), &commit_qui_nomme("c1", ref_bloc)).await.unwrap();
+
+    let resultat = ctx
+        .patch_bloc_avec_jeton(
+            &ctx.user_token,
+            &bloc_id,
+            json!({ "titre": "Titre corrige", "statut": "done" }),
+        )
+        .await;
+
+    assert!(resultat.is_ok(), "done -> done en changeant le titre doit reussir : {resultat:?}");
+    assert_eq!(ctx.lire_bloc(&bloc_id).await["titre"], json!("Titre corrige"));
+}
+
+/// Meme preuve sur `issues` (pas de colonne `type` a y retyper, `titre` sert
+/// de colonne temoin).
+#[tokio::test]
+async fn un_update_done_vers_done_en_changeant_une_autre_colonne_reussit_sur_une_issue() {
+    let ctx = common::TestContext::new().await;
+    let (client, repo_id) = repo_de_test(&ctx).await;
+
+    let bloc = ctx.creer_bloc(&repo_id, "Bloc decoupe", "feature", "web/app/checkout").await;
+    let bloc_id = bloc["id"].as_str().unwrap().to_string();
+    let issue = ctx.creer_issue(&bloc_id, "Titre a corriger", None).await;
+    let issue_id = issue["id"].as_str().unwrap().to_string();
+    let ref_issue = issue["ref"].as_i64().unwrap();
+    client.ingerer_commit(&repo_id, Some("main"), &commit_qui_nomme("c1", ref_issue)).await.unwrap();
+    assert_eq!(ctx.lire_issue(&issue_id).await["statut"], json!("done"));
+
+    let resultat = ctx
+        .patch_issue_avec_jeton(
+            &ctx.user_token,
+            &issue_id,
+            json!({ "titre": "Titre corrige", "statut": "done" }),
+        )
+        .await;
+
+    assert!(resultat.is_ok(), "done -> done en changeant le titre doit reussir sur une issue : {resultat:?}");
+    assert_eq!(ctx.lire_issue(&issue_id).await["titre"], json!("Titre corrige"));
+}
+
+/// Symetrique, nomme explicitement : `doing` -> `done` continue d'echouer,
+/// meme depuis un statut qui n'est pas le `todo` de la creation - la sortie
+/// de Termine (FR-025) ramene en `doing`, jamais un PATCH direct ne doit
+/// pouvoir refaire le chemin inverse.
+#[tokio::test]
+async fn un_bloc_en_cours_ne_peut_pas_passer_directement_a_done() {
+    let ctx = common::TestContext::new().await;
+    let (_, repo_id) = repo_de_test(&ctx).await;
+
+    let bloc = ctx.creer_bloc(&repo_id, "En cours", "feature", "web/app/checkout").await;
+    let bloc_id = bloc["id"].as_str().unwrap().to_string();
+    ctx.deplacer_bloc_avec_jeton(&ctx.user_token, &bloc_id, "doing").await.expect("passer en cours doit reussir");
+
+    let resultat = ctx.deplacer_bloc_avec_jeton(&ctx.user_token, &bloc_id, "done").await;
+    assert!(resultat.is_err(), "doing -> done doit toujours echouer : {resultat:?}");
+    assert_eq!(ctx.lire_bloc(&bloc_id).await["statut"], json!("doing"));
+}
+
+// --------------------------------------------------------------------------
 // Ce qui doit continuer d'ecrire `done`, malgre la nouvelle regle.
 // --------------------------------------------------------------------------
 
