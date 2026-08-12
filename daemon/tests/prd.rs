@@ -1211,3 +1211,118 @@ async fn le_vrai_prd_001_du_depot_est_converti_en_seize_features() {
     assert_eq!(a_clarifier.len(), 1, "un seul marqueur [À CLARIFIER] dans tout le document, porte par F12");
     assert_eq!(a_clarifier[0]["prd_cle"], serde_json::json!("2026-08-10/PRD-001/F12"));
 }
+
+// ---------------------------------------------------------------------------
+// Collision avec #38 : une exploration posee par une ecriture d'agent
+// (`docs/adr/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, voir
+// `exploration_agent.rs`) et une exploration posee par la lecture d'un PRD
+// peuvent viser le MEME fichier, si un document de conception y porte aussi
+// un en-tete PRD complet. Verifie que les deux mecanismes ne se marchent pas
+// dessus, dans les deux sens (demande explicitement par l'issue #38).
+// ---------------------------------------------------------------------------
+
+fn ecriture_agent(fichier: &str) -> vibemap::Activite {
+    vibemap::Activite {
+        session_id: uuid::Uuid::new_v4().to_string(),
+        tool_use_id: uuid::Uuid::new_v4().to_string(),
+        module_path: fichier.rsplit_once('/').map(|(m, _)| m.to_string()).unwrap_or_default(),
+        file_path: fichier.to_string(),
+        kind: "write",
+        occurred_at: chrono::Utc::now(),
+    }
+}
+
+/// Sens 1 : l'ecriture d'agent arrive AVANT que la cartographie n'ait lu le
+/// PRD (l'ordre normal en pratique - l'activite est poussee en direct, la
+/// lecture de PRD tourne toutes les 300 s). La lecture du PRD doit ADOPTER
+/// le bloc deja pose plutot que d'en creer un second : meme carte, meme
+/// identifiant, desormais rattachee a sa cle de PRD.
+#[tokio::test]
+async fn une_exploration_posee_par_un_agent_est_adoptee_par_la_lecture_du_prd_qui_suit() {
+    let ctx = common::TestContext::new().await;
+    let machine = machine_reliee(&ctx).await;
+    let repo_id = ctx.creer_repo(&machine.machine_id, &[]).await;
+    let client = vibemap::Supabase::new(&ctx.url, &machine.token);
+    let racine = depot_git_temporaire("collision-agent-puis-prd");
+    let plan = plan_simple("atelier", "local:x");
+    let chemin_fichier = "docs/superpowers/specs/2026-08-12-double-nature.md";
+
+    // Un document qui est A LA FOIS un memo de conception (sous le dossier
+    // surveille par #38) ET un PRD valide au sens de #36 (en-tete complet).
+    let texte = document(
+        "PRD-77",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some("Double nature"),
+        &section_feature(1, "Une feature", "P1", ""),
+    );
+    ecrire(&racine, chemin_fichier, &texte);
+
+    // L'ecriture d'agent arrive la premiere : #38 pose une exploration sans
+    // la moindre lecture du contenu.
+    client
+        .pousser_activite(&machine.machine_id, &repo_id, Some("main"), &[ecriture_agent(chemin_fichier)])
+        .await
+        .expect("l'evenement doit etre accepte");
+
+    let avant = ctx.lire_blocs(&repo_id).await;
+    assert_eq!(avant.len(), 1, "l'ecriture d'agent pose sa propre exploration");
+    assert_eq!(avant[0]["prd_cle"], serde_json::json!(null), "pas encore rattachee a un PRD");
+    let id_avant = avant[0]["id"].as_str().unwrap().to_string();
+
+    // La cartographie lit ensuite le PRD.
+    let resume = traiter(&client, &racine, &repo_id, &plan).await;
+    assert_eq!(resume.blocs_poses, 1, "la fonction rend une ligne reelle, adoptee ou creee");
+
+    let apres = ctx.lire_blocs(&repo_id).await;
+    assert_eq!(apres.len(), 1, "toujours une seule carte pour ce fichier, jamais deux");
+    assert_eq!(apres[0]["id"], serde_json::json!(id_avant), "la ligne posee par #38 est ADOPTEE, pas dedoublee");
+    assert_eq!(apres[0]["prd_cle"], serde_json::json!("2026-08-12/PRD-77"), "desormais rattachee a son PRD");
+    assert_eq!(apres[0]["titre"], serde_json::json!("cadrage Double nature"));
+}
+
+/// Sens 2 : le PRD est lu en premier (l'exploration porte deja `prd_cle`),
+/// puis un agent ecrit le meme fichier. La couverture de #38 (n'importe quel
+/// bloc au meme chemin, quelle que soit son origine) doit empecher toute
+/// creation - la carte issue du PRD reste seule et inchangee.
+#[tokio::test]
+async fn une_ecriture_dagent_sur_un_fichier_deja_explore_par_le_prd_ne_cree_rien_de_plus() {
+    let ctx = common::TestContext::new().await;
+    let machine = machine_reliee(&ctx).await;
+    let repo_id = ctx.creer_repo(&machine.machine_id, &[]).await;
+    let client = vibemap::Supabase::new(&ctx.url, &machine.token);
+    let racine = depot_git_temporaire("collision-prd-puis-agent");
+    let plan = plan_simple("atelier", "local:x");
+    let chemin_fichier = "docs/superpowers/plans/2026-08-12-double-nature.md";
+
+    let texte = document(
+        "PRD-78",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some("Double nature bis"),
+        &section_feature(1, "Une feature", "P1", ""),
+    );
+    ecrire(&racine, chemin_fichier, &texte);
+
+    let resume = traiter(&client, &racine, &repo_id, &plan).await;
+    assert_eq!(resume.blocs_poses, 1);
+    let avant = ctx.lire_blocs(&repo_id).await;
+    assert_eq!(avant.len(), 1);
+    let id_avant = avant[0]["id"].as_str().unwrap().to_string();
+
+    client
+        .pousser_activite(&machine.machine_id, &repo_id, Some("main"), &[ecriture_agent(chemin_fichier)])
+        .await
+        .expect("l'evenement doit etre accepte");
+
+    let apres = ctx.lire_blocs(&repo_id).await;
+    assert_eq!(apres.len(), 1, "le fichier est deja couvert par l'exploration du PRD, rien ne s'ajoute");
+    assert_eq!(apres[0]["id"], serde_json::json!(id_avant));
+    assert_eq!(
+        apres[0]["prd_cle"],
+        serde_json::json!("2026-08-12/PRD-78"),
+        "sa cle de PRD n'est pas effacee par l'ecriture de l'agent"
+    );
+}

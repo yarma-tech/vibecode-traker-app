@@ -652,6 +652,40 @@ impl TestContext {
         Ok(serde_json::from_str(&texte).expect("reponse JSON d'insertion brute"))
     }
 
+    /// Supprime un bloc avec le jeton d'un utilisateur, exactement comme le
+    /// fera le bouton de suppression du tableau (#38, FR-048) - jamais avec
+    /// la cle de service, qui ne prouverait rien de la RLS traversee par ce
+    /// geste web.
+    pub async fn supprimer_bloc_avec_jeton(
+        &self,
+        jeton: &str,
+        bloc_id: &str,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .delete(format!("{}/rest/v1/blocs?id=eq.{}", self.url, bloc_id))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .header("Prefer", "return=representation")
+            .send()
+            .await
+            .expect("tentative de suppression de bloc");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        // Comme les PATCH ci-dessus : la RLS ne rend jamais d'erreur pour une
+        // ligne qu'elle rend simplement invisible - `return=representation`
+        // vide est la seule facon de distinguer « supprime » de « refuse en
+        // silence, rien ne correspondait au filtre RLS ».
+        if texte.trim() == "[]" {
+            return Err((code, "la RLS n'a touche aucune ligne".to_string()));
+        }
+        Ok(())
+    }
+
     /// Supprime un bloc en contournant la RLS, comme le fera un jour un
     /// bouton de suppression : sert ici a eprouver la non-reattribution.
     pub async fn supprimer_bloc(&self, bloc_id: &str) {
