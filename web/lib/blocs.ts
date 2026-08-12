@@ -148,6 +148,45 @@ export function peutSortirDeTermine(bloc: Bloc, nombreIssues: number): boolean {
   return bloc.statut === "done" && !estDecoupe(nombreIssues);
 }
 
+/**
+ * Constater une exploration ecrite par un agent (issue #38, F13). Le type
+ * est le SEUL signal que le tableau lit pour ces deux besoins - rien ne
+ * distingue une exploration posee par un agent (#38) d'une exploration
+ * posee par un PRD brouillon (#36) une fois la carte creee : meme type,
+ * meme regles, aucune colonne d'origine dediee (FR-046 ne lit jamais le
+ * contenu du fichier, il n'y a donc rien de plus a tracer).
+ */
+export function estExploration(bloc: Bloc): boolean {
+  return bloc.type === "exploration";
+}
+
+/**
+ * FR-047 : une exploration ne compte dans AUCUN total. Le seul total que ce
+ * tableau affiche aujourd'hui est ce compteur, a cote du titre de chaque
+ * colonne (`rangees[statut].length` comptait jusqu'ici tout bloc sans
+ * distinction) - une exploration reste neanmoins VISIBLE dans sa colonne,
+ * seul le chiffre l'ignore. Prend la liste deja rangee dans une colonne,
+ * jamais la liste complete : le compte doit rester coherent colonne par
+ * colonne, pas glisser vers un total du depot entier que ce tableau ne
+ * calcule pas (hors scope de #38, ce serait F14).
+ */
+export function compteSansExploration(blocsDeLaColonne: Bloc[]): number {
+  return blocsDeLaColonne.filter((bloc) => !estExploration(bloc)).length;
+}
+
+/**
+ * FR-047, second cas : un bloc d'exploration peut porter des issues (#37 le
+ * permet deliberement, pour marquer une exploration "non vierge" avant la
+ * conversion d'un PRD valide - voir `daemon/tests/prd.rs`), ce qui le rend
+ * `estDecoupe`. Afficher son avancement "X / Y" serait pourtant compter une
+ * exploration dans un reste a faire, exactement ce que FR-047 interdit :
+ * cette fonction est donc le seul endroit qui decide si la ligne
+ * d'avancement d'une carte doit apparaitre.
+ */
+export function afficherAvancement(bloc: Bloc, nombreIssues: number): boolean {
+  return estDecoupe(nombreIssues) && !estExploration(bloc);
+}
+
 /** Les trois colonnes du tableau, toujours toutes les trois presentes. */
 export type Colonnes = Record<StatutBloc, Bloc[]>;
 
