@@ -29,6 +29,32 @@ export function reference(ref: number): string {
   return `VM-${ref}`;
 }
 
+/**
+ * Le nom accessible du bouton de copie d'une reference (F11, FR-034). La
+ * reference seule (« VM-7 ») n'apprend rien hors du contexte visuel de sa
+ * carte a qui ne la voit pas ; ce libelle porte donc aussi le titre du
+ * travail. Il commence par le texte visible du bouton (« VM-7 ») pour tenir
+ * WCAG 2.5.3 (Label in Name) : un utilisateur de commande vocale qui dit
+ * « clique sur VM-7 » doit atteindre ce bouton.
+ */
+export function libelleCopier(ref: number, titre: string): string {
+  return `Copier ${reference(ref)}, référence de « ${titre} »`;
+}
+
+/**
+ * L'annonce faite apres une tentative de copie (F11, FR-034) : succes ou
+ * echec, mais jamais silencieuse - un bouton qui ne dit rien laisse croire
+ * qu'il n'a rien fait, et l'utilisateur colle ensuite dans le vide. Sert a la
+ * fois de texte affiche (une copie reussie doit se voir) et de contenu d'une
+ * region `aria-live` pour un lecteur d'ecran.
+ */
+export function messageCopie(ref: number, titre: string, succes: boolean): string {
+  const vmRef = reference(ref);
+  return succes
+    ? `Référence ${vmRef} de « ${titre} » copiée.`
+    : `Copie automatique impossible : sélectionnez ${vmRef} et copiez-le avec votre clavier.`;
+}
+
 /** Le libelle textuel d'un type : la couleur ne le dit jamais seule (FR-033). */
 export const LIBELLE_TYPE: Record<TypeBloc, string> = {
   feature: "Feature",
