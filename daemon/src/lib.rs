@@ -230,9 +230,26 @@ impl Supabase {
     /// Reprend la ligne locale d'un depot qui vient de gagner un distant, au
     /// lieu de laisser une seconde ligne se creer sous la nouvelle identite.
     ///
-    /// Rend `None` si aucune ligne locale ne portait cette empreinte : c'est
-    /// alors un depot dont l'identite a toujours ete celle de son distant, pas
-    /// un rattachement.
+    /// Rend `None` dans deux cas, que l'appelant traite tous deux en retombant
+    /// sur l'upsert normal (par identite) :
+    ///
+    /// - aucune ligne locale ne portait cette empreinte : ce depot a toujours
+    ///   ete connu par son distant, il n'y a rien a rattacher ;
+    /// - une ligne locale existait, mais l'identite distante qu'on veut lui
+    ///   donner est deja prise par une AUTRE ligne (409, contrainte
+    ///   `repos_identite_par_compte`). Cas reel : ce meme depot a ete clone
+    ///   ailleurs et pousse sur son distant avant que cette machine-ci
+    ///   n'ajoute le sien. La ligne deja connue sous l'identite distante porte
+    ///   l'historique vu par l'autre machine ; c'est elle qui fait autorite,
+    ///   pas celle qui vient seulement de decouvrir ce distant.
+    ///
+    ///   La ligne locale devenue orpheline n'est pas supprimee ici : des
+    ///   `sessions`, `activity_events` et `worktrees` peuvent y etre rattaches
+    ///   (`on delete cascade` sur `repo_id`) depuis avant la fusion, et les
+    ///   perdre couterait plus cher qu'une ligne morte qui ne recevra plus
+    ///   jamais d'ecriture, cette machine visant desormais l'identite
+    ///   distante a chaque scan. Un nettoyage de ces lignes orphelines est un
+    ///   chantier a part, pas une decision a prendre en silence ici.
     async fn rattacher_repo_local(
         &self,
         identite_locale: &str,
@@ -250,6 +267,16 @@ impl Supabase {
             .await?;
 
         let code = reponse.status();
+
+        // PostgREST repond 409 quand l'ecriture heurte une contrainte
+        // d'unicite : l'identite distante est deja prise par une autre ligne.
+        // On ne distingue pas ce cas par le texte du corps, seulement par le
+        // code, pour ne pas dependre d'un message d'erreur Postgres qui peut
+        // changer de formulation.
+        if code == reqwest::StatusCode::CONFLICT {
+            return Ok(None);
+        }
+
         let texte = reponse.text().await.unwrap_or_default();
 
         if !code.is_success() {
