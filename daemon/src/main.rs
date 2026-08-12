@@ -328,6 +328,7 @@ async fn cartographier(
 ) {
     let mut trouves = 0;
     let mut envoyes = 0;
+    let mut blocs_prd = 0;
 
     for racine in config.racines() {
         let Ok(entrees) = std::fs::read_dir(&racine) else {
@@ -353,6 +354,19 @@ async fn cartographier(
             match client.pousser_plan(&config.machine_id, &plan).await {
                 Ok(repo_id) => {
                     envoyes += 1;
+
+                    // Meme cadence que la cartographie (300 s) : un PRD ne
+                    // change pas toutes les trente secondes (issue #36).
+                    let resume = vibemap::prd::traiter(client, &chemin, &repo_id, &plan).await;
+                    blocs_prd += resume.blocs_poses;
+                    for sans_feature in &resume.sans_feature_reconnue {
+                        eprintln!(
+                            "PRD {} ({}) : en-tete reconnu mais aucune feature n'y est identifiee",
+                            sans_feature.display(),
+                            plan.name
+                        );
+                    }
+
                     carte.insert(chemin, repo_id);
                 }
                 Err(erreur) => eprintln!("plan de {} non envoye : {erreur}", plan.name),
@@ -361,7 +375,7 @@ async fn cartographier(
     }
 
     println!(
-        "{} cartographie : {envoyes} repo(s) sur {trouves}",
+        "{} cartographie : {envoyes} repo(s) sur {trouves}, {blocs_prd} bloc(s) d'exploration PRD",
         chrono::Utc::now().format("%H:%M:%S")
     );
 }

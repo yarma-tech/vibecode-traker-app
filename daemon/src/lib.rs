@@ -8,6 +8,7 @@ pub mod commits;
 mod config;
 pub mod journal;
 mod plan;
+pub mod prd;
 pub mod reprise;
 pub mod trousseau;
 mod worktree;
@@ -536,6 +537,37 @@ impl Supabase {
         .await?;
 
         Ok(())
+    }
+
+    /// Pose l'unique bloc d'exploration d'un PRD brouillon (issue #36,
+    /// FR-038), ou rend le bloc deja pose si ce document a deja ete lu :
+    /// l'idempotence vient de `rpc/creer_bloc_exploration_prd`, batie sur
+    /// `unique (repo_id, prd_cle)` (relire le meme document ne cree rien de
+    /// neuf).
+    ///
+    /// Les champs du document sont groupes dans `doc` plutot qu'eparpilles en
+    /// arguments : au-dela de sept, clippy (`too_many_arguments`) les refuse
+    /// a raison - une ligne d'appel avec sept `&str` d'affilee est aussi
+    /// facile a inverser par erreur qu'a relire.
+    pub async fn creer_bloc_exploration_prd(
+        &self,
+        repo_id: &str,
+        doc: &crate::prd::ExplorationPrd<'_>,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.envoyer(
+            "rpc/creer_bloc_exploration_prd",
+            None,
+            json!({
+                "p_repo_id": repo_id,
+                "p_titre": doc.titre,
+                "p_chemin": doc.chemin,
+                "p_prd_cle": doc.prd_cle,
+                "p_prd_statut": doc.prd_statut,
+                "p_prd_maj": doc.prd_maj,
+                "p_prd_valide_le": doc.prd_valide_le,
+            }),
+        )
+        .await
     }
 
     async fn envoyer(
