@@ -637,6 +637,29 @@ impl TestContext {
             .unwrap_or_default()
     }
 
+    /// Pose une ligne `commits` directement, en contournant la RLS et le
+    /// chemin normal (`ingerer_commit`). Sert a isoler `fermer_par_reference`
+    /// de l'insertion qui la declenche d'ordinaire, pour eprouver la fonction
+    /// seule - y compris contre un appelant qui n'a aucun droit sur ce repo.
+    pub async fn poser_commit_brut(&self, repo_id: &str, sha: &str, message: &str) -> String {
+        let lignes = self
+            .ecrire_service(
+                "commits",
+                json!([{
+                    "repo_id":     repo_id,
+                    "sha":         sha,
+                    "message":     message,
+                    "authored_at": chrono::Utc::now(),
+                }]),
+            )
+            .await;
+
+        lignes[0]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("pas d'id de commit dans {lignes}"))
+            .to_string()
+    }
+
     /// Cree une issue comme le fera la page web : par la fonction RPC, avec le
     /// jeton de l'utilisateur du contexte. `chemin: None` simule une saisie
     /// vide - le cas de la premiere issue d'un bloc simple, qui n'a pas besoin

@@ -392,6 +392,162 @@ async fn un_compte_ne_voit_pas_les_commits_dun_autre() {
     );
 }
 
+/// `fermer_par_reference` est en security definer et executable par tout
+/// compte authentifie (c'est ce qui permet a `ingerer_commit` de l'appeler
+/// depuis les droits du daemon). Sans verifier que l'appelant a le droit de
+/// toucher le depot du commit, n'importe quel compte peut fermer le travail
+/// d'un autre en connaissant - ou en devinant - un `commit_id`. Reproduit
+/// directement contre `rpc/fermer_par_reference`, avec le jeton d'un compte
+/// qui n'a AUCUN droit sur le depot vise.
+#[tokio::test]
+async fn un_compte_ne_peut_pas_fermer_un_travail_dans_le_depot_dun_autre() {
+    let ctx = common::TestContext::new().await;
+    let intrus = common::TestContext::new().await;
+    let (_client, repo_id) = repo_de_test(&ctx).await;
+
+    let bloc = ctx.creer_bloc(&repo_id, "Travail de la victime", "feature", "web/app/a").await;
+    let bloc_id = bloc["id"].as_str().unwrap().to_string();
+    let r = ref_de(&bloc);
+
+    // Un commit du depot de la victime, pose sans passer par `ingerer_commit`
+    // (RLS bypass volontaire ici : simule un commit deja connu, quelle que
+    // soit la maniere dont il est arrive en base) - c'est `fermer_par_reference`
+    // elle-meme qui doit refuser d'agir dessus pour un appelant etranger.
+    let commit_id = ctx.poser_commit_brut(&repo_id, "vole", &format!("fix: VM-{r}")).await;
+
+    let http = reqwest::Client::new();
+    let reponse = http
+        .post(format!("{}/rest/v1/rpc/fermer_par_reference", ctx.url))
+        .header("apikey", &ctx.anon_key)
+        .bearer_auth(&intrus.user_token)
+        .json(&json!({ "p_commit_id": commit_id }))
+        .send()
+        .await
+        .expect("appel de fermer_par_reference par l'intrus");
+
+    // On ne juge pas au code HTTP : la fonction reste executable (le daemon
+    // en a besoin), le refus doit se lire dans la donnee, pas dans le
+    // transport.
+    let _ = reponse.status();
+
+    let relu = ctx.lire_bloc(&bloc_id).await;
+    assert_eq!(
+        relu["statut"],
+        json!("todo"),
+        "un compte sans droit sur ce depot ne doit jamais pouvoir fermer son travail"
+    );
+    assert!(
+        ctx.lire_fermetures_bloc(&bloc_id).await.is_empty(),
+        "aucune fermeture ne doit avoir ete posee par un appelant sans droit sur le depot"
+    );
+}
+
+/// FR-016, au-dela de la seule distinction `VM-`/`#` : le motif doit
+/// reconnaitre une reference en MOT isole, jamais comme sous-chaine d'un
+/// autre mot. Sans frontiere de mot, `VM-7` a l'interieur de `SVM-7` (ou
+/// `KVM-3`, jargon courant de machine virtuelle) fermerait un travail que le
+/// message n'a jamais nomme - exactement ce que le PRD interdit (« mieux
+/// vaut rater une fermeture que d'en inventer une »).
+#[tokio::test]
+async fn svm_et_kvm_ne_ferment_rien_la_reference_doit_etre_un_mot_isole() {
+    let ctx = common::TestContext::new().await;
+    let (client, repo_id) = repo_de_test(&ctx).await;
+
+    let bloc_svm = ctx.creer_bloc(&repo_id, "Pas la machine virtuelle", "feature", "web/app/a").await;
+    let bloc_svm_id = bloc_svm["id"].as_str().unwrap().to_string();
+    let r_svm = ref_de(&bloc_svm);
+
+    let bloc_kvm = ctx.creer_bloc(&repo_id, "Pas non plus celle-la", "feature", "web/app/b").await;
+    let bloc_kvm_id = bloc_kvm["id"].as_str().unwrap().to_string();
+    let r_kvm = ref_de(&bloc_kvm);
+
+    client
+        .ingerer_commit(&repo_id, None, &commit("svm", &format!("chore: SVM-{r_svm} mise a niveau")))
+        .await
+        .expect("ingestion");
+    client
+        .ingerer_commit(&repo_id, None, &commit("kvm", &format!("chore: deploiement KVM-{r_kvm} en cours")))
+        .await
+        .expect("ingestion");
+
+    assert_eq!(
+        ctx.lire_bloc(&bloc_svm_id).await["statut"],
+        json!("todo"),
+        "« SVM-{r_svm} » contient « VM-{r_svm} » comme sous-chaine, ça ne doit pas fermer"
+    );
+    assert_eq!(
+        ctx.lire_bloc(&bloc_kvm_id).await["statut"],
+        json!("todo"),
+        "« KVM-{r_kvm} » contient « VM-{r_kvm} » comme sous-chaine, ça ne doit pas fermer non plus"
+    );
+}
+
+/// Le pendant positif du test precedent : une fois la frontiere de mot
+/// imposee, `VM-<n>` doit encore fermer a toutes les positions ou un
+/// message reel le pose - en tete, collee a une ponctuation finale, et
+/// entre parentheses.
+#[tokio::test]
+async fn vm_ferme_a_toutes_les_positions_de_mot_debut_fin_parentheses() {
+    let ctx = common::TestContext::new().await;
+    let (client, repo_id) = repo_de_test(&ctx).await;
+
+    let bloc_debut = ctx.creer_bloc(&repo_id, "Ferme en tete de message", "feature", "web/app/a").await;
+    let bloc_debut_id = bloc_debut["id"].as_str().unwrap().to_string();
+    let r_debut = ref_de(&bloc_debut);
+
+    let bloc_ponct = ctx.creer_bloc(&repo_id, "Ferme colle a un point", "feature", "web/app/b").await;
+    let bloc_ponct_id = bloc_ponct["id"].as_str().unwrap().to_string();
+    let r_ponct = ref_de(&bloc_ponct);
+
+    let bloc_paren = ctx.creer_bloc(&repo_id, "Ferme entre parentheses", "feature", "web/app/c").await;
+    let bloc_paren_id = bloc_paren["id"].as_str().unwrap().to_string();
+    let r_paren = ref_de(&bloc_paren);
+
+    client
+        .ingerer_commit(&repo_id, None, &commit("debut", &format!("VM-{r_debut} regle le probleme")))
+        .await
+        .expect("ingestion");
+    client
+        .ingerer_commit(&repo_id, None, &commit("ponct", &format!("fix: VM-{r_ponct}.")))
+        .await
+        .expect("ingestion");
+    client
+        .ingerer_commit(&repo_id, None, &commit("paren", &format!("fix: corrige (VM-{r_paren})")))
+        .await
+        .expect("ingestion");
+
+    assert_eq!(ctx.lire_bloc(&bloc_debut_id).await["statut"], json!("done"), "reference en tete de message");
+    assert_eq!(ctx.lire_bloc(&bloc_ponct_id).await["statut"], json!("done"), "reference collee a un point final");
+    assert_eq!(ctx.lire_bloc(&bloc_paren_id).await["statut"], json!("done"), "reference entre parentheses");
+}
+
+/// Decision explicite, testee : le PRD ne definit que la forme MAJUSCULE
+/// `VM-7` (FR-016). `vm-7` en minuscules n'est pas reconnu - une variante en
+/// minuscule est plus probable comme mot ordinaire ("vm-7" est un nom
+/// d'hote courant en infra) que comme reference deliberement copiee depuis
+/// le tableau, et « mieux vaut rater une fermeture que d'en inventer une »
+/// tranche en faveur du refus.
+#[tokio::test]
+async fn vm_minuscule_ne_ferme_pas_seule_la_forme_majuscule_est_reconnue() {
+    let ctx = common::TestContext::new().await;
+    let (client, repo_id) = repo_de_test(&ctx).await;
+
+    let bloc = ctx.creer_bloc(&repo_id, "Nom d'hote ambigu", "feature", "web/app/a").await;
+    let bloc_id = bloc["id"].as_str().unwrap().to_string();
+    let r = ref_de(&bloc);
+
+    client
+        .ingerer_commit(&repo_id, None, &commit("minuscule", &format!("chore: vm-{r} redemarree")))
+        .await
+        .expect("ingestion");
+
+    assert_eq!(
+        ctx.lire_bloc(&bloc_id).await["statut"],
+        json!("todo"),
+        "vm-{r} en minuscules ne doit pas fermer, seule la forme VM- majuscule le fait"
+    );
+}
+
 // --------------------------------------------------------------------------
 // La lecture du disque, avec un vrai depot git.
 // --------------------------------------------------------------------------

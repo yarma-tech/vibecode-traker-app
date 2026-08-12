@@ -107,10 +107,19 @@ create policy fermetures_select_own on public.fermetures
 -- ------------------------------------------------------------ fermer_par_reference
 -- Ferme exactement ce que le message du commit designe par sa reference
 -- (FR-012), jamais par les chemins qu'il touche - il n'y en a d'ailleurs
--- aucun ici a lire (FR-013). Le motif est `VM-([0-9]+)`, JAMAIS
+-- aucun ici a lire (FR-013). Le motif est `\mVM-([0-9]+)\M`, JAMAIS
 -- `#([0-9]+)` : les messages de ce depot contiennent deja `feat(#7):` et
 -- `Merge pull request #17`, qui designent des issues GitHub, pas des
--- travaux du tableau (FR-016).
+-- travaux du tableau (FR-016). `\m`/`\M` (frontieres de mot ARE de
+-- Postgres) empechent aussi de reconnaitre `VM-7` comme sous-chaine de
+-- `SVM-7` ou `KVM-3` (jargon de machine virtuelle) : sans elles, un message
+-- qui ne nomme jamais VM-7 le fermerait quand meme. Le motif est
+-- volontairement sensible a la casse (pas de flag `i`) : `vm-7` n'est pas
+-- reconnu, seule la forme majuscule que le tableau affiche et que
+-- l'utilisateur copie l'est - une minuscule est plus probable comme mot
+-- ordinaire ("vm-7" est un nom d'hote banal) que comme reference deliberee,
+-- et « mieux vaut rater une fermeture que d'en inventer une » (PRD, risques)
+-- tranche pour le refus.
 --
 -- Attention a la difference entre le SET et le RETURNING d'un UPDATE : les
 -- expressions du SET (le `case when statut = 'done' ...`) lisent toutes la
@@ -121,6 +130,22 @@ create policy fermetures_select_own on public.fermetures
 -- FERMER (elle entre dans `fermetures`) ou de ROUVRIR (elle n'y entre pas -
 -- `fermetures` conserve des cloture, pas des reprises). Les deux moities
 -- sont prouvees par des tests plutot que par ce commentaire seul.
+--
+-- Security definer + `grant execute ... to authenticated` (plus bas) pour
+-- que `ingerer_commit` puisse l'appeler avec les droits ordinaires du
+-- daemon (voir plus bas) - mais cela rend aussi la fonction appelable
+-- directement par N'IMPORTE QUEL compte authentifie, avec N'IMPORTE QUEL
+-- `commit_id`. Sans le garde-fou qui suit, un compte sans aucun droit sur
+-- le depot du commit pourrait fermer - ou rouvrir - le travail d'un autre.
+-- `repo_accessible`, appelee ici, lit toujours l'identite de l'appelant
+-- REEL (`auth.uid()`), jamais celle du proprietaire de la fonction, meme
+-- imbriquee dans deux security definer : la verification reste donc valide
+-- pour l'appel direct comme pour l'appel depuis `ingerer_commit`. Un appel
+-- illegitime est traite exactement comme un `commit_id` qui n'existe pas -
+-- un `return` silencieux, pas une exception : une exception confirmerait a
+-- l'appelant que ce `commit_id` existe bel et bien, ce qui est deja une
+-- fuite ; le silence ne lui apprend rien, et prolonge la meme regle que la
+-- reference inconnue (FR-015) - refuser sans bruit plutot que denoncer.
 create or replace function public.fermer_par_reference(p_commit_id uuid) returns void
 language plpgsql security definer set search_path = public, pg_catalog as $$
 declare
@@ -134,12 +159,12 @@ begin
   select repo_id, message into v_repo_id, v_message
     from public.commits where id = p_commit_id;
 
-  if v_repo_id is null then
+  if v_repo_id is null or not public.repo_accessible(v_repo_id) then
     return;
   end if;
 
   for v_ref in
-    select distinct (regexp_matches(v_message, 'VM-([0-9]+)', 'g'))[1]::int
+    select distinct (regexp_matches(v_message, '\mVM-([0-9]+)\M', 'g'))[1]::int
   loop
     -- Une reference designe une issue OU un bloc simple, jamais les deux
     -- (meme compteur, §4.2) : on tente l'issue d'abord.
