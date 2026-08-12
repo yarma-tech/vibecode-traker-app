@@ -285,6 +285,9 @@ export function Accueil({ initiaux }: { initiaux: Apercu[] }) {
                   </span>
                 )}
                 <span className="rang-poids">{repo.loc_total.toLocaleString("fr-FR")} lignes</span>
+                <Link className="rang-projet" href={`/repo/${repo.id}/projet`}>
+                  projet
+                </Link>
               </li>
             );
           })}

@@ -104,6 +104,9 @@ export default async function PageRepo({
         <Link className="lien" href="/">
           ← tous les repos
         </Link>
+        <Link className="lien lien-projet" href={`/repo/${id}/projet`}>
+          espace projet →
+        </Link>
         <span className="compte">{user.email}</span>
       </header>
 
