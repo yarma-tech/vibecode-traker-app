@@ -9,9 +9,10 @@
 export type StatutBloc = "todo" | "doing" | "done";
 export type TypeBloc = "feature" | "correction" | "technique" | "exploration";
 
-/** Un bloc tel que le tableau le lit. La base porte davantage de colonnes
- *  (les `prd_*`, inertes tant que #36 ne les remplit pas) ; l'ecran n'en a
- *  besoin que de celles-ci. */
+/** Un bloc tel que le tableau le lit. La base porte encore d'autres colonnes
+ *  `prd_*` (`prd_statut`, `prd_maj`, `prd_valide_le`) ; l'ecran n'en a besoin
+ *  que de celles-ci - les autres ne servent qu'a la conversion cote daemon
+ *  (#37), jamais a l'affichage. */
 export type Bloc = {
   id: string;
   ref: number;
@@ -22,6 +23,23 @@ export type Bloc = {
   chemin: string | null;
   position: number;
   created_at: string;
+  /** Provenance PRD (#37, FR-039 a FR-042). `null` = saisi a la main - la
+   *  seule provenance que #29 a jamais connue. Rattachee par cette cle,
+   *  jamais par le titre (FR-040) : c'est pour ca qu'un titre de feature
+   *  peut changer d'une lecture a l'autre sans jamais faire de doublon. */
+  prd_cle: string | null;
+  /** Lue dans le document, affichee telle quelle (FR-042) - AUCUN geste du
+   *  tableau ne l'ecrit : ni un input dans une carte, ni un PATCH direct
+   *  (la base la protege elle-meme, `prd_champs_proteges`, migration #37). */
+  prd_priorite: string | null;
+  prd_a_clarifier: boolean;
+  /** FR-041 : la feature a disparu du document, mais son bloc est conserve -
+   *  jamais supprime. Se distingue sur la carte, jamais retiree du tableau. */
+  prd_absent: boolean;
+  /** FR-039 : ce bloc d'exploration portait un travail humain (une issue, une
+   *  fermeture) au moment ou son PRD est passe `validé` - il a donc ete
+   *  conserve plutot que retire, marque ici pour que la carte le dise. */
+  prd_converti: boolean;
 };
 
 /** La reference d'un bloc, telle qu'on la copie pour lancer un agent. */
@@ -80,26 +98,54 @@ export function libelleType(type: string): string {
   return (LIBELLE_TYPE as Record<string, string>)[type] ?? type;
 }
 
+/**
+ * L'origine PRD affichee sur une carte (#37) : `prd_cle` complete
+ * (`<date>/<id>/Fn` pour une feature, `<date>/<id>` pour une exploration)
+ * sans sa date en tete, qui n'apprend rien a la lecture d'une carte - la
+ * meme date apparait deja, plus lisible, dans `prd_maj`/`prd_valide_le`
+ * quand ils sont affiches. Rend la cle complete telle quelle si elle ne
+ * porte pas de `/` (defensif : ne devrait jamais arriver, `prd_cle` a
+ * toujours au moins un `/` par construction cote daemon).
+ */
+export function origineCourte(prdCle: string): string {
+  const premiereBarre = prdCle.indexOf("/");
+  return premiereBarre === -1 ? prdCle : prdCle.slice(premiereBarre + 1);
+}
+
 /** Un titre est requis : ni vide, ni fait uniquement d'espaces. */
 export function titreValide(titre: string): boolean {
   return titre.trim().length > 0;
 }
 
-/** Un bloc est decoupe des qu'il n'a plus d'emplacement propre : la base l'a
- *  vide au profit de sa premiere issue (#30, FR-006, FR-007). Un bloc ne
- *  porte donc jamais les deux a la fois - c'est ce que cette fonction lit,
- *  jamais ce qu'elle decide. */
-export function estDecoupe(bloc: Bloc): boolean {
-  return bloc.chemin === null;
+/**
+ * Un bloc est decoupe des qu'il porte au moins une issue - jamais deduit du
+ * seul `chemin` (corrige en relecture visuelle de #37, apres avoir ouvert le
+ * tableau avec de vraies features de PRD). Avant #37, `chemin === null`
+ * impliquait TOUJOURS des issues : seule `bloc_coherent()` (#30) le videait,
+ * et seulement en meme temps que la premiere issue apparaissait - les deux
+ * etaient donc indissociables, et l'ancienne version de cette fonction
+ * (`bloc.chemin === null`) n'avait jamais eu a le savoir. Une feature issue
+ * d'un PRD casse cette coincidence : le document ne donne aucun emplacement,
+ * elle nait donc `chemin = null` SANS la moindre issue - un troisieme etat
+ * que #29/#30 n'avaient jamais eu a distinguer d'un bloc reellement decoupe.
+ * Toujours vrai server-side : `etat_bloc()`, `bloc_statut_protege()` et
+ * `fermer_par_reference()` ne regardent eux non plus jamais `chemin`, toujours
+ * `exists (issues where bloc_id = ...)`.
+ */
+export function estDecoupe(nombreIssues: number): boolean {
+  return nombreIssues > 0;
 }
 
 /** La seule sortie de « Termine » (F8, FR-025) : un bloc simple termine peut
  *  en repartir. Un bloc decoupe, lui, ne se sort jamais directement - son
  *  statut est derive de ses issues (etat_bloc(), #30) et le serveur refuse
  *  de toute facon une ecriture directe dessus (bloc_statut_protege()) ; le
- *  geste de sortie vit alors sur les issues elles-memes. */
-export function peutSortirDeTermine(bloc: Bloc): boolean {
-  return bloc.statut === "done" && !estDecoupe(bloc);
+ *  geste de sortie vit alors sur les issues elles-memes. « Decoupe » se lit
+ *  au nombre d'issues (#37, voir `estDecoupe`), jamais au chemin : une
+ *  feature de PRD terminee par une reference de commit reste un bloc simple
+ *  tant qu'elle n'a pas ete decoupee a la main, meme sans emplacement propre. */
+export function peutSortirDeTermine(bloc: Bloc, nombreIssues: number): boolean {
+  return bloc.statut === "done" && !estDecoupe(nombreIssues);
 }
 
 /** Les trois colonnes du tableau, toujours toutes les trois presentes. */

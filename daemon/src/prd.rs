@@ -1,5 +1,7 @@
-//! Lire un PRD et en tirer un bloc d'exploration (issue #36, premiere moitie
-//! de F12 du PRD - FR-036 a FR-038, FR-043, FR-044 ; conception §6).
+//! Lire un PRD et en tirer ses blocs (issue #36 pour l'exploration d'un
+//! brouillon - FR-036 a FR-038, FR-043, FR-044 ; issue #37 pour la
+//! conversion d'un document `validé` en ses features - FR-039 a FR-042 ;
+//! conception §6.
 //!
 //! Cadence de la boucle de cartographie (300 s) : un PRD ne change pas
 //! toutes les trente secondes, `commits.rs` a deja sa cadence propre pour ce
@@ -10,10 +12,6 @@
 //! fabriquerait des doublons a chaque relecture (conception §6, PRD §6.2).
 //! C'est aussi ce qui rend `analyser` verifiable sur de simples chaines, sans
 //! reseau ni disque - `daemon/tests/prd.rs` l'eprouve sur fixtures.
-//!
-//! La conversion d'un PRD `validé` en features (FR-039 a FR-042) n'est pas
-//! ici : c'est #37. Ce module ne sait faire qu'une chose de plus que lire -
-//! poser l'unique bloc d'exploration d'un brouillon.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -40,7 +38,11 @@ pub struct EnTete {
 /// recopier dans un champ : `daemon/tests/prd.rs` le prouve sur une section
 /// qui contient les trois, en verifiant qu'aucun des quatre champs ci-dessous
 /// n'en porte la moindre trace.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `Serialize` (issue #37) : cette meme pauvrete est ce qui part vers
+/// `rpc/convertir_prd_valide` - la contrainte de typage vaut garde-fou, rien
+/// de plus que ces quatre champs ne peut jamais s'y glisser.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Feature {
     pub cle: String,
     pub titre: String,
@@ -210,10 +212,30 @@ fn titre_et_priorite(reste: &str) -> (String, Option<String>) {
             let priorite = sans_tiret[position..]
                 .split_once(':')
                 .map(|(_, apres)| apres.trim().trim_end_matches(')').trim().to_string())
-                .filter(|p| !p.is_empty());
+                .filter(|p| priorite_valide(p));
             (titre, priorite)
         }
         None => (sans_tiret.trim().to_string(), None),
+    }
+}
+
+/// FR-042 : sans borne, tout ce qui suit `(Priorité :` voyagerait vers le
+/// serveur tel quel, quelle que soit sa longueur - exactement le passage
+/// que CONTRIBUTING.md interdit d'ouvrir ("aucune table n'a de colonne où un
+/// contenu de fichier... pourrait entrer"). Le PRD n'ecrit que `P0` a `P2`,
+/// le vrai PRD-001 va jusqu'a `P3` : `P` suivi d'un ou plusieurs chiffres est
+/// le juste milieu entre les deux - assez large pour ne pas rejeter un futur
+/// `P4` sans reouvrir le parseur, assez etroit pour qu'aucun texte libre ne
+/// puisse jamais s'y glisser. Ce qui ne correspond pas est ECARTE, jamais
+/// tronque ni devine (PRD, hypotheses : "on corrige le document, on ne
+/// devine pas") - c'est `titre_et_priorite` qui decide alors `None`, la
+/// feature elle-meme reste creee. La meme forme est imposee cote base par
+/// une contrainte `check` (migration #37) : la garantie tient par le schema,
+/// pas seulement par ce filtre (lecon de #30).
+fn priorite_valide(valeur: &str) -> bool {
+    match valeur.strip_prefix('P') {
+        Some(chiffres) => !chiffres.is_empty() && chiffres.bytes().all(|o| o.is_ascii_digit()),
+        None => false,
     }
 }
 
@@ -265,6 +287,19 @@ pub struct ExplorationPrd<'a> {
     pub prd_valide_le: Option<&'a str>,
 }
 
+/// Les champs qu'une conversion `validé` porte, groupes pour l'appel a
+/// `Supabase::convertir_prd_valide` - meme raison que `ExplorationPrd`
+/// (clippy, `too_many_arguments`).
+pub struct ConversionPrd<'a> {
+    /// La cle du DOCUMENT (`<date>/<id>`), celle de son eventuelle
+    /// exploration - jamais celle d'une feature.
+    pub doc_prd_cle: &'a str,
+    pub prd_statut: &'a str,
+    pub prd_maj: Option<&'a str>,
+    pub prd_valide_le: Option<&'a str>,
+    pub features: &'a [Feature],
+}
+
 /// Ce qu'une lecture de PRD a produit sur un depot - a l'appelant de
 /// l'afficher (comme `cartographier` et `ingerer_commits` le font deja pour
 /// leur propre resume dans `main.rs`), jamais a `traiter` de decider tout
@@ -275,14 +310,34 @@ pub struct Resume {
     /// Blocs d'exploration poses ou retrouves (l'appel est idempotent : un
     /// document deja lu compte ici sans rien creer de neuf).
     pub blocs_poses: usize,
+    /// FR-039/FR-040 (#37) : features NEUVES posees a cette lecture - une
+    /// feature deja connue dont seul le titre a change n'y entre pas, elle
+    /// est mise a jour en place, jamais recomptee comme creation.
+    pub features_creees: usize,
+    /// FR-041 (#37) : features que CE passage vient de marquer `prd_absent`
+    /// (pas le total cumule en base, seulement ce qui vient de disparaitre).
+    pub features_absentes: usize,
     /// FR-044 : chemins des documents dont l'en-tete est reconnu, mais dont
     /// aucune feature ne l'est.
     pub sans_feature_reconnue: Vec<PathBuf>,
+    /// Decision de #37 sur les `id` de PRD dupliques : deux documents
+    /// `validé` qui partagent la meme cle de document (date, id)
+    /// produiraient des features sous les MEMES `prd_cle` - le second
+    /// ecraserait ou serait absorbe en silence par le premier. Plutot que de
+    /// deviner lequel des deux fait foi (PRD, hypotheses : "on corrige le
+    /// document, on ne devine pas"), seul le premier document rencontre dans
+    /// CE passage (ordre alphabetique stable de `markdowns_du_depot`) est
+    /// converti ; les suivants atterrissent ici, signales a l'ecran comme
+    /// `sans_feature_reconnue` l'est deja pour FR-044.
+    pub cles_dupliquees: Vec<PathBuf>,
 }
 
-/// Lit les PRD d'un depot et publie le bloc d'exploration de chaque
-/// brouillon qui designe ce depot. Un document qui echoue a s'ecrire
-/// n'arrete pas les autres, comme le reste de la cartographie.
+/// Lit les PRD d'un depot et publie ce que chaque document decrit : le bloc
+/// d'exploration d'un brouillon (#36, FR-038), ou la conversion en features
+/// d'un document `validé` (#37, FR-039 a FR-042), ou le retrait silencieux
+/// (`prd_absent`) des blocs d'un document `abandonné`. Un document qui
+/// echoue a s'ecrire n'arrete pas les autres, comme le reste de la
+/// cartographie.
 pub async fn traiter(
     client: &crate::Supabase,
     racine: &Path,
@@ -291,6 +346,12 @@ pub async fn traiter(
 ) -> Resume {
     let nom_du_depot = nom_logique(plan);
     let mut resume = Resume::default();
+
+    // Cles de DOCUMENT (`<date>/<id>`) deja converties pendant CE passage -
+    // voir le commentaire de `Resume::cles_dupliquees` pour le raisonnement
+    // complet sur les id dupliques.
+    let mut cles_validees_ce_passage: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
 
     for chemin_relatif in markdowns_du_depot(racine) {
         let Ok(contenu) = std::fs::read_to_string(racine.join(&chemin_relatif)) else {
@@ -309,34 +370,110 @@ pub async fn traiter(
             resume.sans_feature_reconnue.push(chemin_relatif.clone());
         }
 
-        // FR-038 : seul un brouillon laisse un bloc, et un seul. `validé` et
-        // au-dela restent hors de cette issue (#37) - le daemon ne fait rien
-        // d'autre que les avoir lus.
-        if document.entete.statut != "draft" {
-            continue;
-        }
-
-        let chemin_texte = chemin_relatif.to_string_lossy().replace('\\', "/");
-        let titre = format!("cadrage {}", document.entete.titre);
         // Cle du DOCUMENT, jamais celle d'une feature (`<date>/<id>/Fn`,
         // FR-040) : sans le `/Fn`, elle ne collisionne avec aucune d'elles,
         // et la meme paire (date, id) identifie deja le document.
-        let prd_cle = format!("{}/{}", document.entete.date, document.entete.id);
+        let prd_cle_document = format!("{}/{}", document.entete.date, document.entete.id);
 
-        let doc = ExplorationPrd {
-            titre: &titre,
-            chemin: &chemin_texte,
-            prd_cle: &prd_cle,
-            prd_statut: &document.entete.statut,
-            prd_maj: document.entete.maj.as_deref(),
-            prd_valide_le: document.entete.valide_le.as_deref(),
-        };
+        match document.entete.statut.as_str() {
+            // FR-038 : un brouillon laisse un bloc, et un seul.
+            "draft" => {
+                let chemin_texte = chemin_relatif.to_string_lossy().replace('\\', "/");
+                let titre = format!("cadrage {}", document.entete.titre);
 
-        match client.creer_bloc_exploration_prd(repo_id, &doc).await {
-            Ok(_) => resume.blocs_poses += 1,
-            Err(erreur) => {
-                eprintln!("PRD {} non publie : {erreur}", chemin_relatif.display());
+                let doc = ExplorationPrd {
+                    titre: &titre,
+                    chemin: &chemin_texte,
+                    prd_cle: &prd_cle_document,
+                    prd_statut: &document.entete.statut,
+                    prd_maj: document.entete.maj.as_deref(),
+                    prd_valide_le: document.entete.valide_le.as_deref(),
+                };
+
+                match client.creer_bloc_exploration_prd(repo_id, &doc).await {
+                    // Une ligne SQL NULL de type composite (`return null;`
+                    // cote fonction) n'arrive PAS ici comme un scalaire JSON
+                    // `null` : PostgREST la rend comme un OBJET dont chaque
+                    // colonne vaut `null` (constate a l'usage - `to_json`
+                    // d'un composite NULL suit la meme regle que ROW(NULL,
+                    // NULL, ...)). `id` est la seule colonne NOT NULL sans
+                    // defaut absent : une vraie ligne l'a toujours, une
+                    // ligne NULL ne l'a jamais. C'est ce garde-fou (#37,
+                    // regression `validé` -> `draft`) qui produit ce cas :
+                    // une conversion a deja produit des features pour cette
+                    // cle de document, rien de neuf n'a ete pose.
+                    Ok(valeur) if !valeur["id"].is_null() => resume.blocs_poses += 1,
+                    Ok(_) => eprintln!(
+                        "PRD {} : repasse en draft, mais des features existent deja pour ce document - \
+                         aucune exploration n'est reposee",
+                        chemin_relatif.display()
+                    ),
+                    Err(erreur) => {
+                        eprintln!("PRD {} non publie : {erreur}", chemin_relatif.display());
+                    }
+                }
             }
+
+            // FR-039 a FR-042 (#37) : l'exploration cede la place aux
+            // features, dans la meme transaction cote base.
+            "validé" => {
+                if document.features.is_empty() {
+                    // Deja signale ci-dessus (FR-044) : un document sans
+                    // feature reconnue ne convertit rien - ni l'exploration
+                    // (elle pourrait porter un travail humain), ni quoi que
+                    // ce soit d'autre. On ne devine jamais a partir d'un
+                    // document illisible.
+                    continue;
+                }
+
+                if !cles_validees_ce_passage.insert(prd_cle_document.clone()) {
+                    resume.cles_dupliquees.push(chemin_relatif.clone());
+                    continue;
+                }
+
+                let doc = ConversionPrd {
+                    doc_prd_cle: &prd_cle_document,
+                    prd_statut: &document.entete.statut,
+                    prd_maj: document.entete.maj.as_deref(),
+                    prd_valide_le: document.entete.valide_le.as_deref(),
+                    features: &document.features,
+                };
+
+                match client.convertir_prd_valide(repo_id, &doc).await {
+                    Ok(resultat) => {
+                        resume.features_creees += resultat.features_creees;
+                        resume.features_absentes += resultat.features_absentes;
+                    }
+                    Err(erreur) => {
+                        eprintln!("PRD {} non converti : {erreur}", chemin_relatif.display());
+                    }
+                }
+            }
+
+            // `statut: abandonné` : plus de creation, les blocs deja issus
+            // de ce document passent `prd_absent`. Idempotent par
+            // construction (`marquer_prd_absent` ne touche que ce qui a
+            // change), une collision d'id ici est donc sans consequence -
+            // contrairement a `validé`, aucun garde-fou n'est necessaire.
+            "abandonné" => {
+                if let Err(erreur) = client
+                    .marquer_prd_absent(
+                        repo_id,
+                        &prd_cle_document,
+                        &document.entete.statut,
+                        document.entete.maj.as_deref(),
+                    )
+                    .await
+                {
+                    eprintln!("PRD {} non marque absent : {erreur}", chemin_relatif.display());
+                }
+            }
+
+            // Un statut hors du vocabulaire du produit (ni draft, ni
+            // validé, ni abandonné) : ni exploration, ni conversion, ni
+            // retrait. On ne devine jamais ce qu'un statut inconnu voudrait
+            // dire (meme principe que #36 pour un en-tete non conforme).
+            _ => {}
         }
     }
 

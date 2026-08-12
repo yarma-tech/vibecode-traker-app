@@ -431,6 +431,35 @@ impl TestContext {
         .await;
     }
 
+    /// Appel generique d'une fonction RPC avec un jeton choisi par
+    /// l'appelant, tolerant a l'echec (rend `Err` plutot que de paniquer) :
+    /// sert a eprouver un appel direct a une fonction de conversion PRD
+    /// (#37) hors du chemin normal du daemon - par exemple pour forcer une
+    /// erreur a mi-chemin et verifier que rien n'est reste a moitie ecrit.
+    pub async fn appeler_rpc_avec_jeton(
+        &self,
+        nom: &str,
+        jeton: &str,
+        corps: Value,
+    ) -> Result<Value, (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/rpc/{nom}", self.url))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .json(&corps)
+            .send()
+            .await
+            .expect("appel de fonction RPC");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        Ok(serde_json::from_str(&texte).unwrap_or(Value::Null))
+    }
+
     /// Appel d'une fonction de la base avec la cle de service.
     async fn appeler(&self, nom: &str, corps: Value) -> Vec<Value> {
         let reponse = self
@@ -840,6 +869,36 @@ impl TestContext {
     pub async fn poser_statut_bloc(&self, bloc_id: &str, statut: &str) {
         self.ecrire(&format!("blocs?id=eq.{bloc_id}"), json!({ "statut": statut }))
             .await;
+    }
+
+    /// Tente de poser `prd_priorite` avec la cle de SERVICE - qui echappe a
+    /// la RLS et au trigger `prd_champs_proteges` (FR-042, tous deux
+    /// contournables par un role `rolbypassrls`). Sert a eprouver que la
+    /// contrainte `check` sur la colonne, elle, ne l'est par AUCUN role : la
+    /// garantie de forme (`P<chiffres>`) tient par le schema, pas seulement
+    /// par le parseur du daemon ni par un trigger applicatif.
+    pub async fn tenter_poser_prd_priorite_service(
+        &self,
+        bloc_id: &str,
+        valeur: &str,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .patch(format!("{}/rest/v1/blocs?id=eq.{}", self.url, bloc_id))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .header("Prefer", "return=representation")
+            .json(&json!({ "prd_priorite": valeur }))
+            .send()
+            .await
+            .expect("tentative de pose de prd_priorite avec la cle de service");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        Ok(())
     }
 
     /// Tente de deplacer un bloc directement, avec le jeton d'un utilisateur -

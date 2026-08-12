@@ -11,6 +11,7 @@ import {
   libelleCopier,
   libelleType,
   messageCopie,
+  origineCourte,
   peutSortirDeTermine as blocPeutSortirDeTermine,
   reference,
   suggestionsEmplacement,
@@ -42,8 +43,11 @@ const LIBELLE_STATUT: Record<StatutBloc, string> = TITRE_COLONNE;
 
 const COLONNES_DANS_LORDRE: StatutBloc[] = ["todo", "doing", "done"];
 
-/** Les champs relus a chaque signal, identiques a ceux du premier rendu. */
-const SELECTION_BLOCS = "id,ref,type,titre,statut,version,chemin,position,created_at";
+/** Les champs relus a chaque signal, identiques a ceux du premier rendu. Les
+ *  colonnes `prd_*` (#37) : la priorite et l'origine se lisent, jamais un
+ *  champ qui permettrait de les ecrire depuis ce formulaire. */
+const SELECTION_BLOCS =
+  "id,ref,type,titre,statut,version,chemin,position,created_at,prd_cle,prd_priorite,prd_a_clarifier,prd_absent,prd_converti";
 const SELECTION_ISSUES = "id,ref,bloc_id,titre,chemin,statut,version,position,created_at";
 
 export function Tableau({
@@ -271,15 +275,41 @@ function Carte({
   onSortie: () => void;
   onRetype: () => void;
 }) {
-  const decoupe = estDecoupe(bloc);
+  const decoupe = estDecoupe(issues.length);
   const idPanneau = `issues-${bloc.id}`;
 
   return (
-    <li className="carte">
+    <li className={`carte${bloc.prd_absent ? " carte-prd-absent" : ""}`}>
       <div className="carte-tete">
         <span className="carte-titre">{bloc.titre}</span>
         <BoutonCopierReference numeroRef={bloc.ref} titre={bloc.titre} classeTexte="carte-ref" />
       </div>
+      {/* La provenance PRD (#37, FR-039 a FR-042) : sa propre ligne, jamais
+          melangee a `.carte-meta` qui porte deja le type, l'emplacement (ou
+          l'avancement) et les boutons - un bloc saisi a la main (`prd_cle`
+          nul) n'affiche cette ligne nulle part, elle n'existe que pour ce
+          qu'un PRD a vraiment produit. */}
+      {bloc.prd_cle && (
+        <div className="carte-prd">
+          {/* FR-042 : la priorite se LIT ici, aucun geste de cette carte ne
+              l'ecrit - ni un champ de saisie, ni un select, contrairement au
+              type juste en dessous (FR-032, qui LUI se retype librement). */}
+          {bloc.prd_priorite && <span className="carte-badge carte-priorite">{bloc.prd_priorite}</span>}
+          <span className="carte-badge carte-origine" title={`Issue du PRD ${origineCourte(bloc.prd_cle)}`}>
+            PRD {origineCourte(bloc.prd_cle)}
+          </span>
+          {bloc.prd_converti && (
+            <span className="carte-badge carte-converti" title="Ce bloc portait deja un travail humain quand son PRD a ete valide : conserve plutot que retire (FR-039)">
+              Convertie
+            </span>
+          )}
+          {bloc.prd_absent && (
+            <span className="carte-badge carte-absent" role="status">
+              Retirée du PRD
+            </span>
+          )}
+        </div>
+      )}
       <div className="carte-meta">
         {/* Le type se lit et se retype au meme endroit (F10, FR-032) : un
             bloc decoupe se retype tout autant qu'un bloc simple - seul son
@@ -305,7 +335,7 @@ function Carte({
         {/* La seule sortie de « Termine » (F8, FR-025) : jamais l'inverse -
             rien ici ne propose de glisser une carte VERS Termine, le geste
             n'existe pas dans cette interface. */}
-        {blocPeutSortirDeTermine(bloc) && (
+        {blocPeutSortirDeTermine(bloc, issues.length) && (
           <BoutonSortieTermine table="blocs" id={bloc.id} libelle="Ramener en cours" onSortie={onSortie} />
         )}
       </div>

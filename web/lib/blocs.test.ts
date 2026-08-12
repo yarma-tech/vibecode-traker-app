@@ -14,6 +14,7 @@ import {
   messageCopie,
   indexSuivantFiltre,
   estToucheFiltre,
+  origineCourte,
   type Bloc,
 } from "./blocs";
 
@@ -29,6 +30,11 @@ function bloc(partiel: Partial<Bloc> & Pick<Bloc, "id" | "ref" | "statut">): Blo
     version: 1,
     position: 0,
     created_at: "2026-08-12T10:00:00Z",
+    prd_cle: null,
+    prd_priorite: null,
+    prd_a_clarifier: false,
+    prd_absent: false,
+    prd_converti: false,
     ...partiel,
   };
 }
@@ -96,28 +102,40 @@ describe("colonnes — trois colonnes derivees du statut", () => {
   });
 });
 
-describe("estDecoupe — un bloc decoupe n'a plus d'emplacement propre (#30)", () => {
-  it("un bloc avec un chemin est simple", () => {
-    expect(estDecoupe(bloc({ id: "a", ref: 1, statut: "todo", chemin: "web/app" }))).toBe(false);
+// Un bloc est decoupe des qu'il porte au moins une issue - jamais deduit du
+// seul chemin (releve en relecture visuelle de #37). Avant #37, un chemin nul
+// impliquait TOUJOURS des issues : seule `bloc_coherent()` (#30) le videait,
+// et seulement en meme temps que la premiere issue apparaissait - les deux
+// etaient donc indissociables. Une feature issue d'un PRD casse cette
+// coincidence : elle nait sans emplacement propre (le document n'en donne
+// aucun) ET sans la moindre issue, un troisieme etat que #29/#30 n'avaient
+// jamais eu a distinguer d'un bloc decoupe.
+describe("estDecoupe — un bloc decoupe des qu'il porte au moins une issue (#37)", () => {
+  it("zero issue : simple, meme sans chemin propre", () => {
+    expect(estDecoupe(0)).toBe(false);
   });
 
-  it("un bloc sans chemin est decoupe", () => {
-    expect(estDecoupe(bloc({ id: "a", ref: 1, statut: "todo", chemin: null }))).toBe(true);
+  it("au moins une issue : decoupe", () => {
+    expect(estDecoupe(3)).toBe(true);
   });
 });
 
 describe("peutSortirDeTermine — la seule sortie de Termine (F8, FR-025)", () => {
   it("un bloc simple termine peut en sortir", () => {
-    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "done", chemin: "web/app" }))).toBe(true);
+    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "done" }), 0)).toBe(true);
   });
 
   it("un bloc a faire ou en cours n'a rien a en sortir", () => {
-    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "todo", chemin: "web/app" }))).toBe(false);
-    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "doing", chemin: "web/app" }))).toBe(false);
+    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "todo" }), 0)).toBe(false);
+    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "doing" }), 0)).toBe(false);
   });
 
-  it("un bloc decoupe ne se sort jamais lui-meme : son statut est derive de ses issues (#30), le geste vit sur elles", () => {
-    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "done", chemin: null }))).toBe(false);
+  it("un bloc decoupe (au moins une issue) ne se sort jamais lui-meme : son statut est derive de ses issues (#30), le geste vit sur elles", () => {
+    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "done" }), 2)).toBe(false);
+  });
+
+  it("une feature issue d'un PRD, jamais decoupee, terminee par une reference de commit, peut sortir de Termine comme n'importe quel bloc simple - son chemin nul ne signifie pas decoupee (#37)", () => {
+    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "done", chemin: null }), 0)).toBe(true);
   });
 });
 
@@ -264,5 +282,19 @@ describe("indexSuivantFiltre — le tabindex glissant du groupe de filtres (FR-0
   it("End va toujours au dernier", () => {
     expect(indexSuivantFiltre(0, TOTAL, "End")).toBe(4);
     expect(indexSuivantFiltre(4, TOTAL, "End")).toBe(4);
+  });
+});
+
+// L'origine PRD affichee sur la carte (issue #37, FR-039 a FR-042) : la cle
+// complete (`<date>/<id>/Fn`) sert au rattachement cote base, mais la date en
+// tete n'apprend rien a la lecture d'une carte - `prd_maj`/`prd_valide_le`,
+// pas encore affiches ici, sont l'endroit ou une date aurait un sens.
+describe("origineCourte — l'origine PRD affichee sur la carte, sans la date en tete", () => {
+  it("retire la date d'une cle de feature (<date>/<id>/Fn)", () => {
+    expect(origineCourte("2026-08-10/PRD-001/F3")).toBe("PRD-001/F3");
+  });
+
+  it("retire la date d'une cle de document (<date>/<id>, celle d'une exploration)", () => {
+    expect(origineCourte("2026-08-10/PRD-001")).toBe("PRD-001");
   });
 });

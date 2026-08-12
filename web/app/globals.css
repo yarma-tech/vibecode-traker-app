@@ -1818,6 +1818,66 @@ code {
   min-width: 0;
 }
 
+/* ---- provenance PRD sur la carte (issue #37, FR-039 a FR-042) ---- */
+
+/* Sa propre ligne, entre le titre et `.carte-meta` : cette carte-ci vient
+   d'un PRD, ce que ni le type ni l'emplacement ne disent. N'existe que pour
+   les blocs qui portent une cle (`prd_cle`) - un bloc saisi a la main n'a pas
+   cette ligne du tout, jamais une ligne vide. */
+.carte-prd {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+/* Meme charpente que `.badge` (accueil) : une pastille mono discrete, jamais
+   un aplat de couleur - la couleur ne fait ici que confirmer un texte deja
+   lisible, elle ne porte jamais seule le sens (meme principe que FR-033 pour
+   le type, applique ici a la provenance). */
+.carte-badge {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-2);
+  border: 1px solid var(--rule-2);
+  border-radius: 20px;
+  padding: 0.02rem 0.45rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* La priorite lue dans le PRD (FR-042) : c'est une PASTILLE de texte, jamais
+   un `<select>` comme `.type-select` juste en dessous - rien sur cette carte
+   ne permet de l'ecrire. */
+.carte-priorite {
+  font-weight: 600;
+}
+
+/* Convertie : ce bloc d'exploration portait deja un travail humain quand son
+   PRD est passe valide (FR-039) - conserve plutot que retire. Discret, une
+   information de contexte plutot qu'une alerte. */
+.carte-converti {
+  color: var(--ink-3);
+}
+
+/* Retiree du PRD (FR-041) : la seule marque qui n'est PAS neutre - un
+   utilisateur qui lit le tableau doit remarquer qu'un travail encore affiche
+   ne correspond plus a rien dans le document source, sans que la carte
+   entiere se confonde avec un etat d'avancement (`--conf` est deja pris par
+   les conflits d'ecriture sur la carte principale). */
+.carte-absent {
+  color: var(--edit);
+  border-color: var(--edit);
+}
+
+/* La carte entiere s'estompe legerement : un second signal, textuel ET
+   visuel, jamais la couleur seule (le badge ci-dessus porte deja le texte
+   « Retirée du PRD »). */
+.carte-prd-absent {
+  opacity: 0.7;
+}
+
 /* ---- decouper un bloc en issues (issue #30) ---- */
 
 /* Le compte d'un bloc decoupe : « 12 / 17 » plutot qu'une case opaque (F6).

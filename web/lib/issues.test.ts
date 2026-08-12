@@ -34,6 +34,11 @@ function bloc(partiel: Partial<Bloc> & Pick<Bloc, "id" | "ref" | "statut">): Blo
     version: 1,
     position: 0,
     created_at: "2026-08-12T10:00:00Z",
+    prd_cle: null,
+    prd_priorite: null,
+    prd_a_clarifier: false,
+    prd_absent: false,
+    prd_converti: false,
     ...partiel,
   };
 }

@@ -329,6 +329,8 @@ async fn cartographier(
     let mut trouves = 0;
     let mut envoyes = 0;
     let mut blocs_prd = 0;
+    let mut features_prd = 0;
+    let mut features_absentes_prd = 0;
 
     for racine in config.racines() {
         let Ok(entrees) = std::fs::read_dir(&racine) else {
@@ -359,10 +361,24 @@ async fn cartographier(
                     // change pas toutes les trente secondes (issue #36).
                     let resume = vibemap::prd::traiter(client, &chemin, &repo_id, &plan).await;
                     blocs_prd += resume.blocs_poses;
+                    features_prd += resume.features_creees;
+                    features_absentes_prd += resume.features_absentes;
                     for sans_feature in &resume.sans_feature_reconnue {
                         eprintln!(
                             "PRD {} ({}) : en-tete reconnu mais aucune feature n'y est identifiee",
                             sans_feature.display(),
+                            plan.name
+                        );
+                    }
+                    // Deux documents `validé` en collision sur (date, id) :
+                    // seul le premier rencontre est converti (issue #37,
+                    // "on corrige le document, on ne devine pas") - le
+                    // second est signale ici comme `sans_feature_reconnue`
+                    // l'est deja pour FR-044, jamais absorbe en silence.
+                    for cle_dupliquee in &resume.cles_dupliquees {
+                        eprintln!(
+                            "PRD {} ({}) : sa cle (date/id) est deja portee par un autre document lu dans ce meme passage, il n'est pas converti",
+                            cle_dupliquee.display(),
                             plan.name
                         );
                     }
@@ -375,7 +391,8 @@ async fn cartographier(
     }
 
     println!(
-        "{} cartographie : {envoyes} repo(s) sur {trouves}, {blocs_prd} bloc(s) d'exploration PRD",
+        "{} cartographie : {envoyes} repo(s) sur {trouves}, {blocs_prd} bloc(s) d'exploration PRD, \
+         {features_prd} feature(s) PRD creee(s), {features_absentes_prd} marquee(s) absente(s)",
         chrono::Utc::now().format("%H:%M:%S")
     );
 }
