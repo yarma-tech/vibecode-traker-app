@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Tableau } from "./tableau";
 import type { Bloc } from "@/lib/blocs";
+import type { Issue } from "@/lib/issues";
 
 export default async function PageProjet({
   params,
@@ -27,10 +28,19 @@ export default async function PageProjet({
 
   if (!repo) notFound();
 
-  const [blocs, modules] = await Promise.all([
+  const [blocs, issues, modules] = await Promise.all([
     supabase
       .from("blocs")
       .select("id,ref,type,titre,statut,version,chemin,position,created_at")
+      .eq("repo_id", id)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true }),
+    // Les issues d'un bloc decoupe (#30) : jamais rendues seules dans une
+    // colonne (FR-021), elles ne servent qu'a l'avancement et au detail
+    // ouvert depuis leur bloc.
+    supabase
+      .from("issues")
+      .select("id,ref,bloc_id,titre,chemin,statut,version,position,created_at")
       .eq("repo_id", id)
       .order("position", { ascending: true })
       .order("created_at", { ascending: true }),
@@ -63,7 +73,12 @@ export default async function PageProjet({
         Le tableau de ce dépôt : ce qui reste à faire, ce qui avance, ce qui est fini.
       </p>
 
-      <Tableau repoId={id} blocsInitiaux={(blocs.data ?? []) as Bloc[]} cheminsConnus={cheminsConnus} />
+      <Tableau
+        repoId={id}
+        blocsInitiaux={(blocs.data ?? []) as Bloc[]}
+        issuesInitiales={(issues.data ?? []) as Issue[]}
+        cheminsConnus={cheminsConnus}
+      />
     </main>
   );
 }

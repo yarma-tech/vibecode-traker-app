@@ -42,6 +42,14 @@ export function titreValide(titre: string): boolean {
   return titre.trim().length > 0;
 }
 
+/** Un bloc est decoupe des qu'il n'a plus d'emplacement propre : la base l'a
+ *  vide au profit de sa premiere issue (#30, FR-006, FR-007). Un bloc ne
+ *  porte donc jamais les deux a la fois - c'est ce que cette fonction lit,
+ *  jamais ce qu'elle decide. */
+export function estDecoupe(bloc: Bloc): boolean {
+  return bloc.chemin === null;
+}
+
 /** Les trois colonnes du tableau, toujours toutes les trois presentes. */
 export type Colonnes = Record<StatutBloc, Bloc[]>;
 

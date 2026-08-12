@@ -1686,3 +1686,144 @@ code {
   white-space: nowrap;
   min-width: 0;
 }
+
+/* ---- decouper un bloc en issues (issue #30) ---- */
+
+/* Le compte d'un bloc decoupe : « 12 / 17 » plutot qu'une case opaque (F6).
+   A la place du chemin, jamais a cote : un bloc decoupe n'en porte plus. */
+.bloc-avancement {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Le bouton d'ouverture : discret, une ligne de texte, pas une icone isolee
+   qui obligerait a en deviner le sens. */
+.bloc-issues-bouton {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.bloc-issues-bouton:hover {
+  color: var(--ink);
+}
+
+/* Le detail ouvert sans quitter le tableau (FR-020) : sous la carte, pas une
+   boite modale qui couperait la vue des autres colonnes. */
+.bloc-issues-panneau {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+/* Une hauteur bornee : dix-sept issues ouvertes ne doivent pas faire fuir le
+   reste du tableau hors de vue (F6 - "le detail a la demande", pas une
+   deuxieme page). */
+.bloc-issues-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+/* Une issue n'est jamais une carte autonome (FR-021), mais elle reprend la
+   meme charpente a deux lignes qu'une carte (titre+ref, puis meta) : c'est
+   ce qui laisse au titre toute la largeur disponible plutot que de le
+   coincer contre trois autres colonnes figees sur une seule ligne. */
+.bloc-issue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 4px;
+  background: var(--paper);
+}
+
+.bloc-issue-tete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.bloc-issue-titre {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.bloc-issue-ref {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+}
+
+.bloc-issue-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.bloc-issue-statut {
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+/* La couleur ne fait que confirmer le libelle du statut, jamais le porter
+   seule - meme regle que les colonnes du tableau. */
+.bloc-issue-doing .bloc-issue-statut {
+  color: var(--edit);
+}
+
+.bloc-issue-done .bloc-issue-statut {
+  color: var(--done);
+}
+
+.bloc-issue-chemin {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Le formulaire d'ajout, plus etroit que celui d'un bloc : il vit a
+   l'interieur d'une carte, pas en tete du tableau. */
+.issue-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.6rem;
+}
+
+.issue-form .bloc-champ {
+  min-width: 8rem;
+}
+
+.issue-form .echec {
+  flex-basis: 100%;
+  margin: 0;
+}

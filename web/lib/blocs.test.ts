@@ -5,6 +5,7 @@ import {
   colonnes,
   titreValide,
   suggestionsEmplacement,
+  estDecoupe,
   type Bloc,
 } from "./blocs";
 
@@ -84,6 +85,16 @@ describe("colonnes — trois colonnes derivees du statut", () => {
     expect(rangees.todo).toEqual([]);
     expect(rangees.doing).toEqual([]);
     expect(rangees.done).toEqual([]);
+  });
+});
+
+describe("estDecoupe — un bloc decoupe n'a plus d'emplacement propre (#30)", () => {
+  it("un bloc avec un chemin est simple", () => {
+    expect(estDecoupe(bloc({ id: "a", ref: 1, statut: "todo", chemin: "web/app" }))).toBe(false);
+  });
+
+  it("un bloc sans chemin est decoupe", () => {
+    expect(estDecoupe(bloc({ id: "a", ref: 1, statut: "todo", chemin: null }))).toBe(true);
   });
 });
 
