@@ -124,6 +124,59 @@ fn les_features_sont_reconnues_avec_cle_titre_priorite() {
     assert_eq!(doc.features[1].priorite.as_deref(), Some("P2"));
 }
 
+/// FR-042 (releve en relecture de #37) : le PRD ecrit `P0` a `P2`, le vrai
+/// PRD-001 va jusqu'a `P3` - `P` suivi d'un ou plusieurs chiffres est la
+/// forme retenue. `P10` (deux chiffres) le prouve : la borne n'est pas
+/// "un seul chiffre", elle est "des chiffres, rien d'autre".
+#[test]
+fn les_priorites_p0_a_p3_et_au_dela_sont_toutes_reconnues() {
+    let corps = format!(
+        "{}{}{}{}{}",
+        section_feature(1, "F0", "P0", ""),
+        section_feature(2, "F1", "P1", ""),
+        section_feature(3, "F2", "P2", ""),
+        section_feature(4, "F3", "P3", ""),
+        section_feature(5, "F10", "P10", ""),
+    );
+    let texte = document("PRD-9", "validé", "2026-08-12", "atelier", None, &corps);
+    let doc = analyser(&texte).expect("en-tete conforme");
+
+    assert_eq!(doc.features[0].priorite.as_deref(), Some("P0"));
+    assert_eq!(doc.features[1].priorite.as_deref(), Some("P1"));
+    assert_eq!(doc.features[2].priorite.as_deref(), Some("P2"));
+    assert_eq!(doc.features[3].priorite.as_deref(), Some("P3"));
+    assert_eq!(doc.features[4].priorite.as_deref(), Some("P10"));
+}
+
+/// FR-042, le canal de texte libre trouve en relecture de #37 : sans borne
+/// de forme, tout ce qui suit `(Priorité :` voyageait tel quel, quelle que
+/// soit sa longueur - exactement le passage que CONTRIBUTING.md interdit
+/// d'ouvrir. Ce qui ne correspond pas a `P<chiffres>` est ECARTE, jamais
+/// tronque ni devine (PRD, hypotheses : "on corrige le document, on ne
+/// devine pas") - la feature reste creee, seule sa priorite retombe a
+/// `None`.
+#[test]
+fn une_priorite_hors_de_la_forme_pn_nest_pas_transmise() {
+    let corps = section_feature(1, "F", "Extremement important, a faire avant tout le reste", "");
+    let texte = document("PRD-9", "validé", "2026-08-12", "atelier", None, &corps);
+    let doc = analyser(&texte).expect("en-tete conforme");
+
+    assert_eq!(doc.features.len(), 1, "la feature reste creee");
+    assert_eq!(doc.features[0].priorite, None, "mais sa priorite hors-forme n'est pas gardee");
+}
+
+/// Meme regle, cas limite : une priorite vide (`(Priorité : )`) n'est pas
+/// plus transmise qu'une priorite bavarde - `P` suivi de rien n'est pas
+/// `P<chiffres>` non plus.
+#[test]
+fn une_priorite_vide_reste_a_none() {
+    let corps = "### F1 — Titre (Priorité : )\n\n";
+    let texte = document("PRD-9", "validé", "2026-08-12", "atelier", None, corps);
+    let doc = analyser(&texte).expect("en-tete conforme");
+
+    assert_eq!(doc.features[0].priorite, None);
+}
+
 /// Le marqueur `[À CLARIFIER]` dans le corps d'UNE section n'affecte que
 /// cette section-la, pas ses voisines.
 #[test]
@@ -683,6 +736,40 @@ async fn la_priorite_dune_feature_ne_peut_pas_etre_modifiee_par_un_patch_direct(
 
     let bloc_apres = ctx.lire_bloc(&id_bloc).await;
     assert_eq!(bloc_apres["prd_priorite"], serde_json::json!("P1"), "la priorite n'a pas bouge");
+}
+
+/// FR-042, le schema plutot que le seul parseur (lecon de #30, releve en
+/// relecture de #37) : meme la cle de SERVICE - qui echappe a la RLS et au
+/// trigger `prd_champs_proteges` juste au-dessus - ne peut pas poser une
+/// `prd_priorite` hors de la forme `P<chiffres>`. Une contrainte `check`
+/// protege la colonne pour TOUT chemin d'ecriture, y compris ceux que ce
+/// depot n'a pas encore imagines.
+#[tokio::test]
+async fn la_colonne_prd_priorite_refuse_toute_valeur_hors_de_la_forme_pn_meme_pour_la_cle_de_service() {
+    let ctx = common::TestContext::new().await;
+    let (client, repo_id) = repo_de_test(&ctx).await;
+    let racine = depot_git_temporaire("priorite-check-schema");
+    let plan = plan_simple("atelier", "local:x");
+
+    let texte = document("PRD-1", "validé", "2026-08-12", "atelier", None, &section_feature(1, "F", "P1", ""));
+    ecrire(&racine, "docs/prd/PRD-1.md", &texte);
+    traiter(&client, &racine, &repo_id, &plan).await;
+
+    let bloc = ctx.lire_blocs(&repo_id).await.into_iter().next().unwrap();
+    let id_bloc = bloc["id"].as_str().unwrap().to_string();
+
+    let refuse = ctx.tenter_poser_prd_priorite_service(&id_bloc, "Tres urgent").await;
+    assert!(refuse.is_err(), "la contrainte check doit refuser une priorite hors forme, meme pour service_role");
+
+    let accepte = ctx.tenter_poser_prd_priorite_service(&id_bloc, "P4").await;
+    assert!(accepte.is_ok(), "P4 respecte la forme P<chiffres> meme si le PRD ne va aujourd'hui qu'a P3");
+
+    let vide_ok = ctx.tenter_poser_prd_priorite_service(&id_bloc, "").await;
+    // Une chaine vide n'est ni `null` ni de la forme `P<chiffres>` : elle
+    // n'a jamais ete produite par le parseur (`nullif` la transforme en
+    // `null` avant d'ecrire), mais un appelant direct pourrait la tenter -
+    // la contrainte doit la refuser au meme titre que tout texte hors forme.
+    assert!(vide_ok.is_err(), "une chaine vide n'est pas P<chiffres> non plus");
 }
 
 /// Le pendant positif du test precedent : le nouveau garde-fou de FR-042 ne

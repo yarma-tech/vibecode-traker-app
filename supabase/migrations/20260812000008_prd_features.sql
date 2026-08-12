@@ -23,6 +23,22 @@
 -- attente de validation) d'une exploration devenue un vestige apres coup.
 alter table public.blocs add column prd_converti boolean not null default false;
 
+-- ------------------------------------------------------ prd_priorite_forme
+-- FR-042 (releve en relecture) : `prd_priorite` etait un `text` sans autre
+-- borne que celle du parseur Rust - un canal de texte libre non contraint,
+-- exactement ce que CONTRIBUTING.md interdit ("aucune table n'a de colonne
+-- où un contenu de fichier... pourrait entrer"), meme quand l'auteur du
+-- document est l'utilisateur lui-meme. Le PRD n'ecrit que `P0` a `P2`, le
+-- vrai PRD-001 va jusqu'a `P3` : `P` suivi d'un ou plusieurs chiffres est le
+-- juste milieu, le meme que celui retenu cote daemon (`prd::priorite_valide`).
+-- La contrainte tient pour TOUT chemin d'ecriture, y compris `service_role`
+-- (une contrainte `check` n'est jamais contournee par `rolbypassrls`,
+-- contrairement a la RLS et au trigger juste en dessous) - c'est la lecon de
+-- #30, ou une regle tenue par la seule fonction laissait les autres chemins
+-- d'ecriture ouverts.
+alter table public.blocs add constraint blocs_prd_priorite_forme
+  check (prd_priorite is null or prd_priorite ~ '^P[0-9]+$');
+
 -- ------------------------------------------------------- prd_champs_proteges
 -- FR-042 : la priorite lue dans le document s'affiche et ne se modifie pas
 -- depuis le tableau - et « ne se modifie pas » ne peut pas etre seulement une

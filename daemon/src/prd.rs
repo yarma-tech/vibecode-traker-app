@@ -212,10 +212,30 @@ fn titre_et_priorite(reste: &str) -> (String, Option<String>) {
             let priorite = sans_tiret[position..]
                 .split_once(':')
                 .map(|(_, apres)| apres.trim().trim_end_matches(')').trim().to_string())
-                .filter(|p| !p.is_empty());
+                .filter(|p| priorite_valide(p));
             (titre, priorite)
         }
         None => (sans_tiret.trim().to_string(), None),
+    }
+}
+
+/// FR-042 : sans borne, tout ce qui suit `(Priorité :` voyagerait vers le
+/// serveur tel quel, quelle que soit sa longueur - exactement le passage
+/// que CONTRIBUTING.md interdit d'ouvrir ("aucune table n'a de colonne où un
+/// contenu de fichier... pourrait entrer"). Le PRD n'ecrit que `P0` a `P2`,
+/// le vrai PRD-001 va jusqu'a `P3` : `P` suivi d'un ou plusieurs chiffres est
+/// le juste milieu entre les deux - assez large pour ne pas rejeter un futur
+/// `P4` sans reouvrir le parseur, assez etroit pour qu'aucun texte libre ne
+/// puisse jamais s'y glisser. Ce qui ne correspond pas est ECARTE, jamais
+/// tronque ni devine (PRD, hypotheses : "on corrige le document, on ne
+/// devine pas") - c'est `titre_et_priorite` qui decide alors `None`, la
+/// feature elle-meme reste creee. La meme forme est imposee cote base par
+/// une contrainte `check` (migration #37) : la garantie tient par le schema,
+/// pas seulement par ce filtre (lecon de #30).
+fn priorite_valide(valeur: &str) -> bool {
+    match valeur.strip_prefix('P') {
+        Some(chiffres) => !chiffres.is_empty() && chiffres.bytes().all(|o| o.is_ascii_digit()),
+        None => false,
     }
 }
 

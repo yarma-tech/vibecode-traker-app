@@ -871,6 +871,36 @@ impl TestContext {
             .await;
     }
 
+    /// Tente de poser `prd_priorite` avec la cle de SERVICE - qui echappe a
+    /// la RLS et au trigger `prd_champs_proteges` (FR-042, tous deux
+    /// contournables par un role `rolbypassrls`). Sert a eprouver que la
+    /// contrainte `check` sur la colonne, elle, ne l'est par AUCUN role : la
+    /// garantie de forme (`P<chiffres>`) tient par le schema, pas seulement
+    /// par le parseur du daemon ni par un trigger applicatif.
+    pub async fn tenter_poser_prd_priorite_service(
+        &self,
+        bloc_id: &str,
+        valeur: &str,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .patch(format!("{}/rest/v1/blocs?id=eq.{}", self.url, bloc_id))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .header("Prefer", "return=representation")
+            .json(&json!({ "prd_priorite": valeur }))
+            .send()
+            .await
+            .expect("tentative de pose de prd_priorite avec la cle de service");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        Ok(())
+    }
+
     /// Tente de deplacer un bloc directement, avec le jeton d'un utilisateur -
     /// comme le ferait un geste web s'il existait. Sert a eprouver FR-018 :
     /// un bloc decoupe doit refuser ce PATCH, un bloc simple doit l'accepter.
