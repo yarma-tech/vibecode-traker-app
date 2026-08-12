@@ -48,19 +48,29 @@ export function heureFigement(dernierBattement: string | null): string {
 }
 
 /**
+ * Une durée, en clair : « 30 s », « 2 min », « 2 h », « 2 j ». Négative ou
+ * non, toujours ramenée à une grandeur positive — un écart « du futur »
+ * (horloges désynchronisées) se dit comme un écart nul, jamais en négatif.
+ * Partagée par tout affichage d'ancienneté : le battement d'une machine ici,
+ * le signal d'un dépôt dans `fraicheur.ts` (issue #39) — une seule formule
+ * d'arrondi, jamais deux qui pourraient diverger.
+ */
+export function dureeTexte(ms: number): string {
+  const secondes = Math.max(0, Math.round(ms / 1000));
+  if (secondes < 60) return `${secondes} s`;
+
+  const minutes = Math.round(secondes / 60);
+  if (minutes < 60) return `${minutes} min`;
+
+  const heures = Math.round(minutes / 60);
+  return heures < 24 ? `${heures} h` : `${Math.round(heures / 24)} j`;
+}
+
+/**
  * Depuis combien de temps la machine se tait, en clair : « il y a 30 s », « il
  * y a 2 min », « il y a 2 h », « il y a 2 j ». Sans battement, « jamais vue ».
  */
 export function depuisTexte(dernierBattement: string | null, maintenant: number): string {
   const ecoule = age(dernierBattement, maintenant);
-  if (ecoule === null) return "jamais vue";
-
-  const secondes = Math.max(0, Math.round(ecoule / 1000));
-  if (secondes < 60) return `il y a ${secondes} s`;
-
-  const minutes = Math.round(secondes / 60);
-  if (minutes < 60) return `il y a ${minutes} min`;
-
-  const heures = Math.round(minutes / 60);
-  return heures < 24 ? `il y a ${heures} h` : `il y a ${Math.round(heures / 24)} j`;
+  return ecoule === null ? "jamais vue" : `il y a ${dureeTexte(ecoule)}`;
 }
