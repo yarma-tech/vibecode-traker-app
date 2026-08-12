@@ -14,6 +14,7 @@ import {
   messageCopie,
   indexSuivantFiltre,
   estToucheFiltre,
+  origineCourte,
   type Bloc,
 } from "./blocs";
 
@@ -29,6 +30,11 @@ function bloc(partiel: Partial<Bloc> & Pick<Bloc, "id" | "ref" | "statut">): Blo
     version: 1,
     position: 0,
     created_at: "2026-08-12T10:00:00Z",
+    prd_cle: null,
+    prd_priorite: null,
+    prd_a_clarifier: false,
+    prd_absent: false,
+    prd_converti: false,
     ...partiel,
   };
 }
@@ -264,5 +270,19 @@ describe("indexSuivantFiltre — le tabindex glissant du groupe de filtres (FR-0
   it("End va toujours au dernier", () => {
     expect(indexSuivantFiltre(0, TOTAL, "End")).toBe(4);
     expect(indexSuivantFiltre(4, TOTAL, "End")).toBe(4);
+  });
+});
+
+// L'origine PRD affichee sur la carte (issue #37, FR-039 a FR-042) : la cle
+// complete (`<date>/<id>/Fn`) sert au rattachement cote base, mais la date en
+// tete n'apprend rien a la lecture d'une carte - `prd_maj`/`prd_valide_le`,
+// pas encore affiches ici, sont l'endroit ou une date aurait un sens.
+describe("origineCourte — l'origine PRD affichee sur la carte, sans la date en tete", () => {
+  it("retire la date d'une cle de feature (<date>/<id>/Fn)", () => {
+    expect(origineCourte("2026-08-10/PRD-001/F3")).toBe("PRD-001/F3");
+  });
+
+  it("retire la date d'une cle de document (<date>/<id>, celle d'une exploration)", () => {
+    expect(origineCourte("2026-08-10/PRD-001")).toBe("PRD-001");
   });
 });

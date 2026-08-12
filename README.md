@@ -11,11 +11,11 @@ fait qu'observer : elle ne lance rien, n'arrête rien, ne corrige rien.
 
 **Ce qui sort de ta machine est une liste fermée.** Des noms de dossiers
 relatifs, des compteurs et des horodatages voyagent, comme avant ; le chemin
-absolu d'un repo devient une empreinte. Deux lectures de contenu peuvent s'y
+absolu d'un repo devient une empreinte. Trois lectures de contenu peuvent s'y
 ajouter, et jamais d'autres : les titres lus dans un PRD - celui du document
-et ceux de ses features -, et - plus tard - la phrase d'un verdict de
-vérification. Ni code, ni diff, ni prompt, ni secret : aucune table n'a de
-colonne où l'un d'eux pourrait entrer.
+et ceux de ses features -, la priorité écrite en face de chaque feature - et -
+plus tard - la phrase d'un verdict de vérification. Ni code, ni diff, ni
+prompt, ni secret : aucune table n'a de colonne où l'un d'eux pourrait entrer.
 
 ## Les trois morceaux
 

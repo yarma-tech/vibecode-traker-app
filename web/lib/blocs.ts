@@ -9,9 +9,10 @@
 export type StatutBloc = "todo" | "doing" | "done";
 export type TypeBloc = "feature" | "correction" | "technique" | "exploration";
 
-/** Un bloc tel que le tableau le lit. La base porte davantage de colonnes
- *  (les `prd_*`, inertes tant que #36 ne les remplit pas) ; l'ecran n'en a
- *  besoin que de celles-ci. */
+/** Un bloc tel que le tableau le lit. La base porte encore d'autres colonnes
+ *  `prd_*` (`prd_statut`, `prd_maj`, `prd_valide_le`) ; l'ecran n'en a besoin
+ *  que de celles-ci - les autres ne servent qu'a la conversion cote daemon
+ *  (#37), jamais a l'affichage. */
 export type Bloc = {
   id: string;
   ref: number;
@@ -22,6 +23,23 @@ export type Bloc = {
   chemin: string | null;
   position: number;
   created_at: string;
+  /** Provenance PRD (#37, FR-039 a FR-042). `null` = saisi a la main - la
+   *  seule provenance que #29 a jamais connue. Rattachee par cette cle,
+   *  jamais par le titre (FR-040) : c'est pour ca qu'un titre de feature
+   *  peut changer d'une lecture a l'autre sans jamais faire de doublon. */
+  prd_cle: string | null;
+  /** Lue dans le document, affichee telle quelle (FR-042) - AUCUN geste du
+   *  tableau ne l'ecrit : ni un input dans une carte, ni un PATCH direct
+   *  (la base la protege elle-meme, `prd_champs_proteges`, migration #37). */
+  prd_priorite: string | null;
+  prd_a_clarifier: boolean;
+  /** FR-041 : la feature a disparu du document, mais son bloc est conserve -
+   *  jamais supprime. Se distingue sur la carte, jamais retiree du tableau. */
+  prd_absent: boolean;
+  /** FR-039 : ce bloc d'exploration portait un travail humain (une issue, une
+   *  fermeture) au moment ou son PRD est passe `validé` - il a donc ete
+   *  conserve plutot que retire, marque ici pour que la carte le dise. */
+  prd_converti: boolean;
 };
 
 /** La reference d'un bloc, telle qu'on la copie pour lancer un agent. */
@@ -78,6 +96,20 @@ export const TYPES: TypeBloc[] = ["feature", "correction", "technique", "explora
  */
 export function libelleType(type: string): string {
   return (LIBELLE_TYPE as Record<string, string>)[type] ?? type;
+}
+
+/**
+ * L'origine PRD affichee sur une carte (#37) : `prd_cle` complete
+ * (`<date>/<id>/Fn` pour une feature, `<date>/<id>` pour une exploration)
+ * sans sa date en tete, qui n'apprend rien a la lecture d'une carte - la
+ * meme date apparait deja, plus lisible, dans `prd_maj`/`prd_valide_le`
+ * quand ils sont affiches. Rend la cle complete telle quelle si elle ne
+ * porte pas de `/` (defensif : ne devrait jamais arriver, `prd_cle` a
+ * toujours au moins un `/` par construction cote daemon).
+ */
+export function origineCourte(prdCle: string): string {
+  const premiereBarre = prdCle.indexOf("/");
+  return premiereBarre === -1 ? prdCle : prdCle.slice(premiereBarre + 1);
 }
 
 /** Un titre est requis : ni vide, ni fait uniquement d'espaces. */

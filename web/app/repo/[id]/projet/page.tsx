@@ -31,7 +31,9 @@ export default async function PageProjet({
   const [blocs, issues, modules] = await Promise.all([
     supabase
       .from("blocs")
-      .select("id,ref,type,titre,statut,version,chemin,position,created_at")
+      .select(
+        "id,ref,type,titre,statut,version,chemin,position,created_at,prd_cle,prd_priorite,prd_a_clarifier,prd_absent,prd_converti",
+      )
       .eq("repo_id", id)
       .order("position", { ascending: true })
       .order("created_at", { ascending: true }),

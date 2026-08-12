@@ -81,6 +81,17 @@ pub enum ApiError {
 
 /// Client d'ecriture vers Supabase.
 ///
+/// Ce que `rpc/convertir_prd_valide` rend (issue #37) : les quatre nombres
+/// et drapeaux dont `prd::traiter` a besoin pour construire son `Resume` et
+/// que l'appelant les affiche, sans reparcourir `blocs` pour les deviner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ResumeConversion {
+    pub features_creees: usize,
+    pub features_absentes: usize,
+    pub exploration_convertie: bool,
+    pub exploration_supprimee: bool,
+}
+
 /// Volontairement mince : des requetes HTTP et du JSON, rien de plus.
 /// L'ADR 0001 interdit d'empiler une abstraction sur la base.
 pub struct Supabase {
@@ -568,6 +579,69 @@ impl Supabase {
             }),
         )
         .await
+    }
+
+    /// Convertit un PRD passe `validé` en ses features (issue #37, FR-039 a
+    /// FR-042) : la conversion de l'exploration (supprimee si vierge,
+    /// conservee et marquee sinon) et l'upsert de chaque feature par sa cle
+    /// (`unique (repo_id, prd_cle)`, jamais par titre) partent dans la MEME
+    /// transaction cote base (`rpc/convertir_prd_valide`) - une erreur en
+    /// cours de route (reseau coupe, feature malformee) annule tout plutot
+    /// que de laisser un etat a moitie converti.
+    pub async fn convertir_prd_valide(
+        &self,
+        repo_id: &str,
+        doc: &crate::prd::ConversionPrd<'_>,
+    ) -> Result<ResumeConversion, ApiError> {
+        let reponse = self
+            .envoyer(
+                "rpc/convertir_prd_valide",
+                None,
+                json!({
+                    "p_repo_id": repo_id,
+                    "p_doc_prd_cle": doc.doc_prd_cle,
+                    "p_prd_statut": doc.prd_statut,
+                    "p_prd_maj": doc.prd_maj,
+                    "p_prd_valide_le": doc.prd_valide_le,
+                    "p_features": doc.features,
+                }),
+            )
+            .await?;
+
+        Ok(ResumeConversion {
+            features_creees: reponse["features_creees"].as_u64().unwrap_or(0) as usize,
+            features_absentes: reponse["features_absentes"].as_u64().unwrap_or(0) as usize,
+            exploration_convertie: reponse["exploration_convertie"].as_bool().unwrap_or(false),
+            exploration_supprimee: reponse["exploration_supprimee"].as_bool().unwrap_or(false),
+        })
+    }
+
+    /// Marque `prd_absent` tout ce qu'un document `abandonné` a deja produit
+    /// (issue #37) : son exploration si elle n'a jamais ete convertie,
+    /// chaque feature. Jamais de creation, jamais de suppression - rend le
+    /// nombre de lignes que CET appel vient de toucher (idempotent : un
+    /// second appel sans rien de neuf a marquer en touche zero).
+    pub async fn marquer_prd_absent(
+        &self,
+        repo_id: &str,
+        doc_prd_cle: &str,
+        prd_statut: &str,
+        prd_maj: Option<&str>,
+    ) -> Result<usize, ApiError> {
+        let reponse = self
+            .envoyer(
+                "rpc/marquer_prd_absent",
+                None,
+                json!({
+                    "p_repo_id": repo_id,
+                    "p_doc_prd_cle": doc_prd_cle,
+                    "p_prd_statut": prd_statut,
+                    "p_prd_maj": prd_maj,
+                }),
+            )
+            .await?;
+
+        Ok(reponse.as_u64().unwrap_or(0) as usize)
     }
 
     async fn envoyer(
