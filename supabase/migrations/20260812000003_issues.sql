@@ -3,12 +3,21 @@
 -- ligne au lieu d'une case opaque : le bloc suit ses issues, sans que deux
 -- etats aient a etre tenus a la main (§4.2 a §4.4 de la conception).
 
+-- Une cle etrangere simple sur `blocs.id` ne verifierait que l'existence du
+-- bloc, pas qu'il vit dans le meme depot que l'issue : une issue du depot B
+-- pourrait alors s'accrocher au bloc d'un depot A, et `bloc_coherent()`
+-- (security definer) viderait l'emplacement d'un bloc qui n'a rien a voir
+-- avec le depot de l'issue. Cette unicite composite est ce qui permet a
+-- `issues.bloc_id` de referencer `(id, repo_id)` plus bas : la base refuse
+-- alors l'attelage, quel que soit le chemin d'ecriture emprunte.
+alter table public.blocs add constraint blocs_id_repo_id_key unique (id, repo_id);
+
 create table public.issues (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null default auth.uid()
              references auth.users (id) on delete cascade,
   repo_id    uuid not null references public.repos (id) on delete cascade,
-  bloc_id    uuid not null references public.blocs (id) on delete cascade,
+  bloc_id    uuid not null,
   ref        int  not null,                    -- meme compteur que les blocs (compteur_ref)
   titre      text not null,
   -- Relatif a la racine du depot ; '' = racine. Pas de defaut : une issue
@@ -21,7 +30,13 @@ create table public.issues (
   position   int  not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (repo_id, ref)
+  unique (repo_id, ref),
+  -- Composite plutot que simple : une issue ne peut s'accrocher qu'a un bloc
+  -- de SON depot, pas au bloc de n'importe quel autre. `creer_issue` derive
+  -- toujours `repo_id` du bloc lui-meme (plus bas), les deux colonnes sont
+  -- donc toujours coherentes par ce chemin - mais c'est la contrainte, pas la
+  -- fonction, qui l'impose a tout autre chemin d'ecriture.
+  foreign key (bloc_id, repo_id) references public.blocs (id, repo_id) on delete cascade
 );
 
 -- Pas d'index d'unicite sur (repo_id, chemin) : six issues peuvent partager

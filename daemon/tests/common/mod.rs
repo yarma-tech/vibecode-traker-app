@@ -663,6 +663,7 @@ impl TestContext {
             .bearer_auth(&self.service_key)
             .header("Prefer", "return=representation")
             .json(&json!([{
+                "user_id": self.user_id,
                 "repo_id": repo_id,
                 "bloc_id": bloc_id,
                 "ref": ref_,

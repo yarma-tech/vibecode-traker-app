@@ -116,6 +116,37 @@ async fn une_insertion_brute_ne_permet_pas_non_plus_une_sous_issue() {
     );
 }
 
+/// Une issue declaree dans un depot ne peut pas s'accrocher au bloc d'un
+/// autre depot : rien dans le schema ne reliait `issues.bloc_id` a
+/// `issues.repo_id`, seule la cle etrangere simple sur `blocs.id` etait
+/// verifiee. Deux consequences a prouver mortes : l'insertion doit echouer,
+/// et le bloc etranger doit ressortir INCHANGE - `bloc_coherent()` est
+/// `security definer` et viderait sinon l'emplacement d'un bloc qui n'a rien
+/// a voir avec le depot de l'issue.
+#[tokio::test]
+async fn une_issue_ne_peut_pas_sattacher_a_un_bloc_dun_autre_depot() {
+    let ctx = common::TestContext::new().await;
+    let machine_id = ctx.create_machine("MacBook Pro").await;
+    let repo_a = ctx.creer_repo(&machine_id, &["web/a"]).await;
+    let repo_b = ctx.creer_repo(&machine_id, &["web/b"]).await;
+
+    let bloc = ctx.creer_bloc(&repo_a, "Bloc du depot A", "feature", "web/a").await;
+    let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
+
+    let resultat = ctx.tenter_inserer_issue_brute(&repo_b, &bloc_id, 999, "web/a").await;
+    assert!(
+        resultat.is_err(),
+        "une issue du depot B ne doit pas pouvoir s'accrocher a un bloc du depot A"
+    );
+
+    let bloc_relu = ctx.lire_bloc(&bloc_id).await;
+    assert_eq!(
+        bloc_relu["chemin"],
+        json!("web/a"),
+        "le bloc etranger ne doit pas avoir ete modifie par la tentative refusee"
+    );
+}
+
 /// Un bloc decoupe suit ses issues (§4.4) : sa case n'est jamais ecrite a la
 /// main, elle est deduite a chaque changement d'une de ses issues.
 #[tokio::test]
