@@ -527,6 +527,97 @@ impl TestContext {
         );
     }
 
+    /// Cree un bloc comme le fera la page web : par la fonction RPC, avec le
+    /// jeton de l'utilisateur du contexte (jamais celui d'une machine).
+    pub async fn creer_bloc(&self, repo_id: &str, titre: &str, type_: &str, chemin: &str) -> Value {
+        self.creer_bloc_avec_jeton(&self.user_token, repo_id, titre, type_, chemin)
+            .await
+            .unwrap_or_else(|(code, texte)| panic!("creer_bloc a echoue ({code}) : {texte}"))
+    }
+
+    /// Meme appel, avec un jeton choisi par l'appelant : sert a eprouver la
+    /// RLS avec le jeton d'un AUTRE compte, sans faire paniquer le test au
+    /// premier refus attendu.
+    pub async fn creer_bloc_avec_jeton(
+        &self,
+        jeton: &str,
+        repo_id: &str,
+        titre: &str,
+        type_: &str,
+        chemin: &str,
+    ) -> Result<Value, (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/rpc/creer_bloc", self.url))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .json(&json!({
+                "p_repo_id": repo_id,
+                "p_titre": titre,
+                "p_type": type_,
+                "p_chemin": chemin,
+            }))
+            .send()
+            .await
+            .expect("appel de creer_bloc");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        Ok(serde_json::from_str(&texte).expect("reponse JSON de creer_bloc"))
+    }
+
+    /// Supprime un bloc en contournant la RLS, comme le fera un jour un
+    /// bouton de suppression : sert ici a eprouver la non-reattribution.
+    pub async fn supprimer_bloc(&self, bloc_id: &str) {
+        let reponse = self
+            .http
+            .delete(format!("{}/rest/v1/blocs?id=eq.{}", self.url, bloc_id))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .send()
+            .await
+            .expect("suppression de bloc");
+
+        assert!(
+            reponse.status().is_success(),
+            "suppression du bloc {bloc_id} a echoue ({})",
+            reponse.status()
+        );
+    }
+
+    /// Relit les blocs d'un repo en contournant la RLS.
+    pub async fn lire_blocs(&self, repo_id: &str) -> Vec<Value> {
+        self.lire(&format!("blocs?repo_id=eq.{repo_id}&select=*&order=ref"))
+            .await
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Lit les blocs visibles avec un jeton donne : sert a eprouver que le
+    /// tableau d'un compte reste invisible a un autre.
+    pub async fn lire_blocs_avec_jeton(&self, jeton: &str, repo_id: &str) -> Vec<Value> {
+        let reponse = self
+            .http
+            .get(format!("{}/rest/v1/blocs?repo_id=eq.{repo_id}&select=*", self.url))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .send()
+            .await
+            .expect("lecture de blocs");
+
+        reponse
+            .json::<Value>()
+            .await
+            .expect("reponse JSON de lecture de blocs")
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
     /// Insere une machine appartenant a l'utilisateur du contexte.
     pub async fn create_machine(&self, label: &str) -> String {
         let rows: Value = self

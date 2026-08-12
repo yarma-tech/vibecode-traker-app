@@ -24,6 +24,12 @@
   --conf: oklch(0.505 0.185 27);
   --conf-f: oklch(0.925 0.05 27);
 
+  /* La colonne « Terminé » du tableau manuel (issue #29) : le seul endroit ou
+     un vert apparait, jamais confondu avec le worktree (teinte proche mais un
+     usage disjoint — l'un marque un canal, l'autre un etat de colonne). */
+  --done: oklch(0.5 0.14 152);
+  --done-f: oklch(0.93 0.045 152);
+
   /* Le worktree est un canal a part : ni un etat, ni une couleur saturee de
      plus. Il se lit d'abord a sa hachure et a son trait pointille, la teinte
      verte ne fait que confirmer. Reste donc identifiable en niveaux de gris. */
@@ -53,6 +59,8 @@
     --edit-f: oklch(0.348 0.062 68);
     --conf: oklch(0.7 0.175 27);
     --conf-f: oklch(0.33 0.08 27);
+    --done: oklch(0.72 0.135 152);
+    --done-f: oklch(0.32 0.05 152);
     --wt: oklch(0.78 0.13 152);
     --wt-trame: oklch(0.78 0.13 152 / 0.2);
   }
@@ -197,6 +205,12 @@ code {
   color: var(--ink-2);
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* Le lien vers l'espace projet, second dans l'entete : discret, il ne
+   concurrence pas le retour vers la liste des repos. */
+.lien-projet {
+  color: var(--ink-3);
 }
 
 .titre {
@@ -1073,6 +1087,21 @@ code {
   flex-shrink: 0;
 }
 
+/* Le lien vers l'espace projet de ce repo, a l'extremite de chaque rang. */
+.rang-projet {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rang-projet:hover {
+  color: var(--ink);
+}
+
 .sans-resultat {
   text-align: left;
   background-image: none;
@@ -1491,4 +1520,169 @@ code {
   .squelette-plan .squelette-plaque {
     animation: none;
   }
+}
+
+/* ---------- espace projet : le tableau manuel (issue #29) ---------- */
+
+.projet {
+  margin-top: 1.75rem;
+}
+
+/* Le formulaire de creation, seule ecriture de cette issue : un rang de
+   champs courts, pas une boite modale — la saisie doit rester une geste,
+   pas une interruption. */
+.bloc-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  padding-bottom: 1.5rem;
+  margin-bottom: 1.75rem;
+  border-bottom: 1px solid var(--rule-2);
+}
+
+.bloc-champ {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 9rem;
+}
+
+.bloc-champ .titre {
+  margin: 0;
+}
+
+.bloc-champ-titre {
+  flex: 2 1 16rem;
+}
+
+.bloc-champ-emplacement {
+  flex: 2 1 14rem;
+  position: relative;
+}
+
+.bloc-form .echec {
+  flex-basis: 100%;
+  margin-top: 0;
+}
+
+@media (max-width: 720px) {
+  .bloc-form {
+    align-items: stretch;
+  }
+
+  .bloc-champ {
+    flex: 1 1 100%;
+  }
+}
+
+.colonnes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 780px) {
+  .colonnes {
+    grid-template-columns: 1fr;
+  }
+}
+
+.colonne {
+  border-top: 2px solid var(--rule-2);
+  padding-top: 0.75rem;
+}
+
+/* La couleur d'une colonne ne fait que confirmer ce que son titre dit deja en
+   toutes lettres juste au-dessus : elle ne porte jamais seule le sens. */
+.colonne-doing {
+  border-top-color: var(--edit);
+}
+
+.colonne-done {
+  border-top-color: var(--done);
+}
+
+.colonne-tete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.colonne-titre {
+  margin: 0;
+}
+
+.colonne-compte {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.colonne-vide {
+  color: var(--ink-3);
+  font-size: 0.8125rem;
+  padding: 0.75rem 0;
+  margin: 0;
+}
+
+.cartes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.carte {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+  background: var(--paper-2);
+}
+
+.carte-tete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.carte-titre {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* La reference : ce qu'on copie au moment de lancer un agent (F11, #35). Ici
+   elle n'est que lisible et selectionnable — le geste de copie sans souris
+   arrive avec sa propre issue. */
+.carte-ref {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.carte-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+  min-width: 0;
+}
+
+.carte-chemin {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
