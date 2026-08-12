@@ -117,21 +117,35 @@ export function titreValide(titre: string): boolean {
   return titre.trim().length > 0;
 }
 
-/** Un bloc est decoupe des qu'il n'a plus d'emplacement propre : la base l'a
- *  vide au profit de sa premiere issue (#30, FR-006, FR-007). Un bloc ne
- *  porte donc jamais les deux a la fois - c'est ce que cette fonction lit,
- *  jamais ce qu'elle decide. */
-export function estDecoupe(bloc: Bloc): boolean {
-  return bloc.chemin === null;
+/**
+ * Un bloc est decoupe des qu'il porte au moins une issue - jamais deduit du
+ * seul `chemin` (corrige en relecture visuelle de #37, apres avoir ouvert le
+ * tableau avec de vraies features de PRD). Avant #37, `chemin === null`
+ * impliquait TOUJOURS des issues : seule `bloc_coherent()` (#30) le videait,
+ * et seulement en meme temps que la premiere issue apparaissait - les deux
+ * etaient donc indissociables, et l'ancienne version de cette fonction
+ * (`bloc.chemin === null`) n'avait jamais eu a le savoir. Une feature issue
+ * d'un PRD casse cette coincidence : le document ne donne aucun emplacement,
+ * elle nait donc `chemin = null` SANS la moindre issue - un troisieme etat
+ * que #29/#30 n'avaient jamais eu a distinguer d'un bloc reellement decoupe.
+ * Toujours vrai server-side : `etat_bloc()`, `bloc_statut_protege()` et
+ * `fermer_par_reference()` ne regardent eux non plus jamais `chemin`, toujours
+ * `exists (issues where bloc_id = ...)`.
+ */
+export function estDecoupe(nombreIssues: number): boolean {
+  return nombreIssues > 0;
 }
 
 /** La seule sortie de « Termine » (F8, FR-025) : un bloc simple termine peut
  *  en repartir. Un bloc decoupe, lui, ne se sort jamais directement - son
  *  statut est derive de ses issues (etat_bloc(), #30) et le serveur refuse
  *  de toute facon une ecriture directe dessus (bloc_statut_protege()) ; le
- *  geste de sortie vit alors sur les issues elles-memes. */
-export function peutSortirDeTermine(bloc: Bloc): boolean {
-  return bloc.statut === "done" && !estDecoupe(bloc);
+ *  geste de sortie vit alors sur les issues elles-memes. « Decoupe » se lit
+ *  au nombre d'issues (#37, voir `estDecoupe`), jamais au chemin : une
+ *  feature de PRD terminee par une reference de commit reste un bloc simple
+ *  tant qu'elle n'a pas ete decoupee a la main, meme sans emplacement propre. */
+export function peutSortirDeTermine(bloc: Bloc, nombreIssues: number): boolean {
+  return bloc.statut === "done" && !estDecoupe(nombreIssues);
 }
 
 /** Les trois colonnes du tableau, toujours toutes les trois presentes. */

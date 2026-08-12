@@ -275,7 +275,7 @@ function Carte({
   onSortie: () => void;
   onRetype: () => void;
 }) {
-  const decoupe = estDecoupe(bloc);
+  const decoupe = estDecoupe(issues.length);
   const idPanneau = `issues-${bloc.id}`;
 
   return (
@@ -335,7 +335,7 @@ function Carte({
         {/* La seule sortie de « Termine » (F8, FR-025) : jamais l'inverse -
             rien ici ne propose de glisser une carte VERS Termine, le geste
             n'existe pas dans cette interface. */}
-        {blocPeutSortirDeTermine(bloc) && (
+        {blocPeutSortirDeTermine(bloc, issues.length) && (
           <BoutonSortieTermine table="blocs" id={bloc.id} libelle="Ramener en cours" onSortie={onSortie} />
         )}
       </div>
