@@ -9,10 +9,13 @@ Un dossier par parcelle, la surface proportionnelle aux lignes. Bleu quand on
 lit, ambre quand on écrit, rouge quand deux agents se marchent dessus. La v1 ne
 fait qu'observer : elle ne lance rien, n'arrête rien, ne corrige rien.
 
-**Ton code ne quitte pas ta machine.** Seuls des noms de dossiers relatifs, des
-compteurs et des horodatages voyagent. Le chemin absolu d'un repo devient une
-empreinte ; aucune table n'a de colonne où un contenu de fichier ou un prompt
-pourrait entrer.
+**Ce qui sort de ta machine est une liste fermée.** Des noms de dossiers
+relatifs, des compteurs et des horodatages voyagent, comme avant ; le chemin
+absolu d'un repo devient une empreinte. Deux lectures de contenu peuvent s'y
+ajouter, et jamais d'autres : les titres lus dans un PRD - celui du document
+et ceux de ses features -, et - plus tard - la phrase d'un verdict de
+vérification. Ni code, ni diff, ni prompt, ni secret : aucune table n'a de
+colonne où l'un d'eux pourrait entrer.
 
 ## Les trois morceaux
 
