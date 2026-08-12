@@ -1717,6 +1717,34 @@ code {
   color: var(--ink);
 }
 
+/* La seule sortie de « Termine » (F8, FR-025) : meme charpente discrete que
+   le bouton d'ouverture, jamais un geste plus voyant qui suggererait un
+   aller-retour banal - c'est une correction, pas un mouvement ordinaire du
+   tableau. Aucun equivalent n'existe vers « Termine » : ce geste-la n'a pas
+   de bouton, il n'a pas non plus de glisser-deposer. */
+.bouton-sortie-termine {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.bouton-sortie-termine:hover {
+  color: var(--ink);
+}
+
+.bouton-sortie-termine:disabled {
+  color: var(--ink-3);
+  cursor: default;
+  text-decoration: none;
+}
+
 /* Le detail ouvert sans quitter le tableau (FR-020) : sous la carte, pas une
    boite modale qui couperait la vue des autres colonnes. */
 .bloc-issues-panneau {

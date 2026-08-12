@@ -50,6 +50,15 @@ export function estDecoupe(bloc: Bloc): boolean {
   return bloc.chemin === null;
 }
 
+/** La seule sortie de « Termine » (F8, FR-025) : un bloc simple termine peut
+ *  en repartir. Un bloc decoupe, lui, ne se sort jamais directement - son
+ *  statut est derive de ses issues (etat_bloc(), #30) et le serveur refuse
+ *  de toute facon une ecriture directe dessus (bloc_statut_protege()) ; le
+ *  geste de sortie vit alors sur les issues elles-memes. */
+export function peutSortirDeTermine(bloc: Bloc): boolean {
+  return bloc.statut === "done" && !estDecoupe(bloc);
+}
+
 /** Les trois colonnes du tableau, toujours toutes les trois presentes. */
 export type Colonnes = Record<StatutBloc, Bloc[]>;
 

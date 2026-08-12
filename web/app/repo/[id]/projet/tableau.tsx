@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   colonnes,
   estDecoupe,
+  peutSortirDeTermine as blocPeutSortirDeTermine,
   reference,
   suggestionsEmplacement,
   titreValide,
@@ -16,6 +17,7 @@ import {
 import {
   cheminRequisPourNouvelleIssue,
   issuesDuBloc,
+  peutSortirDeTermine as issuePeutSortirDeTermine,
   texteAvancement,
   type Issue,
 } from "@/lib/issues";
@@ -124,6 +126,7 @@ export function Tableau({
                     cheminsConnus={cheminsConnus}
                     onBasculer={() => setBlocOuvert((courant) => (courant === bloc.id ? null : bloc.id))}
                     onIssueCreee={relire}
+                    onSortie={relire}
                   />
                 ))}
               </ul>
@@ -142,6 +145,7 @@ function Carte({
   cheminsConnus,
   onBasculer,
   onIssueCreee,
+  onSortie,
 }: {
   bloc: Bloc;
   issues: Issue[];
@@ -149,6 +153,7 @@ function Carte({
   cheminsConnus: string[];
   onBasculer: () => void;
   onIssueCreee: () => void;
+  onSortie: () => void;
 }) {
   const decoupe = estDecoupe(bloc);
   const idPanneau = `issues-${bloc.id}`;
@@ -175,6 +180,12 @@ function Carte({
         >
           {ouverte ? "Masquer les issues" : decoupe ? "Voir les issues" : "Découper"}
         </button>
+        {/* La seule sortie de « Termine » (F8, FR-025) : jamais l'inverse -
+            rien ici ne propose de glisser une carte VERS Termine, le geste
+            n'existe pas dans cette interface. */}
+        {blocPeutSortirDeTermine(bloc) && (
+          <BoutonSortieTermine table="blocs" id={bloc.id} libelle="Ramener en cours" onSortie={onSortie} />
+        )}
       </div>
 
       {ouverte && (
@@ -190,6 +201,14 @@ function Carte({
                   <div className="bloc-issue-meta">
                     <span className="bloc-issue-statut">{LIBELLE_STATUT[issue.statut]}</span>
                     <code className="bloc-issue-chemin">{issue.chemin || "/"}</code>
+                    {issuePeutSortirDeTermine(issue) && (
+                      <BoutonSortieTermine
+                        table="issues"
+                        id={issue.id}
+                        libelle="Ramener en cours"
+                        onSortie={onSortie}
+                      />
+                    )}
                   </div>
                 </li>
               ))}
@@ -205,6 +224,42 @@ function Carte({
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * Le geste de sortie de « Terminé » (F8, FR-025) : un PATCH direct qui pose
+ * `doing`, jamais l'inverse - la base refuse de toute facon `done` depuis le
+ * web (policy `update`, #33). Partagee entre un bloc simple et une issue :
+ * la meme ecriture, sur l'une ou l'autre table.
+ */
+function BoutonSortieTermine({
+  table,
+  id,
+  libelle,
+  onSortie,
+}: {
+  table: "blocs" | "issues";
+  id: string;
+  libelle: string;
+  onSortie: () => void;
+}) {
+  const [enCours, setEnCours] = useState(false);
+
+  async function sortir() {
+    if (enCours) return;
+    setEnCours(true);
+
+    const { error } = await createClient().from(table).update({ statut: "doing" }).eq("id", id);
+
+    setEnCours(false);
+    if (!error) onSortie();
+  }
+
+  return (
+    <button type="button" className="bouton-sortie-termine" onClick={sortir} disabled={enCours}>
+      {enCours ? "Retour en cours…" : libelle}
+    </button>
   );
 }
 

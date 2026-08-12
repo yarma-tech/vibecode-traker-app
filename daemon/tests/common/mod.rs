@@ -569,6 +569,60 @@ impl TestContext {
         Ok(serde_json::from_str(&texte).expect("reponse JSON de creer_bloc"))
     }
 
+    /// Tente une insertion brute dans `blocs`, avec le jeton d'un utilisateur -
+    /// jamais par `creer_bloc()`. Sert a eprouver #33 : la policy `insert`
+    /// doit refuser `statut = 'done'` des la creation, pas seulement au fil
+    /// des `update` qui suivent - une ligne ne doit jamais pouvoir NAITRE
+    /// deja terminee.
+    pub async fn inserer_bloc_brut_avec_jeton(
+        &self,
+        jeton: &str,
+        corps: Value,
+    ) -> Result<Value, (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/blocs", self.url))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .header("Prefer", "return=representation")
+            .json(&corps)
+            .send()
+            .await
+            .expect("tentative d'insertion brute de bloc");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        Ok(serde_json::from_str(&texte).expect("reponse JSON d'insertion brute"))
+    }
+
+    /// Le pendant de `inserer_bloc_brut_avec_jeton` pour `issues`.
+    pub async fn inserer_issue_brute_avec_jeton(
+        &self,
+        jeton: &str,
+        corps: Value,
+    ) -> Result<Value, (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/issues", self.url))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .header("Prefer", "return=representation")
+            .json(&corps)
+            .send()
+            .await
+            .expect("tentative d'insertion brute d'issue");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        Ok(serde_json::from_str(&texte).expect("reponse JSON d'insertion brute"))
+    }
+
     /// Supprime un bloc en contournant la RLS, comme le fera un jour un
     /// bouton de suppression : sert ici a eprouver la non-reattribution.
     pub async fn supprimer_bloc(&self, bloc_id: &str) {
@@ -772,8 +826,19 @@ impl TestContext {
     /// Pose directement le statut d'une issue, en contournant la RLS : simule
     /// le signal qu'un futur automatisme (#31, #32) ecrira, sans avoir a
     /// l'implementer pour eprouver la derivation de l'etat d'un bloc (#30).
+    ///
+    /// Sert aussi, depuis #33, a eprouver que la cle `service_role` reste
+    /// capable de poser `done` directement : c'est la meme requete que
+    /// prendrait un automatisme cote serveur, jamais le navigateur.
     pub async fn poser_statut_issue(&self, issue_id: &str, statut: &str) {
         self.ecrire(&format!("issues?id=eq.{issue_id}"), json!({ "statut": statut }))
+            .await;
+    }
+
+    /// Le pendant de `poser_statut_issue` pour un bloc : pose son statut avec
+    /// la cle de service, en contournant la RLS.
+    pub async fn poser_statut_bloc(&self, bloc_id: &str, statut: &str) {
+        self.ecrire(&format!("blocs?id=eq.{bloc_id}"), json!({ "statut": statut }))
             .await;
     }
 
@@ -786,16 +851,70 @@ impl TestContext {
         bloc_id: &str,
         statut: &str,
     ) -> Result<(), (reqwest::StatusCode, String)> {
+        self.patch_bloc_avec_jeton(jeton, bloc_id, json!({ "statut": statut })).await
+    }
+
+    /// Meme geste, avec un corps de requete libre : sert a eprouver qu'un
+    /// PATCH qui glisse `statut = 'done'` au milieu d'autres colonnes est
+    /// refuse comme n'importe quel autre (#33, FR-026) - la policy ne regarde
+    /// que la ligne resultante, jamais la forme de la requete qui l'a produite.
+    pub async fn patch_bloc_avec_jeton(
+        &self,
+        jeton: &str,
+        bloc_id: &str,
+        corps: Value,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
         let reponse = self
             .http
             .patch(format!("{}/rest/v1/blocs?id=eq.{}", self.url, bloc_id))
             .header("apikey", &self.anon_key)
             .bearer_auth(jeton)
             .header("Prefer", "return=representation")
-            .json(&json!({ "statut": statut }))
+            .json(&corps)
             .send()
             .await
-            .expect("requete de deplacement de bloc");
+            .expect("requete de modification de bloc");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        if !(texte.trim_start().starts_with('[') && texte.trim() != "[]") {
+            return Err((code, texte));
+        }
+        Ok(())
+    }
+
+    /// Le pendant de `deplacer_bloc_avec_jeton` pour une issue (#33, FR-025 et
+    /// FR-026) : sert a eprouver la sortie de « Termine » comme le refus d'y
+    /// entrer a la main, sur la table `issues` cette fois.
+    pub async fn deplacer_issue_avec_jeton(
+        &self,
+        jeton: &str,
+        issue_id: &str,
+        statut: &str,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
+        self.patch_issue_avec_jeton(jeton, issue_id, json!({ "statut": statut })).await
+    }
+
+    /// Le pendant de `patch_bloc_avec_jeton` pour une issue.
+    pub async fn patch_issue_avec_jeton(
+        &self,
+        jeton: &str,
+        issue_id: &str,
+        corps: Value,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .patch(format!("{}/rest/v1/issues?id=eq.{}", self.url, issue_id))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .header("Prefer", "return=representation")
+            .json(&corps)
+            .send()
+            .await
+            .expect("requete de modification d'issue");
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();

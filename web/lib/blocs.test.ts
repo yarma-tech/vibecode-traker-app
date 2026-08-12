@@ -6,6 +6,7 @@ import {
   titreValide,
   suggestionsEmplacement,
   estDecoupe,
+  peutSortirDeTermine,
   type Bloc,
 } from "./blocs";
 
@@ -95,6 +96,21 @@ describe("estDecoupe — un bloc decoupe n'a plus d'emplacement propre (#30)", (
 
   it("un bloc sans chemin est decoupe", () => {
     expect(estDecoupe(bloc({ id: "a", ref: 1, statut: "todo", chemin: null }))).toBe(true);
+  });
+});
+
+describe("peutSortirDeTermine — la seule sortie de Termine (F8, FR-025)", () => {
+  it("un bloc simple termine peut en sortir", () => {
+    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "done", chemin: "web/app" }))).toBe(true);
+  });
+
+  it("un bloc a faire ou en cours n'a rien a en sortir", () => {
+    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "todo", chemin: "web/app" }))).toBe(false);
+    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "doing", chemin: "web/app" }))).toBe(false);
+  });
+
+  it("un bloc decoupe ne se sort jamais lui-meme : son statut est derive de ses issues (#30), le geste vit sur elles", () => {
+    expect(peutSortirDeTermine(bloc({ id: "a", ref: 1, statut: "done", chemin: null }))).toBe(false);
   });
 });
 
