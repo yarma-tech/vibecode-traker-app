@@ -5,7 +5,7 @@ Date : 2026-08-09
 
 > Ce document décrivait un modèle à un seul niveau : une tâche, un chemin, une
 > fermeture déduite des fichiers touchés par un commit. Le PRD écrit ensuite
-> ([`docs/PRD-espace-projet-kanban.md`](../../PRD-espace-projet-kanban.md)) a
+> ([`docs/prd/PRD-001-espace-projet-kanban.md`](../../prd/PRD-001-espace-projet-kanban.md)) a
 > retenu deux niveaux (bloc et issue), une fermeture par référence explicite, et
 > une identité de dépôt fondée sur le distant. Presque rien de ce qui suit ne
 > survit. Conservé pour l'historique du raisonnement, pas pour être implémenté.

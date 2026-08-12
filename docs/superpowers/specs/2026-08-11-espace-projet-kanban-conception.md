@@ -2,7 +2,7 @@
 
 Date : 2026-08-11
 État : à relire
-Répond à : [`docs/PRD-espace-projet-kanban.md`](../../PRD-espace-projet-kanban.md) (v1)
+Répond à : [`docs/prd/PRD-001-espace-projet-kanban.md`](../../prd/PRD-001-espace-projet-kanban.md)
 Remplace : `2026-08-09-espace-projet-kanban-design.md`, écrit sur un modèle à un seul niveau dont presque rien ne survit
 S'appuie sur : `2026-08-01-vibe-map-observabilite-web-design.md` (daemon, télémétrie, RLS)
 

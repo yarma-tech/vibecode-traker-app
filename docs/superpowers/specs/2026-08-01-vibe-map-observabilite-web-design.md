@@ -188,7 +188,7 @@ Aucun OAuth double. Le daemon lit le remote git de chaque repo, en extrait le pr
 ## 7. Confidentialité
 
 > **Dépassée sur un point, à la date du 2026-08-11.** Le PRD de l'espace projet
-> ([docs/PRD-espace-projet-kanban.md](../../PRD-espace-projet-kanban.md), §7.1)
+> ([docs/prd/PRD-001-espace-projet-kanban.md](../../prd/PRD-001-espace-projet-kanban.md))
 > remplace la règle absolue ci-dessous par une **liste fermée et publiée** : deux
 > lectures de contenu y sont admises — les titres de features d'un PRD, et le
 > verdict d'une vérification par sous-agent. Le plancher, lui, ne bouge pas :
