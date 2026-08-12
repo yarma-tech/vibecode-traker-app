@@ -20,13 +20,24 @@ export default async function PageProjet({
   if (!user) notFound();
 
   // La RLS suffit a garantir que ce repo appartient bien a cet utilisateur.
+  // `scanned_at` et `machine_id` : les deux colonnes dont F14 derive la
+  // fraicheur (issue #39, conception section 7) - rien de neuf en base.
   const { data: repo } = await supabase
     .from("repos")
-    .select("id,name,remote_owner,current_branch")
+    .select("id,name,remote_owner,current_branch,scanned_at,machine_id")
     .eq("id", id)
     .maybeSingle();
 
   if (!repo) notFound();
+
+  // Le dernier battement de la machine qui porte ce repo, comme sur l'ecran
+  // de plan (`page.tsx` du repo) : c'est le second signal dont F14 derive la
+  // fraicheur, en plus de `repo.scanned_at`.
+  const { data: machine } = await supabase
+    .from("machines")
+    .select("last_seen_at")
+    .eq("id", repo.machine_id)
+    .maybeSingle();
 
   const [blocs, issues, modules] = await Promise.all([
     supabase
@@ -77,6 +88,9 @@ export default async function PageProjet({
 
       <Tableau
         repoId={id}
+        machineId={repo.machine_id}
+        scannedAtInitial={repo.scanned_at}
+        dernierBattementInitial={(machine?.last_seen_at as string | null) ?? null}
         blocsInitiaux={(blocs.data ?? []) as Bloc[]}
         issuesInitiales={(issues.data ?? []) as Issue[]}
         cheminsConnus={cheminsConnus}

@@ -1528,6 +1528,51 @@ code {
   margin-top: 1.75rem;
 }
 
+/* FR-049 (issue #39) : dit depuis quand aucun signal n'a ete recu pour ce
+   depot. N'apparait que quand il y a quelque chose a en dire — un tableau
+   frais ne porte aucune etiquette (meme registre que le rail de l'accueil :
+   le silence ne se signale que quand il est mauvais). Le mot "Muet" porte
+   deja le sens, la couleur ne fait que le souligner (WCAG, jamais seule). */
+.muet-signal {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--edit);
+  margin: 0 0 1rem;
+}
+
+/* ---------- espace projet : les trois etats vides (F14, issue #39) ---------- */
+
+/* Reprend le cadre en tirets de `.vide` (issue #29, "aucun repo cartographie")
+   plutot que d'inventer un second gabarit : le registre existant suffit, et
+   `#43` tranchera plus tard le dessin exact de ces trois etats. */
+.projet .vide {
+  text-align: left;
+  margin-bottom: 1.75rem;
+}
+
+/* Achevement (FR-050) : la seule des trois lectures a colorer un bord — un
+   vert de confirmation, jamais le seul signal (le titre dit deja "termine"
+   en toutes lettres). Meme teinte que la colonne "Termine". */
+.vide-acheve {
+  border-style: solid;
+  border-left: 3px solid var(--done);
+  background-image: none;
+  background: var(--done-f);
+}
+
+/* Muet (FR-050) : ce tableau vide n'a peut-etre rien d'un achevement — un
+   ambre d'avertissement, jamais un vert qui laisserait croire au contraire. */
+.vide-muet {
+  border-style: solid;
+  border-left: 3px solid var(--edit);
+  background-image: none;
+  background: var(--edit-f);
+}
+
 /* Le formulaire de creation, seule ecriture de cette issue : un rang de
    champs courts, pas une boite modale — la saisie doit rester une geste,
    pas une interruption. */

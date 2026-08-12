@@ -32,6 +32,13 @@ import {
   texteAvancement,
   type Issue,
 } from "@/lib/issues";
+import {
+  clinDoeilVisible,
+  dureeDepuisSignal,
+  estFrais,
+  etatTableau,
+  type EtatTableau,
+} from "@/lib/fraicheur";
 
 /** Ce que chaque colonne affiche, dans l'ordre du tableau. */
 const TITRE_COLONNE: Record<StatutBloc, string> = {
@@ -53,19 +60,38 @@ const SELECTION_BLOCS =
   "id,ref,type,titre,statut,version,chemin,position,created_at,prd_cle,prd_priorite,prd_a_clarifier,prd_absent,prd_converti";
 const SELECTION_ISSUES = "id,ref,bloc_id,titre,chemin,statut,version,position,created_at";
 
+/** La fenetre finit par s'ecouler meme quand plus rien n'arrive : sans
+ *  relecture reguliere, un signal qui vient de manquer le seuil de fraicheur
+ *  (F14) resterait affiche « frais » jusqu'au prochain evenement temps reel -
+ *  qui, justement, n'arrive plus si le daemon s'est tu. Meme raison qu'a
+ *  l'accueil et sur le plan d'un repo (`accueil.tsx`, `direct.tsx`). */
+const RELECTURE_MS = 15_000;
+
 export function Tableau({
   repoId,
+  machineId,
+  scannedAtInitial,
+  dernierBattementInitial,
   blocsInitiaux,
   issuesInitiales,
   cheminsConnus,
 }: {
   repoId: string;
+  machineId: string;
+  scannedAtInitial: string;
+  dernierBattementInitial: string | null;
   blocsInitiaux: Bloc[];
   issuesInitiales: Issue[];
   cheminsConnus: string[];
 }) {
   const [blocs, setBlocs] = useState(blocsInitiaux);
   const [issues, setIssues] = useState(issuesInitiales);
+  // Les deux colonnes dont F14 derive la fraicheur (issue #39) : la derniere
+  // cartographie complete et le dernier battement de la machine qui porte ce
+  // repo. Relues a chaque passage comme le reste, jamais recalculees ici -
+  // c'est `lib/fraicheur.ts` qui en tire un age, jamais ce composant.
+  const [scannedAt, setScannedAt] = useState(scannedAtInitial);
+  const [dernierBattement, setDernierBattement] = useState(dernierBattementInitial);
   // Un seul bloc ouvert a la fois : l'ouverture reste un detail consulte en
   // place, jamais une deuxieme vue du tableau (FR-020).
   const [blocOuvert, setBlocOuvert] = useState<string | null>(null);
@@ -93,9 +119,24 @@ export function Tableau({
     return () => document.removeEventListener("focusin", surFocus);
   }, []);
 
+  // L'horloge ne demarre qu'apres le montage, comme sur l'accueil et le plan
+  // d'un repo (`accueil.tsx`, `direct.tsx`) : rendue sur le serveur, elle ne
+  // correspondrait pas a celle du navigateur. Tant qu'elle vaut `null`, le
+  // tableau reste frais - le premier rendu reste celui du serveur, jamais un
+  // clignotement en muet avant meme que l'horloge n'ait demarre.
+  const [maintenant, setMaintenant] = useState<number | null>(null);
+  useEffect(() => {
+    const arrivee = setTimeout(() => setMaintenant(Date.now()), 0);
+    const horloge = setInterval(() => setMaintenant(Date.now()), 1000);
+    return () => {
+      clearTimeout(arrivee);
+      clearInterval(horloge);
+    };
+  }, []);
+
   const relire = useCallback(async () => {
     const supabase = createClient();
-    const [blocsLus, issuesLues] = await Promise.all([
+    const [blocsLus, issuesLues, repoLu, machineLue] = await Promise.all([
       supabase
         .from("blocs")
         .select(SELECTION_BLOCS)
@@ -108,10 +149,17 @@ export function Tableau({
         .eq("repo_id", repoId)
         .order("position", { ascending: true })
         .order("created_at", { ascending: true }),
+      // F14 (issue #39) : le battement retabli par le retour du daemon
+      // degele le tableau sans rechargement, tout comme le plan d'un repo
+      // (`direct.tsx`) degele son bandeau au retour de `machines`.
+      supabase.from("repos").select("scanned_at").eq("id", repoId).maybeSingle(),
+      supabase.from("machines").select("last_seen_at").eq("id", machineId).maybeSingle(),
     ]);
     if (blocsLus.data) setBlocs(blocsLus.data as Bloc[]);
     if (issuesLues.data) setIssues(issuesLues.data as Issue[]);
-  }, [repoId]);
+    if (repoLu.data) setScannedAt(repoLu.data.scanned_at as string);
+    if (machineLue.data) setDernierBattement((machineLue.data.last_seen_at as string | null) ?? null);
+  }, [repoId, machineId]);
 
   // Rejoue apres chaque relecture : si le focus a fini sur `<body>` (perdu,
   // que ce soit par la desactivation d'un bouton en cours d'envoi ou par le
@@ -141,10 +189,23 @@ export function Tableau({
       .channel(`projet-${repoId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "blocs" }, relire)
       .on("postgres_changes", { event: "*", schema: "public", table: "issues" }, relire)
+      // F14 (issue #39) : `repos` porte `scanned_at`, `machines` porte
+      // `last_seen_at` - les deux signaux dont la fraicheur se derive. Sans
+      // cette ecoute, un daemon qui repart ne rafraichirait le tableau qu'a
+      // la prochaine ecriture de bloc ou d'issue, potentiellement jamais.
+      .on("postgres_changes", { event: "*", schema: "public", table: "repos" }, relire)
+      .on("postgres_changes", { event: "*", schema: "public", table: "machines" }, relire)
       .subscribe();
+
+    // Le temps reel n'est qu'un signal, sa charge utile arrive incomplete :
+    // sans relecture reguliere, un daemon qui s'arrete sans plus rien ecrire
+    // ne declenche justement plus aucun evenement pour faire redescendre le
+    // tableau en muet - meme raison qu'a l'accueil et sur le plan d'un repo.
+    const horloge = setInterval(relire, RELECTURE_MS);
 
     return () => {
       supabase.removeChannel(canal);
+      clearInterval(horloge);
     };
   }, [repoId, relire]);
 
@@ -154,10 +215,46 @@ export function Tableau({
   // fois, jamais une seule).
   const rangees = colonnes(filtrerParType(blocs, filtreType));
 
+  // F14 (issue #39) : la fraicheur et l'etat vide se calculent sur la
+  // totalite du tableau, jamais sur ce que le filtre par type laisse
+  // visible - filtrer sur "correction" quand il n'y en a aucune ne doit pas
+  // faire passer un tableau par ailleurs bien vivant pour "muet".
+  // `frais` vaut vrai (optimiste) tant que l'horloge n'a pas demarre : le
+  // premier rendu reste celui du serveur, comme `fige`/`muette` ailleurs
+  // (accueil.tsx, direct.tsx) - mais leur drapeau signale le MAUVAIS etat
+  // (defaut a faux = optimiste), quand le notre signale le BON (`frais`) :
+  // le meme court-circuit `maintenant !== null && ...` inverserait la
+  // polarite et ferait clignoter "muet" une frame avant que l'horloge ne
+  // parte, exactement l'approximation a eviter ici.
+  const frais = maintenant === null || estFrais(scannedAt, dernierBattement, maintenant);
+  const colonnesCompletes = colonnes(blocs);
+  const etatVide: EtatTableau = etatTableau(
+    {
+      todo: colonnesCompletes.todo.length,
+      doing: colonnesCompletes.doing.length,
+      done: colonnesCompletes.done.length,
+    },
+    frais,
+  );
+
   return (
     <div className="projet">
+      {/* FR-049 : dire depuis quand aucun signal n'a ete recu, mais
+          seulement quand il y a quelque chose a en dire - un tableau frais
+          n'a besoin d'aucune etiquette supplementaire (meme registre que
+          l'accueil : le silence ne se signale que quand il est mauvais). */}
+      {maintenant !== null && !frais && (
+        <p className="muet-signal" role="status">
+          Muet depuis {dureeDepuisSignal(scannedAt, dernierBattement, maintenant)}
+        </p>
+      )}
+
       <FormulaireBloc repoId={repoId} cheminsConnus={cheminsConnus} onCree={relire} />
       <FiltreType filtre={filtreType} onChoisir={setFiltreType} />
+
+      {etatVide !== "normal" && (
+        <EtatVideTableau etat={etatVide} frais={frais} />
+      )}
 
       <div className="colonnes">
         {COLONNES_DANS_LORDRE.map((statut) => (
@@ -196,6 +293,63 @@ export function Tableau({
           </section>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Les trois etats vides du tableau (F14, FR-050, FR-051, issue #39) - jamais
+ * confondus : `lib/fraicheur.ts` (`etatTableau`) decide LEQUEL montrer, ce
+ * composant ne fait qu'habiller ce choix d'un texte. Le dessin exact reste a
+ * trancher en revue humaine (issue #43) ; cette version reste sobre et
+ * s'appuie sur le registre deja en place (`.vide`, issue #29 - le meme cadre
+ * en tirets que "aucun repo cartographie" ou "aucune machine").
+ *
+ * Les trois colonnes restent affichees en dessous, toujours toutes les
+ * trois : ce bandeau ne les remplace jamais, il precede seulement leur
+ * lecture d'un mot d'explication qu'elles ne portent pas seules.
+ */
+function EtatVideTableau({ etat, frais }: { etat: Exclude<EtatTableau, "normal">; frais: boolean }) {
+  if (etat === "neuf") {
+    return (
+      <div className="vide vide-neuf" role="status">
+        <p className="vide-titre">Ce tableau est encore vierge.</p>
+        <p className="vide-suite">
+          Une carte créée ici rejoint « À faire », avance en « En cours », se
+          ferme en « Terminé » dès qu&apos;un commit la référence.
+          {/* FR-051 : le clin d'oeil ne se montre que si la fraicheur le
+              permet (issue #39) - le promettre sur un tableau qui ne peut
+              pas prouver qu'il est vivant reviendrait a mentir une fois. */}
+          {clinDoeilVisible(etat, frais) && (
+            <>
+              {" "}« Terminé » restera vide malgré l&apos;historique du dépôt :
+              seul ce qui se passe à partir de maintenant y sera compté.
+            </>
+          )}
+        </p>
+      </div>
+    );
+  }
+
+  if (etat === "acheve") {
+    return (
+      <div className="vide vide-acheve" role="status">
+        <p className="vide-titre">Tout ce qui était suivi ici est terminé.</p>
+        <p className="vide-suite">Aucune carte en attente ni en cours.</p>
+      </div>
+    );
+  }
+
+  // "muet" : FR-050 - le tableau a l'air aussi vide qu'un tableau acheve,
+  // mais aucun signal recent ne permet de s'y fier. Ne jamais le presenter
+  // comme un travail acheve : le dire franchement, comme un repo muet ailleurs
+  // dans l'application (accueil.tsx, direct.tsx).
+  return (
+    <div className="vide vide-muet" role="status">
+      <p className="vide-titre">Aucune carte en attente ni en cours - mais aucun signal récent non plus.</p>
+      <p className="vide-suite">
+        Impossible de garantir que ce dépôt est vraiment à jour tant qu&apos;il reste muet.
+      </p>
     </div>
   );
 }
