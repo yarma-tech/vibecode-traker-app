@@ -129,6 +129,45 @@ export function filtrerParType(blocs: Bloc[], type: TypeBloc | null): Bloc[] {
 }
 
 /**
+ * Le groupe de filtres (FR-031, FR-035) exprime UN seul choix a la fois - un
+ * seul bouton peut etre actif. Cinq boutons pour un choix unique n'ont donc
+ * besoin que d'un seul arret de Tab : le patron WAI-ARIA des barres d'outils
+ * (tabindex glissant) fait porter `tabIndex=0` au seul bouton courant, les
+ * autres `tabIndex=-1`, et ce sont les fleches qui font circuler ce curseur
+ * a l'interieur du groupe (#35 - avant ce correctif, chaque bouton etait un
+ * arret de Tab distinct, ce qui allongeait inutilement le trajet jusqu'a la
+ * premiere reference d'une carte).
+ */
+const TOUCHES_FILTRE = ["ArrowRight", "ArrowLeft", "Home", "End"] as const;
+export type ToucheFiltre = (typeof TOUCHES_FILTRE)[number];
+
+/** Distingue les touches qui font circuler le groupe de toutes les autres -
+ *  Tab et Entree/Espace gardent leur sens natif (quitter le groupe, activer
+ *  le bouton courant) et ne doivent jamais passer par `indexSuivantFiltre`. */
+export function estToucheFiltre(touche: string): touche is ToucheFiltre {
+  return (TOUCHES_FILTRE as readonly string[]).includes(touche);
+}
+
+/**
+ * Le prochain arret du tabindex glissant. Boucle aux deux bouts (ArrowRight
+ * depuis le dernier revient au premier, et inversement) : dans un groupe
+ * aussi court que ce filtre, s'arreter en butee obligerait a repartir en
+ * sens inverse pour atteindre l'autre extremite, plus lent qu'un simple tour.
+ */
+export function indexSuivantFiltre(actif: number, total: number, touche: ToucheFiltre): number {
+  switch (touche) {
+    case "ArrowRight":
+      return (actif + 1) % total;
+    case "ArrowLeft":
+      return (actif - 1 + total) % total;
+    case "Home":
+      return 0;
+    case "End":
+      return total - 1;
+  }
+}
+
+/**
  * Range les blocs dans leurs trois colonnes. La base calcule le statut (pour
  * un bloc decoupe, elle le derivera de ses issues des #30) : cette fonction
  * ne fait que trier ce qu'elle recoit, elle ne le recalcule jamais.

@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import {
   colonnes,
   estDecoupe,
+  estToucheFiltre,
   filtrerParType,
+  indexSuivantFiltre,
   libelleCopier,
   libelleType,
   messageCopie,
@@ -194,8 +196,14 @@ export function Tableau({
  * lisible qu'un groupe de cases.
  *
  * De vrais `<button>`, pas des `<div onClick>` : le clavier et le lecteur
- * d'ecran les recoivent gratuitement, sans geste dedie a coder (#35 reste
- * hors scope, mais rien ici ne doit lui fermer la porte).
+ * d'ecran les recoivent gratuitement, sans geste dedie a coder. Le groupe se
+ * tient par un tabindex glissant (#35, patron WAI-ARIA des barres d'outils) :
+ * cinq boutons qui ne peuvent jamais etre actifs ensemble n'ont besoin que
+ * d'un seul arret de Tab pour tout le groupe - les fleches font circuler ce
+ * curseur, Entree/Espace restent le comportement natif du bouton pour
+ * appliquer le filtre. Avant ce correctif, chaque bouton etait un arret
+ * distinct : cinq `Tab` pour un seul choix, sur le chemin de la premiere
+ * reference d'une carte que F11 veut le plus court possible.
  */
 function FiltreType({
   filtre,
@@ -204,25 +212,40 @@ function FiltreType({
   filtre: TypeBloc | null;
   onChoisir: (type: TypeBloc | null) => void;
 }) {
+  const items: (TypeBloc | null)[] = [null, ...TYPES];
+  const [indexFocalise, setIndexFocalise] = useState(() => {
+    const i = items.indexOf(filtre);
+    return i === -1 ? 0 : i;
+  });
+  const boutons = useRef<(HTMLButtonElement | null)[]>([]);
+
+  function surTouche(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (!estToucheFiltre(e.key)) return;
+    // Empeche le defilement de la page sur Home/End, et la fleche d'agir
+    // deux fois (une fois ici, une fois sur un eventuel autre gestionnaire).
+    e.preventDefault();
+    const suivant = indexSuivantFiltre(index, items.length, e.key);
+    setIndexFocalise(suivant);
+    boutons.current[suivant]?.focus();
+  }
+
   return (
     <div className="filtre-type" role="group" aria-label="Filtrer par type">
-      <button
-        type="button"
-        className="filtre-bouton"
-        aria-pressed={filtre === null}
-        onClick={() => onChoisir(null)}
-      >
-        Tous
-      </button>
-      {TYPES.map((type) => (
+      {items.map((type, index) => (
         <button
-          key={type}
+          key={type ?? "tous"}
+          ref={(el) => {
+            boutons.current[index] = el;
+          }}
           type="button"
           className="filtre-bouton"
           aria-pressed={filtre === type}
-          onClick={() => onChoisir(filtre === type ? null : type)}
+          tabIndex={index === indexFocalise ? 0 : -1}
+          onFocus={() => setIndexFocalise(index)}
+          onKeyDown={(e) => surTouche(e, index)}
+          onClick={() => onChoisir(type === null ? null : filtre === type ? null : type)}
         >
-          {LIBELLE_TYPE[type]}
+          {type === null ? "Tous" : LIBELLE_TYPE[type]}
         </button>
       ))}
     </div>

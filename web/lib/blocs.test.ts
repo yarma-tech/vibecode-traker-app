@@ -12,6 +12,8 @@ import {
   libelleType,
   libelleCopier,
   messageCopie,
+  indexSuivantFiltre,
+  estToucheFiltre,
   type Bloc,
 } from "./blocs";
 
@@ -209,5 +211,58 @@ describe("libelleType — un libelle textuel meme pour un type inconnu (FR-033)"
 
   it("retombe sur la valeur brute si la base renvoie un type que ce front ne connait pas encore (contrainte check qui a evolue cote base sans que le web ait suivi)", () => {
     expect(libelleType("chore")).toBe("chore");
+  });
+});
+
+// Le groupe de filtres (F10, FR-031) exprime UN seul choix a la fois : il se
+// tient au clavier par un tabindex glissant (patron WAI-ARIA des barres
+// d'outils), pas cinq arrets de Tab pour cinq boutons qui ne peuvent de toute
+// facon jamais etre actifs ensemble. Ce que ces fonctions decident : quel
+// bouton devient l'arret unique du groupe apres une fleche (#35 - le
+// correctif demande par la relecture sur le compte de Tab avant la premiere
+// reference).
+describe("estToucheFiltre — reconnait les touches qui font circuler le groupe", () => {
+  it("reconnait les quatre touches de navigation d'un groupe a tabindex glissant", () => {
+    expect(estToucheFiltre("ArrowRight")).toBe(true);
+    expect(estToucheFiltre("ArrowLeft")).toBe(true);
+    expect(estToucheFiltre("Home")).toBe(true);
+    expect(estToucheFiltre("End")).toBe(true);
+  });
+
+  it("ignore toute autre touche - Tab et Entree restent au comportement natif du bouton", () => {
+    expect(estToucheFiltre("Tab")).toBe(false);
+    expect(estToucheFiltre("Enter")).toBe(false);
+    expect(estToucheFiltre(" ")).toBe(false);
+  });
+});
+
+describe("indexSuivantFiltre — le tabindex glissant du groupe de filtres (FR-035)", () => {
+  const TOTAL = 5; // Tous + les quatre types (TYPES)
+
+  it("ArrowRight avance d'un cran", () => {
+    expect(indexSuivantFiltre(0, TOTAL, "ArrowRight")).toBe(1);
+    expect(indexSuivantFiltre(3, TOTAL, "ArrowRight")).toBe(4);
+  });
+
+  it("ArrowRight sur le dernier boucle vers le premier", () => {
+    expect(indexSuivantFiltre(4, TOTAL, "ArrowRight")).toBe(0);
+  });
+
+  it("ArrowLeft recule d'un cran", () => {
+    expect(indexSuivantFiltre(2, TOTAL, "ArrowLeft")).toBe(1);
+  });
+
+  it("ArrowLeft sur le premier boucle vers le dernier", () => {
+    expect(indexSuivantFiltre(0, TOTAL, "ArrowLeft")).toBe(4);
+  });
+
+  it("Home revient toujours au premier", () => {
+    expect(indexSuivantFiltre(3, TOTAL, "Home")).toBe(0);
+    expect(indexSuivantFiltre(0, TOTAL, "Home")).toBe(0);
+  });
+
+  it("End va toujours au dernier", () => {
+    expect(indexSuivantFiltre(0, TOTAL, "End")).toBe(4);
+    expect(indexSuivantFiltre(4, TOTAL, "End")).toBe(4);
   });
 });
