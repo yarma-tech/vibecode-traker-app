@@ -10,6 +10,10 @@ import {
   peutSortirDeTermine,
   filtrerParType,
   libelleType,
+  libelleCopier,
+  messageCopie,
+  indexSuivantFiltre,
+  estToucheFiltre,
   type Bloc,
 } from "./blocs";
 
@@ -164,6 +168,40 @@ describe("filtrerParType — le filtre du tableau par type (FR-031)", () => {
   });
 });
 
+// Copier une reference pour lancer un agent (F11, #35). La reference seule
+// (« VM-7 ») ne dit rien hors du contexte visuel de sa carte : un lecteur
+// d'ecran qui parcourt les boutons de la page doit entendre a la fois la
+// forme VM-n et le titre du travail qu'elle designe (WCAG 2.5.3 — le nom
+// accessible doit contenir le texte visible du bouton, ici « VM-7 »).
+describe("libelleCopier — le nom accessible du bouton de copie (FR-034)", () => {
+  it("contient la reference visible et le titre du travail", () => {
+    expect(libelleCopier(7, "Refaire la landing")).toBe(
+      "Copier VM-7, référence de « Refaire la landing »",
+    );
+  });
+
+  it("garde la forme VM-n meme pour une grande reference", () => {
+    expect(libelleCopier(1234, "Titre")).toContain("VM-1234");
+  });
+});
+
+// Une copie doit se voir (consigne #35) : un bouton muet laisse croire qu'il
+// n'a rien fait et l'utilisateur colle dans le vide. Le message sert a la
+// fois d'annonce pour un lecteur d'ecran (aria-live) et de texte affiche.
+describe("messageCopie — l'annonce apres une tentative de copie (FR-034)", () => {
+  it("annonce le succes avec la reference et le titre", () => {
+    expect(messageCopie(7, "Refaire la landing", true)).toBe(
+      "Référence VM-7 de « Refaire la landing » copiée.",
+    );
+  });
+
+  it("annonce l'echec et explique le repli au clavier", () => {
+    expect(messageCopie(7, "Refaire la landing", false)).toBe(
+      "Copie automatique impossible : sélectionnez VM-7 et copiez-le avec votre clavier.",
+    );
+  });
+});
+
 describe("libelleType — un libelle textuel meme pour un type inconnu (FR-033)", () => {
   it("rend le libelle connu pour les quatre types du PRD", () => {
     for (const type of TYPES) {
@@ -173,5 +211,58 @@ describe("libelleType — un libelle textuel meme pour un type inconnu (FR-033)"
 
   it("retombe sur la valeur brute si la base renvoie un type que ce front ne connait pas encore (contrainte check qui a evolue cote base sans que le web ait suivi)", () => {
     expect(libelleType("chore")).toBe("chore");
+  });
+});
+
+// Le groupe de filtres (F10, FR-031) exprime UN seul choix a la fois : il se
+// tient au clavier par un tabindex glissant (patron WAI-ARIA des barres
+// d'outils), pas cinq arrets de Tab pour cinq boutons qui ne peuvent de toute
+// facon jamais etre actifs ensemble. Ce que ces fonctions decident : quel
+// bouton devient l'arret unique du groupe apres une fleche (#35 - le
+// correctif demande par la relecture sur le compte de Tab avant la premiere
+// reference).
+describe("estToucheFiltre — reconnait les touches qui font circuler le groupe", () => {
+  it("reconnait les quatre touches de navigation d'un groupe a tabindex glissant", () => {
+    expect(estToucheFiltre("ArrowRight")).toBe(true);
+    expect(estToucheFiltre("ArrowLeft")).toBe(true);
+    expect(estToucheFiltre("Home")).toBe(true);
+    expect(estToucheFiltre("End")).toBe(true);
+  });
+
+  it("ignore toute autre touche - Tab et Entree restent au comportement natif du bouton", () => {
+    expect(estToucheFiltre("Tab")).toBe(false);
+    expect(estToucheFiltre("Enter")).toBe(false);
+    expect(estToucheFiltre(" ")).toBe(false);
+  });
+});
+
+describe("indexSuivantFiltre — le tabindex glissant du groupe de filtres (FR-035)", () => {
+  const TOTAL = 5; // Tous + les quatre types (TYPES)
+
+  it("ArrowRight avance d'un cran", () => {
+    expect(indexSuivantFiltre(0, TOTAL, "ArrowRight")).toBe(1);
+    expect(indexSuivantFiltre(3, TOTAL, "ArrowRight")).toBe(4);
+  });
+
+  it("ArrowRight sur le dernier boucle vers le premier", () => {
+    expect(indexSuivantFiltre(4, TOTAL, "ArrowRight")).toBe(0);
+  });
+
+  it("ArrowLeft recule d'un cran", () => {
+    expect(indexSuivantFiltre(2, TOTAL, "ArrowLeft")).toBe(1);
+  });
+
+  it("ArrowLeft sur le premier boucle vers le dernier", () => {
+    expect(indexSuivantFiltre(0, TOTAL, "ArrowLeft")).toBe(4);
+  });
+
+  it("Home revient toujours au premier", () => {
+    expect(indexSuivantFiltre(3, TOTAL, "Home")).toBe(0);
+    expect(indexSuivantFiltre(0, TOTAL, "Home")).toBe(0);
+  });
+
+  it("End va toujours au dernier", () => {
+    expect(indexSuivantFiltre(0, TOTAL, "End")).toBe(4);
+    expect(indexSuivantFiltre(4, TOTAL, "End")).toBe(4);
   });
 });

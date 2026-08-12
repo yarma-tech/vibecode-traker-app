@@ -1,12 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   colonnes,
   estDecoupe,
+  estToucheFiltre,
   filtrerParType,
+  indexSuivantFiltre,
+  libelleCopier,
   libelleType,
+  messageCopie,
   peutSortirDeTermine as blocPeutSortirDeTermine,
   reference,
   suggestionsEmplacement,
@@ -61,6 +65,26 @@ export function Tableau({
   // `null` = tous les types (FR-031). Un etat purement local : le filtre lit
   // le tableau, il ne l'ecrit pas, rien ne le persiste entre deux visites.
   const [filtreType, setFiltreType] = useState<TypeBloc | null>(null);
+  // La reference de la derniere carte a avoir porte le focus (#35). Suivie en
+  // continu par `focusin` plutot que capturee au moment de la relecture : le
+  // geste local de sortie de Termine desactive son bouton des le clic (pour
+  // eviter un double envoi), ce qui fait retomber le focus sur `<body>` AVANT
+  // meme que la relecture ne demarre - la capturer plus tard trouverait deja
+  // `<body>` et aurait perdu la piste. `focusin` ne se declenche jamais vers
+  // `<body>` (ce n'est pas une vraie cible de focus), la valeur suivie reste
+  // donc celle de la derniere carte reellement focalisee par l'utilisateur.
+  const refDerniereCarteFocalisee = useRef<string | null>(null);
+
+  useEffect(() => {
+    function surFocus(e: FocusEvent) {
+      const cible = e.target as HTMLElement | null;
+      const carte = cible?.closest<HTMLElement>(".carte, .bloc-issue") ?? null;
+      refDerniereCarteFocalisee.current =
+        carte?.querySelector<HTMLElement>("[data-ref]")?.dataset.ref ?? null;
+    }
+    document.addEventListener("focusin", surFocus);
+    return () => document.removeEventListener("focusin", surFocus);
+  }, []);
 
   const relire = useCallback(async () => {
     const supabase = createClient();
@@ -81,6 +105,20 @@ export function Tableau({
     if (blocsLus.data) setBlocs(blocsLus.data as Bloc[]);
     if (issuesLues.data) setIssues(issuesLues.data as Issue[]);
   }, [repoId]);
+
+  // Rejoue apres chaque relecture : si le focus a fini sur `<body>` (perdu,
+  // que ce soit par la desactivation d'un bouton en cours d'envoi ou par le
+  // demontage/remontage d'une carte qui change de colonne), on le repose sur
+  // le bouton de copie de la derniere carte suivie par `focusin` - une
+  // approximation assumee (ce n'est pas forcement le controle exact qui
+  // avait le focus), mais qui laisse toujours l'utilisateur sur la carte
+  // qu'il consultait plutot que de le renvoyer en haut de la page.
+  useEffect(() => {
+    if (document.activeElement !== document.body) return;
+    const cible = refDerniereCarteFocalisee.current;
+    if (!cible) return;
+    document.querySelector<HTMLElement>(`[data-ref="${cible}"]`)?.focus();
+  }, [blocs, issues]);
 
   // Le temps reel n'est qu'un signal : sa charge utile arrive incomplete, et
   // un `filter` sur la colonne `repo_id` ne livre rien du tout sur la pile
@@ -158,8 +196,14 @@ export function Tableau({
  * lisible qu'un groupe de cases.
  *
  * De vrais `<button>`, pas des `<div onClick>` : le clavier et le lecteur
- * d'ecran les recoivent gratuitement, sans geste dedie a coder (#35 reste
- * hors scope, mais rien ici ne doit lui fermer la porte).
+ * d'ecran les recoivent gratuitement, sans geste dedie a coder. Le groupe se
+ * tient par un tabindex glissant (#35, patron WAI-ARIA des barres d'outils) :
+ * cinq boutons qui ne peuvent jamais etre actifs ensemble n'ont besoin que
+ * d'un seul arret de Tab pour tout le groupe - les fleches font circuler ce
+ * curseur, Entree/Espace restent le comportement natif du bouton pour
+ * appliquer le filtre. Avant ce correctif, chaque bouton etait un arret
+ * distinct : cinq `Tab` pour un seul choix, sur le chemin de la premiere
+ * reference d'une carte que F11 veut le plus court possible.
  */
 function FiltreType({
   filtre,
@@ -168,25 +212,40 @@ function FiltreType({
   filtre: TypeBloc | null;
   onChoisir: (type: TypeBloc | null) => void;
 }) {
+  const items: (TypeBloc | null)[] = [null, ...TYPES];
+  const [indexFocalise, setIndexFocalise] = useState(() => {
+    const i = items.indexOf(filtre);
+    return i === -1 ? 0 : i;
+  });
+  const boutons = useRef<(HTMLButtonElement | null)[]>([]);
+
+  function surTouche(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (!estToucheFiltre(e.key)) return;
+    // Empeche le defilement de la page sur Home/End, et la fleche d'agir
+    // deux fois (une fois ici, une fois sur un eventuel autre gestionnaire).
+    e.preventDefault();
+    const suivant = indexSuivantFiltre(index, items.length, e.key);
+    setIndexFocalise(suivant);
+    boutons.current[suivant]?.focus();
+  }
+
   return (
     <div className="filtre-type" role="group" aria-label="Filtrer par type">
-      <button
-        type="button"
-        className="filtre-bouton"
-        aria-pressed={filtre === null}
-        onClick={() => onChoisir(null)}
-      >
-        Tous
-      </button>
-      {TYPES.map((type) => (
+      {items.map((type, index) => (
         <button
-          key={type}
+          key={type ?? "tous"}
+          ref={(el) => {
+            boutons.current[index] = el;
+          }}
           type="button"
           className="filtre-bouton"
           aria-pressed={filtre === type}
-          onClick={() => onChoisir(filtre === type ? null : type)}
+          tabIndex={index === indexFocalise ? 0 : -1}
+          onFocus={() => setIndexFocalise(index)}
+          onKeyDown={(e) => surTouche(e, index)}
+          onClick={() => onChoisir(type === null ? null : filtre === type ? null : type)}
         >
-          {LIBELLE_TYPE[type]}
+          {type === null ? "Tous" : LIBELLE_TYPE[type]}
         </button>
       ))}
     </div>
@@ -219,7 +278,7 @@ function Carte({
     <li className="carte">
       <div className="carte-tete">
         <span className="carte-titre">{bloc.titre}</span>
-        <code className="carte-ref">{reference(bloc.ref)}</code>
+        <BoutonCopierReference numeroRef={bloc.ref} titre={bloc.titre} classeTexte="carte-ref" />
       </div>
       <div className="carte-meta">
         {/* Le type se lit et se retype au meme endroit (F10, FR-032) : un
@@ -259,7 +318,11 @@ function Carte({
                 <li key={issue.id} className={`bloc-issue bloc-issue-${issue.statut}`}>
                   <div className="bloc-issue-tete">
                     <span className="bloc-issue-titre">{issue.titre}</span>
-                    <code className="bloc-issue-ref">{reference(issue.ref)}</code>
+                    <BoutonCopierReference
+                      numeroRef={issue.ref}
+                      titre={issue.titre}
+                      classeTexte="bloc-issue-ref"
+                    />
                   </div>
                   <div className="bloc-issue-meta">
                     <span className="bloc-issue-statut">{LIBELLE_STATUT[issue.statut]}</span>
@@ -291,10 +354,137 @@ function Carte({
 }
 
 /**
+ * Copie un texte dans le presse-papier (F11, FR-034), avec repli quand
+ * `navigator.clipboard` manque. Cette API exige un contexte securise
+ * (HTTPS ou localhost) et n'existe pas dans tous les navigateurs ; plutot
+ * que d'echouer en silence dans ce cas, on retombe sur `execCommand`, deprecie
+ * mais encore largement supporte et - contrairement a la Clipboard API - pas
+ * limite aux contextes securises. Si meme ce repli echoue (navigateur trop
+ * ancien, ou API retiree), la fonction rend `false` et c'est l'appelant qui
+ * le dit a l'utilisateur : il reste alors la selection manuelle a la main,
+ * jamais un bouton qui prétend avoir réussi.
+ */
+async function copierTexte(texte: string): Promise<boolean> {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(texte);
+      return true;
+    } catch {
+      // Un contexte non securise peut exposer l'API tout en refusant
+      // l'ecriture (permission refusee) : on tombe au repli ci-dessous
+      // plutot que de remonter un echec qui aurait peut-etre un recours.
+    }
+  }
+  return copierViaSelectionCachee(texte);
+}
+
+/** Le repli historique : une zone de texte hors ecran, selectionnee puis
+ *  copiee par `execCommand`. Fonctionne sans Clipboard API et sans contexte
+ *  securise - exactement le cas que ce repli doit couvrir. */
+function copierViaSelectionCachee(texte: string): boolean {
+  if (typeof document === "undefined") return false;
+
+  const zone = document.createElement("textarea");
+  zone.value = texte;
+  zone.setAttribute("readonly", "");
+  // Hors ecran plutot que masquee : une zone `display: none` ne peut pas
+  // etre selectionnee par certains navigateurs.
+  zone.style.position = "fixed";
+  zone.style.top = "-1000px";
+  zone.style.left = "-1000px";
+  document.body.appendChild(zone);
+  zone.select();
+  zone.setSelectionRange(0, texte.length);
+
+  let succes = false;
+  try {
+    succes = document.execCommand("copy");
+  } catch {
+    succes = false;
+  }
+  document.body.removeChild(zone);
+  return succes;
+}
+
+/**
+ * Le bouton de copie d'une reference (F11, FR-034) : la reference affichee
+ * EST le bouton, pas une icone separee qu'il faudrait deviner ou viser en
+ * plus du texte. Partage entre la carte d'un bloc et le detail d'une issue -
+ * meme geste, que la reference designe l'un ou l'autre (le compteur des deux
+ * est le meme, cf. la conception du 2026-08-11 §4.2).
+ *
+ * Une copie reussie doit se voir (consigne #35) : le texte du bouton bascule
+ * un instant sur « Copié », et une region `aria-live="polite"` annonce le
+ * meme resultat pour qui ne le voit pas. Les deux sont necessaires - la
+ * bascule visuelle ne suffit pas a un lecteur d'ecran, qui n'annonce pas
+ * spontanement le changement de texte d'un bouton deja focalise.
+ */
+function BoutonCopierReference({
+  numeroRef,
+  titre,
+  classeTexte,
+}: {
+  numeroRef: number;
+  titre: string;
+  classeTexte: string;
+}) {
+  const [etat, setEtat] = useState<"repos" | "copie" | "echec">("repos");
+  const boutonRef = useRef<HTMLButtonElement>(null);
+
+  async function copier() {
+    const succes = await copierTexte(reference(numeroRef));
+    setEtat(succes ? "copie" : "echec");
+    // Le repli sans Clipboard API (`copierViaSelectionCachee`) passe par une
+    // zone de texte hors ecran qui recoit brievement le focus pour pouvoir
+    // etre selectionnee, puis est retiree du DOM aussitot copiee - et
+    // retirer du DOM l'element focalise renvoie toujours le focus au
+    // `<body>` (constate a l'usage, #35). Sans ce retour explicite, un
+    // clavier qui vient de copier une reference se retrouve perdu en haut
+    // de la page, sans plus aucun repere sur la carte qu'il consultait.
+    boutonRef.current?.focus();
+    // Le retour reste affiche assez longtemps pour se lire, y compris a la
+    // vitesse d'un lecteur d'ecran, avant de redevenir un simple bouton.
+    window.setTimeout(() => setEtat("repos"), 2500);
+  }
+
+  const texteAffiche =
+    etat === "copie" ? "Copié" : etat === "echec" ? "Copie impossible" : reference(numeroRef);
+
+  return (
+    <span className="copier-ref">
+      <button
+        ref={boutonRef}
+        type="button"
+        className={`${classeTexte} ref-bouton ref-bouton-${etat}`}
+        onClick={copier}
+        aria-label={libelleCopier(numeroRef, titre)}
+        data-ref={numeroRef}
+      >
+        {texteAffiche}
+      </button>
+      {/* Region annoncee par un lecteur d'ecran, toujours presente pour que le
+          navigateur la surveille des le premier changement (une region
+          ajoutee apres coup n'est pas garantie d'etre suivie). */}
+      <span className="visually-hidden" role="status" aria-live="polite">
+        {etat !== "repos" ? messageCopie(numeroRef, titre, etat === "copie") : ""}
+      </span>
+    </span>
+  );
+}
+
+/**
  * Le geste de sortie de « Terminé » (F8, FR-025) : un PATCH direct qui pose
  * `doing`, jamais l'inverse - la base refuse de toute facon `done` depuis le
  * web (policy `update`, #33). Partagee entre un bloc simple et une issue :
  * la meme ecriture, sur l'une ou l'autre table.
+ *
+ * C'est aussi « le déplacement » de FR-035 (#35). Ce tableau n'a qu'un seul
+ * mouvement manuel : celui-ci. Tout le reste avance tout seul (F3, F4) et le
+ * glisser-deposer vers « Terminé » n'existe pas, ni au clavier ni a la
+ * souris (hors scope global du PRD). Rendre « le déplacement » accessible au
+ * clavier revient donc a rendre CE bouton accessible - un `<button>` natif
+ * l'est deja, sans geste dedie a coder : Tab pour l'atteindre, Entree ou
+ * Espace pour l'actionner.
  */
 function BoutonSortieTermine({
   table,
@@ -408,6 +598,7 @@ function FormulaireIssue({
   onCree: () => void;
 }) {
   const idListe = useId();
+  const refTitre = useRef<HTMLInputElement>(null);
   const [titre, setTitre] = useState("");
   const [chemin, setChemin] = useState("");
   const [enCours, setEnCours] = useState(false);
@@ -436,6 +627,12 @@ function FormulaireIssue({
       setTitre("");
       setChemin("");
       onCree();
+      // Vider les champs desactive le bouton « Ajouter » (plus rien a
+      // soumettre) : s'il portait le focus, le navigateur le renvoie au
+      // `<body>` (constate a l'usage, #35 - un clavier qui vient de creer
+      // une issue ne doit pas se retrouver sans repere). Reposer le focus
+      // sur le titre a la fois corrige cela et prepare la saisie suivante.
+      refTitre.current?.focus();
     }
 
     setEnCours(false);
@@ -448,6 +645,7 @@ function FormulaireIssue({
           Nouvelle issue
         </label>
         <input
+          ref={refTitre}
           id={`issue-titre-${bloc.id}`}
           className="champ"
           type="text"
@@ -512,6 +710,7 @@ function FormulaireBloc({
   onCree: () => void;
 }) {
   const idListe = useId();
+  const refTitre = useRef<HTMLInputElement>(null);
   const [titre, setTitre] = useState("");
   const [type, setType] = useState<TypeBloc>("feature");
   const [chemin, setChemin] = useState("");
@@ -542,6 +741,10 @@ function FormulaireBloc({
       setChemin("");
       setType("feature");
       onCree();
+      // Meme raison que dans `FormulaireIssue` : vider le titre desactive
+      // « Créer » (FR-035, #35) - sans ce retour explicite, le clavier qui
+      // vient de creer un bloc atterrit sans repere au sommet de la page.
+      refTitre.current?.focus();
     }
 
     setEnCours(false);
@@ -554,6 +757,7 @@ function FormulaireBloc({
           Titre
         </label>
         <input
+          ref={refTitre}
           id="bloc-titre"
           className="champ"
           type="text"
