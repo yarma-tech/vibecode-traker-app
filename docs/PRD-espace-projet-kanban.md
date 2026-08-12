@@ -1,9 +1,18 @@
-# PRD — Espace projet Vibe Map (Kanban lié au git)
+---
+id: PRD-001
+titre: Espace projet Kanban
+statut: validé
+valide_le: 2026-08-11
+date: 2026-08-10
+maj: 2026-08-11
+repo: vibecode-traker-app
+---
 
-> **Statut** : v1 — toutes les questions sont tranchées ; base de conception pour le spec du 2026-08-11 — relu par un agent le 2026-08-10 ; toutes les questions bloquantes sont tranchées (§10.1)
-> **Date** : 2026-08-10
-> **Produit** : Vibe Map (voir [PRODUCT.md](../PRODUCT.md))
-> **Conception technique** : [spec du 2026-08-09](superpowers/specs/2026-08-09-espace-projet-kanban-design.md) — **désormais en retard sur ce PRD**, voir §11
+# PRD-001 — Espace projet Vibe Map (Kanban lié au git)
+
+> **Produit** : Vibe Map — personnalité et utilisateur dans [PRODUCT.md](../PRODUCT.md)
+> **Conception technique** : [spec du 2026-08-11](superpowers/specs/2026-08-11-espace-projet-kanban-conception.md)
+> **Relu** par un agent le 2026-08-10 ; les quatorze questions ouvertes sont tranchées (§10.1)
 
 ---
 
