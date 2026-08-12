@@ -383,7 +383,11 @@ pub async fn traiter(
                     // une conversion a deja produit des features pour cette
                     // cle de document, rien de neuf n'a ete pose.
                     Ok(valeur) if !valeur["id"].is_null() => resume.blocs_poses += 1,
-                    Ok(_) => {}
+                    Ok(_) => eprintln!(
+                        "PRD {} : repasse en draft, mais des features existent deja pour ce document - \
+                         aucune exploration n'est reposee",
+                        chemin_relatif.display()
+                    ),
                     Err(erreur) => {
                         eprintln!("PRD {} non publie : {erreur}", chemin_relatif.display());
                     }
