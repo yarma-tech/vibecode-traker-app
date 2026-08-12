@@ -2,11 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   reference,
   LIBELLE_TYPE,
+  TYPES,
   colonnes,
   titreValide,
   suggestionsEmplacement,
   estDecoupe,
   peutSortirDeTermine,
+  filtrerParType,
+  libelleType,
   type Bloc,
 } from "./blocs";
 
@@ -127,5 +130,48 @@ describe("suggestionsEmplacement — autocompletion sur les dossiers connus", ()
 
   it("une saisie qui ne correspond a aucun dossier connu ne rend rien, mais reste saisissable ailleurs", () => {
     expect(suggestionsEmplacement(chemins, "web/lib/tva.ts")).toEqual([]);
+  });
+});
+
+// Filtrer le tableau par type (issue #34, FR-031). La fonction ne filtre que
+// des blocs : une issue n'a pas de type propre (elle n'apparait jamais comme
+// une carte autonome, FR-021 - le type est une propriete de ce qu'on lit dans
+// une colonne, donc du bloc, jamais de ce qu'il contient).
+describe("filtrerParType — le filtre du tableau par type (FR-031)", () => {
+  const feature = bloc({ id: "f", ref: 1, statut: "todo", type: "feature" });
+  const correction = bloc({ id: "c", ref: 2, statut: "doing", type: "correction" });
+  const technique = bloc({ id: "t", ref: 3, statut: "done", type: "technique", chemin: null });
+  const exploration = bloc({ id: "e", ref: 4, statut: "doing", type: "exploration" });
+  const tous = [feature, correction, technique, exploration];
+
+  it("sans filtre (null), rend tous les blocs inchanges", () => {
+    expect(filtrerParType(tous, null)).toEqual(tous);
+  });
+
+  it("garde uniquement les blocs du type demande", () => {
+    expect(filtrerParType(tous, "correction")).toEqual([correction]);
+  });
+
+  it("filtre a travers les trois statuts a la fois : le filtre porte sur le type, pas la colonne", () => {
+    // technique est en "done", exploration en "doing" : le filtre ne les
+    // regroupe pas par colonne, seulement par type.
+    expect(filtrerParType(tous, "technique")).toEqual([technique]);
+    expect(filtrerParType(tous, "exploration")).toEqual([exploration]);
+  });
+
+  it("un type sans aucun bloc correspondant rend un tableau vide, jamais tout le monde", () => {
+    expect(filtrerParType([feature, correction], "technique")).toEqual([]);
+  });
+});
+
+describe("libelleType — un libelle textuel meme pour un type inconnu (FR-033)", () => {
+  it("rend le libelle connu pour les quatre types du PRD", () => {
+    for (const type of TYPES) {
+      expect(libelleType(type)).toBe(LIBELLE_TYPE[type]);
+    }
+  });
+
+  it("retombe sur la valeur brute si la base renvoie un type que ce front ne connait pas encore (contrainte check qui a evolue cote base sans que le web ait suivi)", () => {
+    expect(libelleType("chore")).toBe("chore");
   });
 });

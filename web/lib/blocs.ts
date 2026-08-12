@@ -37,6 +37,23 @@ export const LIBELLE_TYPE: Record<TypeBloc, string> = {
   exploration: "Exploration",
 };
 
+/** Les quatre types, dans l'ordre ou le formulaire de creation et le filtre
+ *  les presentent tous les deux — une seule liste, jamais deux qui pourraient
+ *  diverger. */
+export const TYPES: TypeBloc[] = ["feature", "correction", "technique", "exploration"];
+
+/**
+ * Le libelle d'un type, avec une roue de secours : la contrainte `check` de
+ * la base peut evoluer (un cinquieme type ajoute cote SQL) sans que ce front
+ * ait ete redeploye en meme temps. `LIBELLE_TYPE[type]` rendrait alors
+ * `undefined` - un badge vide, la seule chose que FR-033 interdit
+ * explicitement. Retomber sur la valeur brute garde toujours un texte lisible,
+ * jamais la couleur seule, meme pour un type que ce code n'a jamais rencontre.
+ */
+export function libelleType(type: string): string {
+  return (LIBELLE_TYPE as Record<string, string>)[type] ?? type;
+}
+
 /** Un titre est requis : ni vide, ni fait uniquement d'espaces. */
 export function titreValide(titre: string): boolean {
   return titre.trim().length > 0;
@@ -68,6 +85,21 @@ export type Colonnes = Record<StatutBloc, Bloc[]>;
 function parOrdre(a: Bloc, b: Bloc): number {
   if (a.position !== b.position) return a.position - b.position;
   return a.created_at.localeCompare(b.created_at);
+}
+
+/**
+ * Le filtre du tableau par type (FR-031). Il ne porte que sur les blocs : une
+ * issue n'a pas de colonne `type` (elle n'apparait jamais comme une carte
+ * autonome, F6/FR-021), et un bloc decoupe emprunte son type a ce que le
+ * tableau lit reellement dans la colonne, pas a ce que ses issues contiennent
+ * a l'interieur. Filtrer une issue individuellement n'aurait donc pas de sens
+ * : ce que le filtre cache ou montre, c'est toujours une carte entiere.
+ *
+ * `null` veut dire « tous les types » — pas de filtre, la valeur par defaut.
+ */
+export function filtrerParType(blocs: Bloc[], type: TypeBloc | null): Bloc[] {
+  if (type === null) return blocs;
+  return blocs.filter((bloc) => bloc.type === type);
 }
 
 /**
