@@ -5,11 +5,14 @@ import { createClient } from "@/lib/supabase/client";
 import {
   colonnes,
   estDecoupe,
+  filtrerParType,
+  libelleType,
   peutSortirDeTermine as blocPeutSortirDeTermine,
   reference,
   suggestionsEmplacement,
   titreValide,
   LIBELLE_TYPE,
+  TYPES,
   type Bloc,
   type StatutBloc,
   type TypeBloc,
@@ -35,8 +38,6 @@ const LIBELLE_STATUT: Record<StatutBloc, string> = TITRE_COLONNE;
 
 const COLONNES_DANS_LORDRE: StatutBloc[] = ["todo", "doing", "done"];
 
-const TYPES: TypeBloc[] = ["feature", "correction", "technique", "exploration"];
-
 /** Les champs relus a chaque signal, identiques a ceux du premier rendu. */
 const SELECTION_BLOCS = "id,ref,type,titre,statut,version,chemin,position,created_at";
 const SELECTION_ISSUES = "id,ref,bloc_id,titre,chemin,statut,version,position,created_at";
@@ -57,6 +58,9 @@ export function Tableau({
   // Un seul bloc ouvert a la fois : l'ouverture reste un detail consulte en
   // place, jamais une deuxieme vue du tableau (FR-020).
   const [blocOuvert, setBlocOuvert] = useState<string | null>(null);
+  // `null` = tous les types (FR-031). Un etat purement local : le filtre lit
+  // le tableau, il ne l'ecrit pas, rien ne le persiste entre deux visites.
+  const [filtreType, setFiltreType] = useState<TypeBloc | null>(null);
 
   const relire = useCallback(async () => {
     const supabase = createClient();
@@ -99,11 +103,16 @@ export function Tableau({
     };
   }, [repoId, relire]);
 
-  const rangees = colonnes(blocs);
+  // Le filtre s'applique avant de ranger dans les colonnes : ce que le
+  // tableau montre reste toujours coherent entre "combien dans cette
+  // colonne" et "combien de cartes dessous" (FR-031, les trois colonnes a la
+  // fois, jamais une seule).
+  const rangees = colonnes(filtrerParType(blocs, filtreType));
 
   return (
     <div className="projet">
       <FormulaireBloc repoId={repoId} cheminsConnus={cheminsConnus} onCree={relire} />
+      <FiltreType filtre={filtreType} onChoisir={setFiltreType} />
 
       <div className="colonnes">
         {COLONNES_DANS_LORDRE.map((statut) => (
@@ -114,7 +123,9 @@ export function Tableau({
             </div>
 
             {rangees[statut].length === 0 ? (
-              <p className="colonne-vide">Rien ici pour l&apos;instant.</p>
+              <p className="colonne-vide">
+                {filtreType === null ? "Rien ici pour l'instant." : "Rien de ce type ici."}
+              </p>
             ) : (
               <ul className="cartes">
                 {rangees[statut].map((bloc) => (
@@ -127,6 +138,7 @@ export function Tableau({
                     onBasculer={() => setBlocOuvert((courant) => (courant === bloc.id ? null : bloc.id))}
                     onIssueCreee={relire}
                     onSortie={relire}
+                    onRetype={relire}
                   />
                 ))}
               </ul>
@@ -134,6 +146,49 @@ export function Tableau({
           </section>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Le filtre par type (F10, FR-031) : quatre bascules textuelles plus « Tous »,
+ * pas une case a cocher par type ni un menu deroulant qui cacherait les
+ * options. Un seul type actif a la fois - filtrer sur plusieurs types en
+ * meme temps n'est pas demande par le PRD, et une bascule simple reste plus
+ * lisible qu'un groupe de cases.
+ *
+ * De vrais `<button>`, pas des `<div onClick>` : le clavier et le lecteur
+ * d'ecran les recoivent gratuitement, sans geste dedie a coder (#35 reste
+ * hors scope, mais rien ici ne doit lui fermer la porte).
+ */
+function FiltreType({
+  filtre,
+  onChoisir,
+}: {
+  filtre: TypeBloc | null;
+  onChoisir: (type: TypeBloc | null) => void;
+}) {
+  return (
+    <div className="filtre-type" role="group" aria-label="Filtrer par type">
+      <button
+        type="button"
+        className="filtre-bouton"
+        aria-pressed={filtre === null}
+        onClick={() => onChoisir(null)}
+      >
+        Tous
+      </button>
+      {TYPES.map((type) => (
+        <button
+          key={type}
+          type="button"
+          className="filtre-bouton"
+          aria-pressed={filtre === type}
+          onClick={() => onChoisir(filtre === type ? null : type)}
+        >
+          {LIBELLE_TYPE[type]}
+        </button>
+      ))}
     </div>
   );
 }
@@ -146,6 +201,7 @@ function Carte({
   onBasculer,
   onIssueCreee,
   onSortie,
+  onRetype,
 }: {
   bloc: Bloc;
   issues: Issue[];
@@ -154,6 +210,7 @@ function Carte({
   onBasculer: () => void;
   onIssueCreee: () => void;
   onSortie: () => void;
+  onRetype: () => void;
 }) {
   const decoupe = estDecoupe(bloc);
   const idPanneau = `issues-${bloc.id}`;
@@ -165,7 +222,13 @@ function Carte({
         <code className="carte-ref">{reference(bloc.ref)}</code>
       </div>
       <div className="carte-meta">
-        <span className="badge">{LIBELLE_TYPE[bloc.type]}</span>
+        {/* Le type se lit et se retype au meme endroit (F10, FR-032) : un
+            bloc decoupe se retype tout autant qu'un bloc simple - seul son
+            STATUT est derive de ses issues (etat_bloc(), #30), jamais son
+            type. Et une carte deja Terminee se retype aussi (FR-032,
+            "a tout moment") : rien ici ne le distingue d'un bloc a faire, le
+            serveur ne protege que `statut`, jamais `type` (#33). */}
+        <SelectionType bloc={bloc} onRetype={onRetype} />
         {decoupe ? (
           <span className="bloc-avancement">{texteAvancement(issues)}</span>
         ) : (
@@ -260,6 +323,70 @@ function BoutonSortieTermine({
     <button type="button" className="bouton-sortie-termine" onClick={sortir} disabled={enCours}>
       {enCours ? "Retour en cours…" : libelle}
     </button>
+  );
+}
+
+/**
+ * Le retypage d'un bloc (F10, FR-032) : un `<select>`, pas un second
+ * formulaire ni une boite modale - changer d'avis sur le rangement d'une
+ * carte doit couter aussi peu qu'un menu deroulant, jamais une interruption.
+ * Un PATCH direct sur `type` uniquement : `statut` et `version` ne figurent
+ * pas dans le corps de la requete, donc rien ne peut les faire bouger par
+ * megarde depuis ce geste (l'historique - `fermetures` - n'est de toute
+ * facon jamais ecrit que par `fermer_par_reference()`, jamais par le web).
+ *
+ * Aucun etat local optimiste : comme `BoutonSortieTermine`, l'affichage
+ * n'avance qu'apres que l'ecriture a reussi et que `onRetype` (= `relire`) a
+ * relu la base - la meme carte peut etre retypee depuis un autre onglet au
+ * meme moment, et c'est alors la derniere ecriture confirmee qui gagne,
+ * jamais un affichage local qui aurait menti en avance sur la base.
+ */
+function SelectionType({ bloc, onRetype }: { bloc: Bloc; onRetype: () => void }) {
+  const [enCours, setEnCours] = useState(false);
+  const [echec, setEchec] = useState<string | null>(null);
+
+  // La contrainte `check` de la base peut porter un type que ce front ne
+  // connait pas encore (elle evolue independamment d'un deploiement web) :
+  // sans cet ajout, un bloc deja marque de ce type serait impossible a
+  // selectionner tel quel dans son propre menu.
+  const options = TYPES.includes(bloc.type) ? TYPES : [bloc.type, ...TYPES];
+
+  async function retyper(nouveauType: string) {
+    if (nouveauType === bloc.type || enCours) return;
+    setEnCours(true);
+    setEchec(null);
+
+    const { error } = await createClient().from("blocs").update({ type: nouveauType }).eq("id", bloc.id);
+
+    setEnCours(false);
+    if (error) {
+      setEchec(error.message);
+    } else {
+      onRetype();
+    }
+  }
+
+  return (
+    <span className="type-select-champ">
+      <select
+        className="type-select"
+        aria-label={`Type de ${bloc.titre}`}
+        value={bloc.type}
+        disabled={enCours}
+        onChange={(e) => retyper(e.target.value)}
+      >
+        {options.map((type) => (
+          <option key={type} value={type}>
+            {libelleType(type)}
+          </option>
+        ))}
+      </select>
+      {echec && (
+        <span className="echec" role="alert">
+          {echec}
+        </span>
+      )}
+    </span>
   );
 }
 

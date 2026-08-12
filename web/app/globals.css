@@ -1576,6 +1576,41 @@ code {
   }
 }
 
+/* Le filtre par type (F10, FR-031) : des bascules textuelles a cote du
+   formulaire de creation, pas un second bandeau qui deplacerait le regard.
+   `aria-pressed` porte l'etat actif — la couleur ci-dessous ne fait que le
+   confirmer, jamais le seul signal (meme regle que les colonnes). */
+.filtre-type {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1.75rem;
+}
+
+.filtre-bouton {
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  background: var(--paper);
+  border: 1px solid var(--rule-2);
+  border-radius: 20px;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+.filtre-bouton:hover {
+  color: var(--ink);
+  border-color: var(--ink-2);
+}
+
+.filtre-bouton[aria-pressed="true"] {
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
+  font-weight: 600;
+}
+
 .colonnes {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1675,6 +1710,45 @@ code {
   gap: 0.45rem;
   margin-top: 0.5rem;
   min-width: 0;
+}
+
+/* Le retypage (F10, FR-032) : un `<select>` a l'allure d'un badge — le
+   libelle textuel se lit exactement comme avant (FR-033), mais l'element
+   sous-jacent est desormais interactif. Meme forme que `.badge`, dont il
+   prend la place dans `.carte-meta`. */
+.type-select-champ {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.type-select {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  color: var(--ink-2);
+  background: var(--paper);
+  border: 1px solid var(--rule-2);
+  border-radius: 20px;
+  padding: 0.02rem 1.15rem 0.02rem 0.4rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.type-select:hover {
+  color: var(--ink);
+  border-color: var(--ink-2);
+}
+
+.type-select:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.type-select-champ .echec {
+  font-size: 0.6875rem;
+  margin: 0;
 }
 
 .carte-chemin {
