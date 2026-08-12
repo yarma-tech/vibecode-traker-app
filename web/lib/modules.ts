@@ -80,6 +80,13 @@ function cheminExiste(chemin: string, modulesConnus: string[]): boolean {
  *   dossier precis. Tout signaler ici confondrait "ca n'existe plus" avec
  *   "on ne sait pas encore" - la meme distinction que #39 a deja du trancher
  *   pour la fraicheur (voir `fraicheur.ts`).
+ *
+ * Aucune exception de `type` : une exploration (#38) ancre son chemin au
+ * fichier de PRD qui l'a fait naitre, pas a un dossier de travail - mais un
+ * document deplace ou supprime est exactement le cas ou l'utilisateur veut
+ * le savoir, et F13 lui laisse deja de quoi agir (renommer, retyper,
+ * supprimer). L'exclure aurait ete une exception non demandee par l'issue,
+ * pas une simplification.
  */
 export function emplacementDisparu(
   chemin: string | null,
