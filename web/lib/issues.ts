@@ -51,6 +51,13 @@ export function issuesDuBloc(issues: Issue[], blocId: string): Issue[] {
   return issues.filter((i) => i.bloc_id === blocId).sort(parOrdre);
 }
 
+/** La seule sortie de « Termine » (F8, FR-025), cote issue : c'est par elles
+ *  qu'un bloc decoupe redevient « En cours », `etat_bloc()` derive alors le
+ *  bloc parent sans qu'aucun geste ne l'ecrive directement. */
+export function peutSortirDeTermine(issue: Issue): boolean {
+  return issue.statut === "done";
+}
+
 /**
  * L'emplacement d'une nouvelle issue est requis, sauf dans un seul cas : la
  * toute premiere issue d'un bloc encore simple (qui porte donc un chemin)

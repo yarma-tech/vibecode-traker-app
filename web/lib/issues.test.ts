@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { avancement, issuesDuBloc, cheminRequisPourNouvelleIssue, type Issue } from "./issues";
+import {
+  avancement,
+  issuesDuBloc,
+  cheminRequisPourNouvelleIssue,
+  peutSortirDeTermine,
+  type Issue,
+} from "./issues";
 import type { Bloc } from "./blocs";
 
 // Decouper un bloc en issues (issue #30) : l'avancement « 12 / 17 » (F6), le
@@ -82,6 +88,17 @@ describe("issuesDuBloc — les issues d'un bloc, triees pour l'ouverture (FR-020
       "ancienne",
       "recente",
     ]);
+  });
+});
+
+describe("peutSortirDeTermine — la seule sortie de Termine (F8, FR-025)", () => {
+  it("une issue terminee peut en sortir", () => {
+    expect(peutSortirDeTermine(issue({ id: "a", ref: 1, statut: "done" }))).toBe(true);
+  });
+
+  it("une issue a faire ou en cours n'a rien a en sortir", () => {
+    expect(peutSortirDeTermine(issue({ id: "a", ref: 1, statut: "todo" }))).toBe(false);
+    expect(peutSortirDeTermine(issue({ id: "a", ref: 1, statut: "doing" }))).toBe(false);
   });
 });
 
