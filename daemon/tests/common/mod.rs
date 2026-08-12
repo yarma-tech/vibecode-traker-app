@@ -597,6 +597,159 @@ impl TestContext {
             .unwrap_or_default()
     }
 
+    /// Relit un seul bloc en contournant la RLS, pour verifier ce que les
+    /// triggers (bloc_coherent, etat_bloc) lui ont fait subir.
+    pub async fn lire_bloc(&self, bloc_id: &str) -> Value {
+        self.lire(&format!("blocs?id=eq.{bloc_id}&select=*")).await[0].clone()
+    }
+
+    /// Cree une issue comme le fera la page web : par la fonction RPC, avec le
+    /// jeton de l'utilisateur du contexte. `chemin: None` simule une saisie
+    /// vide - le cas de la premiere issue d'un bloc simple, qui n'a pas besoin
+    /// d'en fournir un puisqu'elle herite celui du bloc (FR-006).
+    pub async fn creer_issue(&self, bloc_id: &str, titre: &str, chemin: Option<&str>) -> Value {
+        self.creer_issue_avec_jeton(&self.user_token, bloc_id, titre, chemin)
+            .await
+            .unwrap_or_else(|(code, texte)| panic!("creer_issue a echoue ({code}) : {texte}"))
+    }
+
+    /// Meme appel, avec un jeton choisi par l'appelant : sert a eprouver la
+    /// RLS avec le jeton d'un AUTRE compte, sans faire paniquer le test au
+    /// premier refus attendu.
+    pub async fn creer_issue_avec_jeton(
+        &self,
+        jeton: &str,
+        bloc_id: &str,
+        titre: &str,
+        chemin: Option<&str>,
+    ) -> Result<Value, (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/rpc/creer_issue", self.url))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .json(&json!({
+                "p_bloc_id": bloc_id,
+                "p_titre": titre,
+                "p_chemin": chemin,
+            }))
+            .send()
+            .await
+            .expect("appel de creer_issue");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        Ok(serde_json::from_str(&texte).expect("reponse JSON de creer_issue"))
+    }
+
+    /// Tente une insertion directe dans `issues`, en contournant la RLS et le
+    /// chemin normal de creation (`creer_issue`) : sert uniquement a
+    /// eprouver que le schema lui-meme interdit une sous-issue (FR-008),
+    /// independamment de la verification que fait deja la fonction RPC.
+    pub async fn tenter_inserer_issue_brute(
+        &self,
+        repo_id: &str,
+        bloc_id: &str,
+        ref_: i64,
+        chemin: &str,
+    ) -> Result<Value, (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/issues", self.url))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .header("Prefer", "return=representation")
+            .json(&json!([{
+                "repo_id": repo_id,
+                "bloc_id": bloc_id,
+                "ref": ref_,
+                "titre": "detour interdit",
+                "chemin": chemin,
+            }]))
+            .send()
+            .await
+            .expect("tentative d'insertion brute d'issue");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        Ok(serde_json::from_str(&texte).expect("reponse JSON d'insertion brute"))
+    }
+
+    /// Relit les issues d'un repo en contournant la RLS.
+    pub async fn lire_issues(&self, repo_id: &str) -> Vec<Value> {
+        self.lire(&format!("issues?repo_id=eq.{repo_id}&select=*&order=ref"))
+            .await
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Lit les issues visibles avec un jeton donne : sert a eprouver que les
+    /// issues d'un compte restent invisibles a un autre.
+    pub async fn lire_issues_avec_jeton(&self, jeton: &str, repo_id: &str) -> Vec<Value> {
+        let reponse = self
+            .http
+            .get(format!("{}/rest/v1/issues?repo_id=eq.{repo_id}&select=*", self.url))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .send()
+            .await
+            .expect("lecture d'issues");
+
+        reponse
+            .json::<Value>()
+            .await
+            .expect("reponse JSON de lecture d'issues")
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Pose directement le statut d'une issue, en contournant la RLS : simule
+    /// le signal qu'un futur automatisme (#31, #32) ecrira, sans avoir a
+    /// l'implementer pour eprouver la derivation de l'etat d'un bloc (#30).
+    pub async fn poser_statut_issue(&self, issue_id: &str, statut: &str) {
+        self.ecrire(&format!("issues?id=eq.{issue_id}"), json!({ "statut": statut }))
+            .await;
+    }
+
+    /// Tente de deplacer un bloc directement, avec le jeton d'un utilisateur -
+    /// comme le ferait un geste web s'il existait. Sert a eprouver FR-018 :
+    /// un bloc decoupe doit refuser ce PATCH, un bloc simple doit l'accepter.
+    pub async fn deplacer_bloc_avec_jeton(
+        &self,
+        jeton: &str,
+        bloc_id: &str,
+        statut: &str,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .patch(format!("{}/rest/v1/blocs?id=eq.{}", self.url, bloc_id))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .header("Prefer", "return=representation")
+            .json(&json!({ "statut": statut }))
+            .send()
+            .await
+            .expect("requete de deplacement de bloc");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        if !(texte.trim_start().starts_with('[') && texte.trim() != "[]") {
+            return Err((code, texte));
+        }
+        Ok(())
+    }
+
     /// Lit les blocs visibles avec un jeton donne : sert a eprouver que le
     /// tableau d'un compte reste invisible a un autre.
     pub async fn lire_blocs_avec_jeton(&self, jeton: &str, repo_id: &str) -> Vec<Value> {
