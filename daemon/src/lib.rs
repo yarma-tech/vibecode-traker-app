@@ -4,6 +4,7 @@
 //! vers Supabase. Aucun contenu de fichier ne sort jamais d'ici.
 
 mod appairage;
+pub mod commits;
 mod config;
 pub mod journal;
 mod plan;
@@ -12,6 +13,7 @@ pub mod trousseau;
 mod worktree;
 
 pub use appairage::{appairer, AppairageError, Identite};
+pub use commits::{branche_courante, commits_depuis, head, CommitLocal};
 pub use config::{Config, ConfigError};
 pub use plan::{empreinte, identite, normaliser_distant, scanner, Module, Plan, ScanError};
 pub use worktree::{worktrees, Worktree};
@@ -456,6 +458,84 @@ impl Supabase {
         .await?;
 
         Ok(worktrees.len())
+    }
+
+    /// Le dernier commit connu d'un repo (`repos.last_commit_sha`), s'il en
+    /// a deja un.
+    ///
+    /// `None` distingue un depot jamais ingere - le daemon doit alors poser
+    /// `HEAD` sans rien fermer (PRD, risques : le passe n'est pas rejoue) -
+    /// d'un depot deja a jour, ou `commits_depuis` rendra une liste vide.
+    pub async fn dernier_commit_connu(&self, repo_id: &str) -> Result<Option<String>, ApiError> {
+        let reponse = self
+            .http
+            .get(format!(
+                "{}/rest/v1/repos?id=eq.{}&select=last_commit_sha",
+                self.url, repo_id
+            ))
+            .header("apikey", &self.token)
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+
+        if !code.is_success() {
+            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+        }
+
+        let lignes: serde_json::Value = serde_json::from_str(&texte).unwrap_or_default();
+        Ok(lignes[0]["last_commit_sha"].as_str().map(str::to_string))
+    }
+
+    /// Avance la position de lecture d'un repo, une fois sa plage de commits
+    /// entierement rejouee.
+    pub async fn poser_dernier_commit(&self, repo_id: &str, sha: &str) -> Result<(), ApiError> {
+        let reponse = self
+            .http
+            .patch(format!("{}/rest/v1/repos?id=eq.{}", self.url, repo_id))
+            .header("apikey", &self.token)
+            .bearer_auth(&self.token)
+            .header("Content-Type", "application/json")
+            .json(&json!({ "last_commit_sha": sha }))
+            .send()
+            .await?;
+
+        let code = reponse.status();
+        if !code.is_success() {
+            let corps = reponse.text().await.unwrap_or_default();
+            return Err(ApiError::Refuse { code: code.as_u16(), corps });
+        }
+
+        Ok(())
+    }
+
+    /// Ingere un commit local : l'insertion et la fermeture qu'elle
+    /// declenche vivent dans une seule transaction cote base
+    /// (`rpc/ingerer_commit`), pour que reingerer un commit deja connu ne
+    /// referme jamais rien une seconde fois - l'idempotence est portee par
+    /// `unique (repo_id, sha)` (conception, §5.2).
+    pub async fn ingerer_commit(
+        &self,
+        repo_id: &str,
+        branch: Option<&str>,
+        commit: &crate::commits::CommitLocal,
+    ) -> Result<(), ApiError> {
+        self.envoyer(
+            "rpc/ingerer_commit",
+            Some("return=minimal"),
+            json!({
+                "p_repo_id": repo_id,
+                "p_sha": commit.sha,
+                "p_message": commit.message,
+                "p_branch": branch,
+                "p_authored_at": commit.authored_at,
+            }),
+        )
+        .await?;
+
+        Ok(())
     }
 
     async fn envoyer(
