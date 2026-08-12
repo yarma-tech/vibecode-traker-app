@@ -258,16 +258,19 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
         tokio::time::interval(std::time::Duration::from_secs(config.journal_seconds));
     let mut chantier =
         tokio::time::interval(std::time::Duration::from_secs(config.worktree_seconds));
+    let mut commits =
+        tokio::time::interval(std::time::Duration::from_secs(config.commit_seconds));
 
     println!(
         "vibemap surveille depuis « {} », battement toutes les {} s, \
          cartographie toutes les {} s, journaux toutes les {} s, \
-         worktrees toutes les {} s",
+         worktrees toutes les {} s, commits toutes les {} s",
         config.label,
         config.interval_seconds,
         config.scan_seconds,
         config.journal_seconds,
-        config.worktree_seconds
+        config.worktree_seconds,
+        config.commit_seconds
     );
 
     // La carte se dresse avant la premiere lecture des journaux : sans elle,
@@ -302,6 +305,9 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
             }
             _ = chantier.tick() => {
                 relever_worktrees(&client, &carte).await;
+            }
+            _ = commits.tick() => {
+                ingerer_commits(&client, &carte).await;
             }
             _ = tokio::signal::ctrl_c() => {
                 println!("arret demande, au revoir");
@@ -436,6 +442,76 @@ async fn relever_worktrees(client: &Supabase, carte: &BTreeMap<PathBuf, String>)
         chrono::Utc::now().format("%H:%M:%S"),
         carte.len()
     );
+}
+
+/// Ferme les travaux que les commits locaux nomment, par depot cartographie.
+///
+/// Cadence propre de 30 s (conception §5.2), entre les journaux (2 s) et la
+/// cartographie (300 s) : celle-ci ne pouvait pas tenir la promesse d'une
+/// fermeture en moins d'une minute (PRD FR-029). Un depot qui echoue
+/// n'arrete pas les autres, comme pour la cartographie et les worktrees.
+async fn ingerer_commits(client: &Supabase, carte: &BTreeMap<PathBuf, String>) {
+    let mut ingeres = 0;
+    let mut en_defaut = 0;
+
+    for (chemin, repo_id) in carte {
+        match traiter_commits_du_repo(client, chemin, repo_id).await {
+            Ok(n) => ingeres += n,
+            Err(erreur) => {
+                en_defaut += 1;
+                eprintln!("commits de {} non ingeres : {erreur}", chemin.display());
+            }
+        }
+    }
+
+    println!(
+        "{} commits : {ingeres} ingere(s), {en_defaut} depot(s) en defaut sur {}",
+        chrono::Utc::now().format("%H:%M:%S"),
+        carte.len()
+    );
+}
+
+/// Rejoue les commits nouveaux d'un seul depot, du plus ancien au plus
+/// recent, et avance sa position de lecture.
+///
+/// Rien n'est avance tant que tout n'est pas parti : une coupure en cours de
+/// route laisse `last_commit_sha` en arriere, et le prochain tour rejoue la
+/// plage entiere depuis ce point. C'est sans risque : l'insertion est
+/// idempotente (`unique (repo_id, sha)`) et ne referme jamais ce qui l'est
+/// deja (seule une insertion qui cree reellement une ligne appelle la
+/// fermeture, cote base).
+async fn traiter_commits_du_repo(
+    client: &Supabase,
+    racine: &Path,
+    repo_id: &str,
+) -> Result<usize, ApiError> {
+    let Some(dernier) = client.dernier_commit_connu(repo_id).await? else {
+        // Premier passage sur ce depot : on pose HEAD sans rien fermer, le
+        // passe n'est jamais rejoue (PRD, risques).
+        if let Some(tete) = vibemap::head(racine) {
+            client.poser_dernier_commit(repo_id, &tete).await?;
+        }
+        return Ok(0);
+    };
+
+    let nouveaux = vibemap::commits_depuis(racine, &dernier);
+    if nouveaux.is_empty() {
+        return Ok(0);
+    }
+
+    let branche = vibemap::branche_courante(racine);
+
+    for commit in &nouveaux {
+        client.ingerer_commit(repo_id, branche.as_deref(), commit).await?;
+    }
+
+    let plus_recent = &nouveaux
+        .last()
+        .expect("la liste vient d'etre verifiee non vide")
+        .sha;
+    client.poser_dernier_commit(repo_id, plus_recent).await?;
+
+    Ok(nouveaux.len())
 }
 
 /// `vibemap hook` : un appel d'outil, poste sans attendre le prochain tour.

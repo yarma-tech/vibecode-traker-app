@@ -603,6 +603,40 @@ impl TestContext {
         self.lire(&format!("blocs?id=eq.{bloc_id}&select=*")).await[0].clone()
     }
 
+    /// Relit une seule issue en contournant la RLS.
+    pub async fn lire_issue(&self, issue_id: &str) -> Value {
+        self.lire(&format!("issues?id=eq.{issue_id}&select=*")).await[0].clone()
+    }
+
+    /// Relit les commits d'un repo en contournant la RLS.
+    pub async fn lire_commits(&self, repo_id: &str) -> Vec<Value> {
+        self.lire(&format!("commits?repo_id=eq.{repo_id}&select=*&order=authored_at"))
+            .await
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Relit les fermetures d'un bloc en contournant la RLS, dans l'ordre ou
+    /// elles ont ete posees : c'est l'historique des versions d'un travail
+    /// (FR-024).
+    pub async fn lire_fermetures_bloc(&self, bloc_id: &str) -> Vec<Value> {
+        self.lire(&format!("fermetures?bloc_id=eq.{bloc_id}&select=*&order=ferme_le"))
+            .await
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Relit les fermetures d'une issue en contournant la RLS.
+    pub async fn lire_fermetures_issue(&self, issue_id: &str) -> Vec<Value> {
+        self.lire(&format!("fermetures?issue_id=eq.{issue_id}&select=*&order=ferme_le"))
+            .await
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
     /// Cree une issue comme le fera la page web : par la fonction RPC, avec le
     /// jeton de l'utilisateur du contexte. `chemin: None` simule une saisie
     /// vide - le cas de la premiere issue d'un bloc simple, qui n'a pas besoin
