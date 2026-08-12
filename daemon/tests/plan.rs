@@ -213,3 +213,48 @@ fn un_depot_sans_remote_n_a_pas_de_proprietaire() {
     assert_eq!(plan.remote_owner, None);
     assert_eq!(plan.remote_url, None);
 }
+
+/// L'identite d'un depot est ce qui le rend le meme d'une machine a l'autre
+/// (conception, section 3) : les quatre formes du remote `origin` que git
+/// accepte doivent toutes se ramener a la meme chaine normalisee, quelle que
+/// soit la maniere dont ce clone-ci a ete pose.
+#[test]
+fn les_quatre_formes_d_url_donnent_la_meme_identite() {
+    let attendue = "github.com/yarma-tech/vibecode-traker-app";
+
+    let formes = [
+        "git@github.com:Yarma-Tech/vibecode-traker-app.git",
+        "https://github.com/yarma-tech/vibecode-traker-app",
+        "https://github.com/yarma-tech/vibecode-traker-app.git",
+        "https://user@github.com/yarma-tech/vibecode-traker-app.git/",
+    ];
+
+    for forme in formes {
+        let racine = depot_temporaire();
+        poser_remote(&racine, forme);
+
+        let plan = vibemap::scanner(&racine).expect("le scan doit reussir");
+
+        assert_eq!(
+            plan.identity, attendue,
+            "la forme « {forme} » doit normaliser vers « {attendue} », obtenu « {}»",
+            plan.identity
+        );
+    }
+}
+
+/// Sans distant, rien ne relie deux clones : l'identite reste locale a cette
+/// racine-ci, et le PRD (Hypotheses) assume justement qu'un tel depot ne
+/// survit pas a un deplacement de dossier.
+#[test]
+fn un_depot_sans_distant_a_une_identite_locale() {
+    let racine = depot_temporaire();
+
+    let plan = vibemap::scanner(&racine).expect("le scan doit reussir");
+
+    assert_eq!(
+        plan.identity,
+        format!("local:{}", plan.root_hash),
+        "sans distant, l'identite retombe sur l'empreinte de la racine"
+    );
+}

@@ -145,6 +145,45 @@ impl TestContext {
             .unwrap_or_else(|| panic!("pas d'id de repo dans {repos}"))
             .to_string();
 
+        self.poser_modules(&repo_id, modules).await;
+        repo_id
+    }
+
+    /// Pose un repo par son identite, comme le ferait un scan (issue #28).
+    pub async fn creer_repo_avec_identite(
+        &self,
+        machine_id: &str,
+        identity: &str,
+        modules: &[&str],
+    ) -> String {
+        let repos: Value = self
+            .ecrire_service(
+                "repos",
+                json!([{
+                    "user_id":    self.user_id,
+                    "machine_id": machine_id,
+                    "name":       "atelier",
+                    "root_hash":  Uuid::new_v4().to_string(),
+                    "identity":   identity,
+                }]),
+            )
+            .await;
+
+        let repo_id = repos[0]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("pas d'id de repo dans {repos}"))
+            .to_string();
+
+        self.poser_modules(&repo_id, modules).await;
+        repo_id
+    }
+
+    /// Pose les modules d'un repo deja cree, sans passer par un scan de disque.
+    async fn poser_modules(&self, repo_id: &str, modules: &[&str]) {
+        if modules.is_empty() {
+            return;
+        }
+
         let lignes: Vec<Value> = modules
             .iter()
             .map(|path| {
@@ -164,7 +203,6 @@ impl TestContext {
             .collect();
 
         self.ecrire_service("modules", json!(lignes)).await;
-        repo_id
     }
 
     /// Relit les evenements d'activite d'un repo en contournant la RLS.
