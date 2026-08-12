@@ -15,6 +15,9 @@ import {
   indexSuivantFiltre,
   estToucheFiltre,
   origineCourte,
+  estExploration,
+  compteSansExploration,
+  afficherAvancement,
   type Bloc,
 } from "./blocs";
 
@@ -296,5 +299,67 @@ describe("origineCourte — l'origine PRD affichee sur la carte, sans la date en
 
   it("retire la date d'une cle de document (<date>/<id>, celle d'une exploration)", () => {
     expect(origineCourte("2026-08-10/PRD-001")).toBe("PRD-001");
+  });
+});
+
+// Constater une exploration ecrite par un agent (issue #38, F13, FR-047 et
+// FR-048). Deux origines possibles pour une exploration - un agent (#38) ou
+// un PRD brouillon (#36) -, mais rien ne les distingue une fois posees : ni
+// colonne dediee, ni protection particuliere. La regle porte sur le TYPE, le
+// seul champ que le tableau lit pour ces deux besoins.
+describe("estExploration — le type, seul signal que le tableau utilise (#38)", () => {
+  it("vrai pour un bloc de type exploration, quelle que soit son origine (agent ou PRD)", () => {
+    expect(estExploration(bloc({ id: "e", ref: 1, statut: "doing", type: "exploration" }))).toBe(true);
+  });
+
+  it("faux pour les trois autres types", () => {
+    expect(estExploration(bloc({ id: "f", ref: 1, statut: "todo", type: "feature" }))).toBe(false);
+    expect(estExploration(bloc({ id: "c", ref: 1, statut: "todo", type: "correction" }))).toBe(false);
+    expect(estExploration(bloc({ id: "t", ref: 1, statut: "todo", type: "technique" }))).toBe(false);
+  });
+});
+
+// FR-047 : une exploration reste visible dans sa colonne (elle DOIT
+// apparaitre, F13) mais ne compte dans AUCUN total - le seul total affiche
+// aujourd'hui est ce compteur, a cote du titre de chaque colonne.
+describe("compteSansExploration — une exploration n'entre dans aucun total (FR-047)", () => {
+  it("compte les blocs ordinaires normalement", () => {
+    const feature = bloc({ id: "f", ref: 1, statut: "todo", type: "feature" });
+    const correction = bloc({ id: "c", ref: 2, statut: "todo", type: "correction" });
+    expect(compteSansExploration([feature, correction])).toBe(2);
+  });
+
+  it("exclut les explorations du compte, sans les retirer de la liste fournie", () => {
+    const feature = bloc({ id: "f", ref: 1, statut: "todo", type: "feature" });
+    const exploration = bloc({ id: "e", ref: 2, statut: "todo", type: "exploration" });
+    expect(compteSansExploration([feature, exploration])).toBe(1);
+  });
+
+  it("une colonne faite uniquement d'explorations compte pour zero", () => {
+    const e1 = bloc({ id: "e1", ref: 1, statut: "doing", type: "exploration" });
+    const e2 = bloc({ id: "e2", ref: 2, statut: "doing", type: "exploration" });
+    expect(compteSansExploration([e1, e2])).toBe(0);
+  });
+
+  it("une liste vide compte pour zero", () => {
+    expect(compteSansExploration([])).toBe(0);
+  });
+});
+
+// FR-047, second cas : un bloc d'exploration decoupe (une issue lui a ete
+// ajoutee a la main, #37 - pour le marquer "non vierge" avant une conversion
+// de PRD) ne doit jamais afficher un avancement "X / Y" - ce serait compter
+// une exploration dans un reste a faire, exactement ce que FR-047 interdit.
+describe("afficherAvancement — une exploration ne montre jamais de X / Y (FR-047)", () => {
+  it("un bloc ordinaire decoupe affiche son avancement", () => {
+    expect(afficherAvancement(bloc({ id: "f", ref: 1, statut: "doing", type: "feature" }), 3)).toBe(true);
+  });
+
+  it("un bloc ordinaire simple n'a rien a afficher", () => {
+    expect(afficherAvancement(bloc({ id: "f", ref: 1, statut: "todo", type: "feature" }), 0)).toBe(false);
+  });
+
+  it("une exploration decoupee n'affiche jamais d'avancement, meme avec des issues", () => {
+    expect(afficherAvancement(bloc({ id: "e", ref: 1, statut: "doing", type: "exploration" }), 2)).toBe(false);
   });
 });

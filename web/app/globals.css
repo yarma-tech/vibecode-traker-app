@@ -1694,6 +1694,89 @@ code {
   overflow-wrap: break-word;
 }
 
+/* Le titre renommable d'une exploration (F13, FR-048) : un `<button>` qui
+   reprend exactement l'allure de `.carte-titre`, sans decor de bouton - le
+   titre EST l'affordance, comme la reference l'est deja pour la copie
+   (`.ref-bouton`). Seul le curseur et le survol trahissent qu'il repond au
+   clic. */
+.carte-titre-renommable {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  overflow-wrap: break-word;
+  color: inherit;
+  cursor: pointer;
+}
+
+.carte-titre-renommable:hover {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+/* Le formulaire de renommage : prend la place du titre sans faire sauter la
+   hauteur de `.carte-tete` (meme `align-items: baseline`). */
+.renommer-form {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.champ-renommer {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule-2);
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+}
+
+.champ-renommer:focus-visible {
+  outline: 2px solid var(--ink-2);
+  outline-offset: 1px;
+}
+
+/* Un bouton texte discret, partage par « OK » et « Annuler » du renommage -
+   meme charpente que `.bloc-issues-bouton`, sans lui emprunter son nom qui
+   ne veut plus rien dire ici. */
+.bouton-discret {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.bouton-discret:hover {
+  color: var(--ink);
+}
+
+.bouton-discret:disabled {
+  color: var(--ink-3);
+  cursor: default;
+  text-decoration: none;
+}
+
+.renommer-form .echec {
+  font-size: 0.6875rem;
+  margin: 0;
+}
+
 /* La reference : ce qu'on copie au moment de lancer un agent (F11, FR-034).
    Le bouton reprend exactement l'allure du texte qu'il remplaçait — une
    etiquette monochrome, pas un bouton qui se ferait remarquer plus que le
@@ -1931,6 +2014,34 @@ code {
 }
 
 .bouton-sortie-termine:disabled {
+  color: var(--ink-3);
+  cursor: default;
+  text-decoration: none;
+}
+
+/* La suppression d'une exploration (F13, FR-048) : meme charpente discrete
+   que la sortie de Termine, la couleur de conflit en survol seulement -
+   au repos, rien ne doit faire d'une carte d'exploration une carte plus
+   « dangereuse » que les autres (la couleur ne dit que l'etat, jamais la
+   destination d'un clic, registre Linear). */
+.bouton-supprimer {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.bouton-supprimer:hover {
+  color: var(--conf);
+}
+
+.bouton-supprimer:disabled {
   color: var(--ink-3);
   cursor: default;
   text-decoration: none;

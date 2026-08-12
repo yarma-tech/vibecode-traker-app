@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
+  afficherAvancement,
   colonnes,
+  compteSansExploration,
   estDecoupe,
+  estExploration,
   estToucheFiltre,
   filtrerParType,
   indexSuivantFiltre,
@@ -161,7 +164,10 @@ export function Tableau({
           <section key={statut} className={`colonne colonne-${statut}`} aria-label={TITRE_COLONNE[statut]}>
             <div className="colonne-tete">
               <h2 className="titre colonne-titre">{TITRE_COLONNE[statut]}</h2>
-              <span className="colonne-compte">{rangees[statut].length}</span>
+              {/* FR-047 : une exploration reste visible ci-dessous (la liste
+                  entiere de la colonne), mais n'entre dans AUCUN total - ce
+                  compteur l'exclut expressement. */}
+              <span className="colonne-compte">{compteSansExploration(rangees[statut])}</span>
             </div>
 
             {rangees[statut].length === 0 ? (
@@ -181,6 +187,8 @@ export function Tableau({
                     onIssueCreee={relire}
                     onSortie={relire}
                     onRetype={relire}
+                    onRenomme={relire}
+                    onSuppression={relire}
                   />
                 ))}
               </ul>
@@ -265,6 +273,8 @@ function Carte({
   onIssueCreee,
   onSortie,
   onRetype,
+  onRenomme,
+  onSuppression,
 }: {
   bloc: Bloc;
   issues: Issue[];
@@ -274,14 +284,28 @@ function Carte({
   onIssueCreee: () => void;
   onSortie: () => void;
   onRetype: () => void;
+  onRenomme: () => void;
+  onSuppression: () => void;
 }) {
   const decoupe = estDecoupe(issues.length);
   const idPanneau = `issues-${bloc.id}`;
+  // FR-048 : un bloc que le systeme a cree seul (agent, #38, ou PRD
+  // brouillon, #36) reste renommable, retypable et supprimable - rien ne le
+  // distingue d'un bloc saisi a la main. La retype (SelectionType,
+  // FR-032) est deja ouverte a tout bloc ; renommer et supprimer, eux,
+  // n'existaient pas encore avant #38 et n'ont de sens que pour un memo
+  // (une exploration) : un bloc de vrai travail suivi (feature, correction,
+  // technique) garde son seul geste existant, la sortie de Termine.
+  const exploration = estExploration(bloc);
 
   return (
     <li className={`carte${bloc.prd_absent ? " carte-prd-absent" : ""}`}>
       <div className="carte-tete">
-        <span className="carte-titre">{bloc.titre}</span>
+        {exploration ? (
+          <TitreRenommable bloc={bloc} onRenomme={onRenomme} />
+        ) : (
+          <span className="carte-titre">{bloc.titre}</span>
+        )}
         <BoutonCopierReference numeroRef={bloc.ref} titre={bloc.titre} classeTexte="carte-ref" />
       </div>
       {/* La provenance PRD (#37, FR-039 a FR-042) : sa propre ligne, jamais
@@ -318,7 +342,10 @@ function Carte({
             "a tout moment") : rien ici ne le distingue d'un bloc a faire, le
             serveur ne protege que `statut`, jamais `type` (#33). */}
         <SelectionType bloc={bloc} onRetype={onRetype} />
-        {decoupe ? (
+        {/* FR-047 : une exploration decoupee (#37 le permet, pour la marquer
+            "non vierge" avant une conversion de PRD) n'affiche jamais son
+            "X / Y" - ce serait la compter dans un reste a faire. */}
+        {afficherAvancement(bloc, issues.length) ? (
           <span className="bloc-avancement">{texteAvancement(issues)}</span>
         ) : (
           bloc.chemin && <code className="carte-chemin">{bloc.chemin}</code>
@@ -338,6 +365,10 @@ function Carte({
         {blocPeutSortirDeTermine(bloc, issues.length) && (
           <BoutonSortieTermine table="blocs" id={bloc.id} libelle="Ramener en cours" onSortie={onSortie} />
         )}
+        {/* FR-048 : la suppression d'un bloc d'exploration - le renommage vit
+            dans le titre lui-meme (TitreRenommable), le retypage dans
+            SelectionType juste au-dessus, deja ouvert a tout bloc. */}
+        {exploration && <BoutonSupprimerExploration bloc={bloc} onSuppression={onSuppression} />}
       </div>
 
       {ouverte && (
@@ -380,6 +411,129 @@ function Carte({
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * Le titre d'une exploration, renommable sur place (F13, FR-048). Un simple
+ * `<span>` devient un champ de saisie au clic - pas de bouton "Renommer"
+ * separe : le titre EST l'affordance, comme la reference EST deja le bouton
+ * de copie (`BoutonCopierReference`). Reserve aux explorations : un bloc de
+ * travail suivi (feature, correction, technique) n'a jamais eu ce geste et
+ * F13 ne le lui demande pas.
+ */
+function TitreRenommable({ bloc, onRenomme }: { bloc: Bloc; onRenomme: () => void }) {
+  const [enEdition, setEnEdition] = useState(false);
+  const [valeur, setValeur] = useState(bloc.titre);
+  const [enCours, setEnCours] = useState(false);
+  const [echec, setEchec] = useState<string | null>(null);
+  const champRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (enEdition) champRef.current?.focus();
+  }, [enEdition]);
+
+  function ouvrir() {
+    setValeur(bloc.titre);
+    setEchec(null);
+    setEnEdition(true);
+  }
+
+  function annuler() {
+    setValeur(bloc.titre);
+    setEchec(null);
+    setEnEdition(false);
+  }
+
+  async function valider(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!titreValide(valeur) || enCours) return;
+
+    const titreTrim = valeur.trim();
+    if (titreTrim === bloc.titre) {
+      setEnEdition(false);
+      return;
+    }
+
+    setEnCours(true);
+    setEchec(null);
+    const { error } = await createClient().from("blocs").update({ titre: titreTrim }).eq("id", bloc.id);
+    setEnCours(false);
+
+    if (error) {
+      setEchec(error.message);
+      return;
+    }
+    setEnEdition(false);
+    onRenomme();
+  }
+
+  if (!enEdition) {
+    return (
+      <button type="button" className="carte-titre carte-titre-renommable" onClick={ouvrir}>
+        {bloc.titre}
+      </button>
+    );
+  }
+
+  return (
+    <form className="renommer-form" onSubmit={valider}>
+      <label className="visually-hidden" htmlFor={`renommer-${bloc.id}`}>
+        Nouveau titre de « {bloc.titre} »
+      </label>
+      <input
+        ref={champRef}
+        id={`renommer-${bloc.id}`}
+        className="champ champ-renommer"
+        type="text"
+        value={valeur}
+        onChange={(e) => setValeur(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") annuler();
+        }}
+        maxLength={200}
+        disabled={enCours}
+        required
+      />
+      <button type="submit" className="bouton bouton-discret" disabled={!titreValide(valeur) || enCours}>
+        {enCours ? "…" : "OK"}
+      </button>
+      <button type="button" className="bouton bouton-discret" onClick={annuler} disabled={enCours}>
+        Annuler
+      </button>
+      {echec && (
+        <span className="echec" role="alert">
+          {echec}
+        </span>
+      )}
+    </form>
+  );
+}
+
+/**
+ * Supprime un bloc d'exploration (F13, FR-048) : un DELETE direct, protege
+ * par une confirmation native - une exploration se supprime souvent (le PRD
+ * l'attend meme, "moins d'une sur cinq" survit a la relecture), mais un
+ * memo reste un artefact qu'on ne veut pas perdre a un clic malheureux.
+ * Reservee aux explorations, meme raison que `TitreRenommable`.
+ */
+function BoutonSupprimerExploration({ bloc, onSuppression }: { bloc: Bloc; onSuppression: () => void }) {
+  const [enCours, setEnCours] = useState(false);
+
+  async function supprimer() {
+    if (enCours) return;
+    if (typeof window !== "undefined" && !window.confirm(`Supprimer « ${bloc.titre} » ?`)) return;
+
+    setEnCours(true);
+    const { error } = await createClient().from("blocs").delete().eq("id", bloc.id);
+    setEnCours(false);
+    if (!error) onSuppression();
+  }
+
+  return (
+    <button type="button" className="bouton-supprimer" onClick={supprimer} disabled={enCours}>
+      {enCours ? "Suppression…" : "Supprimer"}
+    </button>
   );
 }
 
