@@ -39,6 +39,7 @@ import {
   etatTableau,
   type EtatTableau,
 } from "@/lib/fraicheur";
+import { emplacementDisparu } from "@/lib/modules";
 
 /** Ce que chaque colonne affiche, dans l'ordre du tableau. */
 const TITRE_COLONNE: Record<StatutBloc, string> = {
@@ -502,7 +503,23 @@ function Carte({
         {afficherAvancement(bloc, issues.length) ? (
           <span className="bloc-avancement">{texteAvancement(issues)}</span>
         ) : (
-          bloc.chemin && <code className="carte-chemin">{bloc.chemin}</code>
+          bloc.chemin && (
+            <span className="carte-emplacement">
+              <code className="carte-chemin">{bloc.chemin}</code>
+              {/* FR-059 (#40) : une jointure a la lecture entre ce chemin
+                  deja charge et le dernier `modules` cartographie, jamais
+                  une colonne - la carte ne fait ici que le CONSTATER, elle
+                  ne propose aucune correction (FR-060, jamais de bouton a
+                  cote). Reserve au chemin propre d'un bloc simple : un bloc
+                  decoupe (chemin nul) n'a rien a comparer, un travail
+                  termine n'attend plus rien de son emplacement. */}
+              {emplacementDisparu(bloc.chemin, bloc.statut !== "done", cheminsConnus) && (
+                <span className="emplacement-disparu" role="status">
+                  Dossier introuvable
+                </span>
+              )}
+            </span>
+          )
         )}
         <button
           type="button"
@@ -542,6 +559,15 @@ function Carte({
                   <div className="bloc-issue-meta">
                     <span className="bloc-issue-statut">{LIBELLE_STATUT[issue.statut]}</span>
                     <code className="bloc-issue-chemin">{issue.chemin || "/"}</code>
+                    {/* FR-059 (#40) : meme jointure que sur un bloc simple,
+                        portee ici par l'emplacement de CETTE issue - une
+                        issue porte toujours un chemin (jamais nul, "" pour
+                        la racine), contrairement au bloc qui la contient. */}
+                    {emplacementDisparu(issue.chemin, issue.statut !== "done", cheminsConnus) && (
+                      <span className="emplacement-disparu" role="status">
+                        Dossier introuvable
+                      </span>
+                    )}
                     {issuePeutSortirDeTermine(issue) && (
                       <BoutonSortieTermine
                         table="issues"

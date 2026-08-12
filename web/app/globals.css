@@ -1946,6 +1946,42 @@ code {
   min-width: 0;
 }
 
+/* Regroupe le chemin d'un bloc simple et son eventuelle marque de disparition
+   (`.emplacement-disparu`, FR-059) sans changer la place qu'occupait `code`
+   seul dans `.carte-meta` (issue #40). */
+.carte-emplacement {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+/* FR-059 (#40) : l'emplacement d'un travail vivant ne se retrouve plus dans
+   la derniere cartographie (`modules`) - la carte le CONSTATE, jamais ne le
+   corrige (FR-060, aucun bouton a cote, aucun geste de reancrage). Meme
+   ambre que `.muet-signal` et `.carte-absent` : un avertissement, jamais une
+   erreur bloquante - et le texte porte deja le sens a lui seul, la couleur
+   ne fait que le souligner (WCAG, jamais seule). Partagee entre la carte
+   d'un bloc simple et la ligne d'une issue (`.bloc-issue-meta`).
+   Une pastille bordee (meme charpente que `.carte-badge`/`.carte-absent`),
+   pas du texte gras nu : constate en verification visuelle (#40) qu'une
+   issue "En cours" colore deja son statut dans ce meme ambre
+   (`.bloc-issue-doing .bloc-issue-statut`) - deux mots en gras nu de la
+   meme teinte, cote a cote sur une ligne courte, se lisaient comme un seul
+   bloc flou. Le contour redonne un silhouette distincte au second sans lui
+   changer de couleur ni de texte. */
+.emplacement-disparu {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--edit);
+  border: 1px solid var(--edit);
+  border-radius: 20px;
+  padding: 0.02rem 0.45rem;
+  white-space: nowrap;
+}
+
 /* ---- provenance PRD sur la carte (issue #37, FR-039 a FR-042) ---- */
 
 /* Sa propre ligne, entre le titre et `.carte-meta` : cette carte-ci vient
