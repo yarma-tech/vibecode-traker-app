@@ -69,10 +69,19 @@ croyant simplifier.
 ## Le port de l'interface locale (`bureau/`)
 
 `127.0.0.1:51789`, fixe et documente, **jamais de repli silencieux sur un autre
-port**. Trois choses en dependent : l'adresse de retour de l'autorisation
-GitHub, que le fournisseur exige de connaitre a l'avance ; le cookie de session,
-lie a l'origine et donc au port ; et le pont de commandes locales, ouvert a
-cette seule origine.
+port**. Trois choses en dependent : l'adresse de retour de l'autorisation, que
+le fournisseur exige de connaitre a l'avance ; une fenetre qui recharge la meme
+origine a chaque lancement ; et le pont de commandes locales, ouvert a cette
+seule origine.
+
+**Une precision qui a d'abord ete ecrite a l'envers, ici et dans le PRD :** un
+cookie n'a **jamais** de port dans sa portee. `127.0.0.1:51789` et
+`127.0.0.1:3000` partagent donc leur session ; `localhost` et `127.0.0.1`, non,
+parce que l'hote differe. Ce n'est pas le cookie que le port fixe protege.
+
+C'est aussi pourquoi le service d'interface, qui ecoute sur `127.0.0.1` mais
+fabriquait ses adresses en `localhost`, posait la session sur une origine que la
+fenetre ne voyait pas (corrige avec l'issue #63).
 
 ## Eprouver une policy d'INSERTION en RLS (`supabase`, `daemon/tests`)
 
