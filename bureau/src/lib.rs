@@ -3,9 +3,10 @@
 //! L'application ne dessine pas la carte : elle la sert. Le meme `web/` que
 //! le site, demarre sur la boucle locale a un port fixe, puis charge dans sa
 //! fenetre. Ce qui vit ici, c'est ce qui n'existe que sur le poste : le
-//! demarrage du service, la sonde qui dit s'il repond, et ce qu'on affiche
-//! quand il ne repond pas.
+//! demarrage du service, la sonde qui dit s'il repond, ce qu'on affiche quand
+//! il ne repond pas, et ou l'utilisateur avait laisse sa fenetre.
 
+pub mod geometrie;
 pub mod service;
 pub mod sonde;
 
