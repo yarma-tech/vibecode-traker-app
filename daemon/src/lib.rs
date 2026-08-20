@@ -7,6 +7,7 @@ mod appairage;
 pub mod commits;
 mod config;
 pub mod journal;
+pub mod lecteur;
 mod plan;
 pub mod prd;
 pub mod reprise;

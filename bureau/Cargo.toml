@@ -19,5 +19,12 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 libc = "0.2"
 
+# Le lecteur, embarque comme bibliotheque et jamais recopie (PRD-002) :
+# l'application et le binaire en ligne de commande font tourner le meme code.
+vibemap = { path = "../daemon" }
+# Le lecteur est asynchrone ; l'application lui donne sa propre machinerie
+# d'execution, sur un fil a part de celui de la fenetre.
+tokio = { version = "1", features = ["rt-multi-thread", "time", "net"] }
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

@@ -14,8 +14,9 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use bureau::geometrie::{self, Geometrie, Position, HAUTEUR_MINIMALE, LARGEUR_MINIMALE};
+use bureau::lecteur::{EtatLecteur, LecteurEmbarque};
 use bureau::service::Service;
-use bureau::sonde::url_de_la_fenetre;
+use bureau::sonde::{url_de_la_fenetre, PORT_INTERFACE};
 use bureau::Echec;
 use tauri::{
     AppHandle, LogicalPosition, LogicalSize, Manager, RunEvent, State, WebviewUrl, WebviewWindow,
@@ -25,22 +26,29 @@ use tauri::{
 const FENETRE: &str = "principale";
 
 /// Ou en est l'ouverture de l'interface, telle que la page d'attente la lit.
+///
+/// `Faite` porte le port : c'est la page qui va charger la carte, une fois
+/// qu'elle a aussi vu ou en est le lecteur, et elle a besoin de l'adresse pour
+/// cela.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(tag = "etat", rename_all = "snake_case")]
 enum Ouverture {
     EnCours,
-    Faite,
+    Faite { port: u16 },
     Echouee(Echec),
 }
 
 /// Ce que l'application tient pendant qu'elle tourne : le service d'interface
-/// en marche, l'etat de son ouverture, et la derniere geometrie vue.
+/// en marche, le lecteur du poste, l'etat de l'un et de l'autre, et la
+/// derniere geometrie vue.
 ///
-/// Le service vit ici, et non dans le fil qui l'a lance : c'est ce qui le fait
-/// durer autant que l'application, et s'arreter avec elle.
+/// Le service et le lecteur vivent ici, et non dans le fil qui les a lances :
+/// c'est ce qui les fait durer autant que l'application, et s'arreter avec elle.
 struct EtatCourant {
     service: Mutex<Option<Service>>,
     ouverture: Mutex<Ouverture>,
+    lecteur: Mutex<Option<LecteurEmbarque>>,
+    etat_lecteur: Mutex<EtatLecteur>,
     /// La geometrie est tenue en memoire au fil des deplacements, et non lue
     /// au moment de quitter : quand l'application s'arrete, la fenetre est
     /// deja detruite et n'a plus de taille a donner.
@@ -56,6 +64,8 @@ impl Default for EtatCourant {
         EtatCourant {
             service: Mutex::new(None),
             ouverture: Mutex::new(Ouverture::EnCours),
+            lecteur: Mutex::new(None),
+            etat_lecteur: Mutex::new(EtatLecteur::Arrete),
             geometrie: Mutex::new(None),
             etat_de_la_fenetre: Mutex::new(None),
         }
@@ -65,7 +75,11 @@ impl Default for EtatCourant {
 fn main() {
     tauri::Builder::default()
         .manage(EtatCourant::default())
-        .invoke_handler(tauri::generate_handler![etat_de_l_interface, reessayer])
+        .invoke_handler(tauri::generate_handler![
+            etat_de_l_interface,
+            etat_du_lecteur,
+            reessayer
+        ])
         .setup(|app| {
             let etat_de_la_fenetre = etat_de_la_fenetre(app.handle());
             let geometrie = etat_de_la_fenetre
@@ -108,6 +122,12 @@ fn main() {
                 }
             });
 
+            // Le lecteur part avant le service : sa reponse tient en une
+            // lecture de fichier et une prise de verrou, la ou le service met
+            // plusieurs secondes a repondre. La page d'attente sait donc ou en
+            // est le lecteur bien avant d'avoir une carte a afficher.
+            demarrer_le_lecteur_en_arriere_plan(app.handle().clone());
+
             // La fenetre s'ouvre tout de suite, sur sa page d'attente : le
             // service met plusieurs secondes a repondre, et attendre ici
             // laisserait l'utilisateur devant un Dock qui rebondit dans le
@@ -129,6 +149,14 @@ fn main() {
                     .lock()
                     .expect("service en cours")
                     .take();
+
+                // Le lecteur aussi (FR-007). Il tourne dans ce processus : le
+                // laisser tomber ici l'arrete proprement, et une application
+                // tuee par un signal l'emmene de toute facon avec elle - le
+                // noyau relache alors le verrou du poste.
+                let etat = app.state::<EtatCourant>();
+                etat.lecteur.lock().expect("lecteur en cours").take();
+                *etat.etat_lecteur.lock().expect("etat du lecteur") = EtatLecteur::Arrete;
             }
         });
 }
@@ -246,12 +274,14 @@ fn ouvrir_en_arriere_plan(app: AppHandle) {
         match bureau::ouvrir_l_interface() {
             Ok(service) => {
                 *etat.service.lock().expect("service en cours") = Some(service);
-                *etat.ouverture.lock().expect("etat de l'ouverture") = Ouverture::Faite;
-                if let (Some(fenetre), Ok(url)) =
-                    (app.get_webview_window(FENETRE), url_de_la_fenetre().parse())
-                {
-                    let _ = fenetre.navigate(url);
-                }
+                *etat.ouverture.lock().expect("etat de l'ouverture") = Ouverture::Faite {
+                    port: PORT_INTERFACE,
+                };
+                // C'est la page d'attente qui charge la carte, et non
+                // l'application : elle seule sait ce qu'elle a encore a dire.
+                // Un lecteur qui n'a pas demarre se signale la, sur cette page,
+                // avant qu'elle ne cede la place - la carte, elle, vient de
+                // `web/` et ne connait pas les faits du poste.
             }
             Err(echec) => {
                 // La fenetre dit deja ce qui cloche ; cette trace le repete la
@@ -264,12 +294,51 @@ fn ouvrir_en_arriere_plan(app: AppHandle) {
     });
 }
 
+/// Demarre le lecteur du poste, et retient ce qu'il en est.
+///
+/// En arriere-plan, pour la meme raison que le service : la lecture du jeton au
+/// trousseau peut ouvrir une boite de dialogue du systeme, et une application
+/// qui cesse de repondre pendant son demarrage se fait tuer.
+fn demarrer_le_lecteur_en_arriere_plan(app: AppHandle) {
+    std::thread::spawn(move || {
+        let etat: State<EtatCourant> = app.state();
+
+        // Un lecteur deja en marche est arrete d'abord : c'est lui qui tient le
+        // verrou du poste, et le suivant se le refuserait a lui-meme.
+        etat.lecteur.lock().expect("lecteur en cours").take();
+
+        match bureau::lecteur::demarrer_le_lecteur() {
+            Ok(lecteur) => {
+                *etat.lecteur.lock().expect("lecteur en cours") = Some(lecteur);
+                *etat.etat_lecteur.lock().expect("etat du lecteur") = EtatLecteur::EnMarche;
+            }
+            Err(echec) => {
+                // La fenetre dit deja ce qui cloche ; cette trace le repete la
+                // ou on lance l'application au terminal pour la mettre au point.
+                eprintln!("lecteur non demarre : {}", echec.raison);
+                *etat.etat_lecteur.lock().expect("etat du lecteur") = EtatLecteur::EnEchec(echec);
+            }
+        }
+    });
+}
+
 /// Ou en est l'ouverture. La page d'attente le demande, plutot que d'attendre
 /// un signal : elle est ainsi juste des son affichage, meme si l'ouverture a
 /// echoue avant qu'elle ne soit la.
 #[tauri::command]
 fn etat_de_l_interface(etat: State<EtatCourant>) -> Ouverture {
     etat.ouverture.lock().expect("etat de l'ouverture").clone()
+}
+
+/// Ou en est le lecteur. Un fait du poste, que la base ne porte pas et ne
+/// portera pas : elle ne sait rien d'un verrou pris sur cette machine.
+///
+/// Cette commande ne recoit rien et ne lit aucun fichier : elle rend un fait
+/// que l'application tient deja, ce qui est la seule nature de commande que le
+/// pont accepte.
+#[tauri::command]
+fn etat_du_lecteur(etat: State<EtatCourant>) -> EtatLecteur {
+    etat.etat_lecteur.lock().expect("etat du lecteur").clone()
 }
 
 /// « Reessayer » : reprend tout depuis le debut, sans quitter l'application.

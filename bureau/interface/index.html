@@ -8,6 +8,9 @@
       La seule page que l'application sert elle-même. Elle occupe la fenêtre le
       temps que le service d'interface réponde, et reste dessus quand il ne
       répond pas : une fenêtre blanche ne dit rien à personne (FR-004).
+      C'est aussi elle qui signale un lecteur qui n'a pas démarré, avant de
+      céder la place à la carte : la carte vient de la base, qui ne sait rien
+      des faits de ce poste.
       Les phrases vivent ici plutôt que dans le programme : c'est du texte
       d'écran, et il se lit en français accentué comme le reste de l'interface.
     -->
@@ -112,6 +115,12 @@
         opacity: 0.88;
       }
 
+      /* Le `display: block` ci-dessus l'emporterait sur l'attribut `hidden` :
+         sans cette regle, le bouton caché resterait visible. */
+      button[hidden] {
+        display: none;
+      }
+
       button:disabled {
         opacity: 0.45;
         cursor: default;
@@ -141,8 +150,9 @@
         L'application sert la carte depuis votre machine. Cela prend quelques secondes au premier
         lancement.
       </p>
-      <p><span class="adresse" id="adresse"></span></p>
+      <p id="ligne-adresse"><span class="adresse" id="adresse"></span></p>
       <button id="reessayer" type="button">Réessayer</button>
+      <button id="continuer" type="button" hidden>Afficher la carte</button>
     </main>
 
     <script>
@@ -150,21 +160,25 @@
       // resterait indéfiniment sur son écran d'attente - la fenêtre muette
       // que FR-004 interdit. Elle le dit plutôt que d'attendre.
       const pont = window.__TAURI__?.core;
-      const invoke = pont
-        ? pont.invoke
-        : async () => ({
-            etat: "echouee",
-            cas: "service",
-            port: 51789,
-            secondes: 0,
-            detail:
-              "Cette page ne peut être affichée que par l'application Vibe Map, " +
-              "qui seule sait où en est le démarrage de l'interface.",
-          });
+      const horsApplication = async (commande) =>
+        commande === "etat_du_lecteur"
+          ? { etat: "arrete" }
+          : {
+              etat: "echouee",
+              cas: "service",
+              port: 51789,
+              secondes: 0,
+              detail:
+                "Cette page ne peut être affichée que par l'application Vibe Map, " +
+                "qui seule sait où en est le démarrage de l'interface.",
+            };
+      const invoke = pont ? pont.invoke : horsApplication;
       const titre = document.getElementById("titre");
       const explication = document.getElementById("explication");
       const adresse = document.getElementById("adresse");
       const bouton = document.getElementById("reessayer");
+      const continuer = document.getElementById("continuer");
+      const ligneAdresse = document.getElementById("ligne-adresse");
 
       // Chaque cas nomme le port : c'est le seul fait que l'utilisateur peut
       // aller vérifier lui-même (FR-070).
@@ -192,23 +206,96 @@
         };
       }
 
-      function afficher(ouverture) {
-        if (ouverture.etat !== "echouee") {
-          return;
-        }
+      function afficherEchecDeLInterface(ouverture) {
         const dit = phrases(ouverture);
         titre.textContent = dit.titre;
         explication.textContent = dit.explication;
         adresse.textContent = `http://127.0.0.1:${ouverture.port}`;
+        ligneAdresse.hidden = false;
+        continuer.hidden = true;
         document.body.classList.remove("attente");
         bouton.disabled = false;
       }
 
-      // On demande où en est l'ouverture plutôt que d'attendre un signal :
-      // elle peut avoir échoué avant que cette page ne soit affichée.
+      // Le lecteur est ce qui alimente la carte depuis cette machine. Qu'il
+      // n'ait pas démarré ne se voit nulle part ailleurs : la carte vient de la
+      // base, et la base ne sait rien d'un verrou pris sur ce poste. C'est donc
+      // ici, avant de céder la place, que ça se dit.
+      // Le poste tenu est le cas que l'utilisateur rencontre : la phrase
+      // s'écrit ici, en français accentué et à l'heure de la machine, à partir
+      // des faits que l'application rapporte. `raison` ne sert qu'au reste.
+      function quiTientLePoste(tenant) {
+        if (!tenant) {
+          return (
+            "Un lecteur tient déjà ce poste sans avoir laissé de marque lisible : " +
+            "impossible de le nommer."
+          );
+        }
+        const depuis = new Date(tenant.depuis);
+        const quand = Number.isNaN(depuis.valueOf())
+          ? ""
+          : `, depuis ${depuis.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}`;
+        return `Le poste est tenu par ${tenant.vehicule} (processus ${tenant.pid})${quand}.`;
+      }
+
+      function afficherEchecDuLecteur(lecteur) {
+        titre.textContent = lecteur.poste_tenu
+          ? "Un lecteur tourne déjà sur cette machine"
+          : "Le lecteur n'a pas démarré";
+        explication.textContent = lecteur.poste_tenu
+          ? `${quiTientLePoste(lecteur.tenant)} Vibe Map n'en démarre pas un second : la même ` +
+            "activité partirait en double. La carte s'affiche quand même, alimentée par ce " +
+            "lecteur-là."
+          : `${lecteur.raison} La carte s'affiche quand même, mais cette machine n'y enverra ` +
+            "rien tant que le lecteur ne tourne pas.";
+        // Pas d'adresse ici : ce n'est pas le port qui est en cause, et un cadre
+        // vide se verrait.
+        ligneAdresse.hidden = true;
+        bouton.hidden = true;
+        continuer.hidden = false;
+        continuer.disabled = false;
+        document.body.classList.remove("attente");
+      }
+
+      function allerALaCarte(port) {
+        // `replace` et non une affectation : la page d'attente ne doit pas
+        // rester derrière la carte dans l'historique de la fenêtre.
+        window.location.replace(`http://127.0.0.1:${port}`);
+      }
+
+      // Une décision prise ne se défait pas : sans cela, la relève suivante
+      // emmènerait la fenêtre sur la carte pendant que l'utilisateur lit ce
+      // qu'on a à lui dire.
+      let decide = false;
+
+      // On demande où en est l'application plutôt que d'attendre un signal :
+      // l'ouverture peut avoir abouti, ou échoué, avant que cette page ne soit
+      // affichée.
       async function suivre() {
+        if (decide) {
+          return;
+        }
         try {
-          afficher(await invoke("etat_de_l_interface"));
+          const [ouverture, lecteur] = await Promise.all([
+            invoke("etat_de_l_interface"),
+            invoke("etat_du_lecteur"),
+          ]);
+
+          if (ouverture.etat === "echouee") {
+            afficherEchecDeLInterface(ouverture);
+            return;
+          }
+          if (ouverture.etat !== "faite") {
+            return;
+          }
+
+          decide = true;
+          if (lecteur.etat === "en_echec") {
+            afficherEchecDuLecteur(lecteur);
+            continuer.onclick = () => allerALaCarte(ouverture.port);
+            return;
+          }
+          allerALaCarte(ouverture.port);
         } catch (erreur) {
           console.error(erreur);
         }

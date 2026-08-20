@@ -47,9 +47,9 @@ contrôle et la publication de la release sont automatisées à chaque tag `v*`
 (voir [`.github/workflows/release.yml`](.github/workflows/release.yml) et
 [`Formula/vibemap.rb`](Formula/vibemap.rb)).
 
-Pour un démarrage automatique à l'ouverture de session, voir le plist launchd
-[`daemon/launchd/fr.yarma.vibemap.plist`](daemon/launchd/fr.yarma.vibemap.plist),
-qui référence le binaire installé par Homebrew.
+Il n'y a pas de démarrage automatique à l'ouverture de session : le lecteur vit
+et meurt avec l'application de bureau (PRD-002, FR-011). Le plist launchd qui
+existait ici est retiré du produit.
 
 ## Démarrer
 

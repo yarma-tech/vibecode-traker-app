@@ -3,11 +3,13 @@
 Une fenêtre, un menu, une barre d'adresse absente : rien de tout cela ne se
 vérifie sans un écran. Cette liste est ce que le PRD-002 impose de jouer **avant
 chaque fusion touchant `bureau/`**. Elle s'allonge avec les tranches ; #57 l'a
-commencée, #58 y ajoute la géométrie de la fenêtre.
+commencée, #58 y ajoute la géométrie de la fenêtre, #61 le lecteur embarqué.
 
 Ce qui est déjà couvert par les tests automatiques - la sonde de disponibilité,
-l'URL fixe de la fenêtre, la lecture et l'écriture de la géométrie - n'a pas à
-être rejoué ici : `cargo test` dans `bureau/` s'en charge.
+l'URL fixe de la fenêtre, la lecture et l'écriture de la géométrie, la prise et
+la libération du verrou du poste par le lecteur embarqué, le refus d'un second
+lecteur et sa mise en mots - n'a pas à être rejoué ici : `cargo test` dans
+`bureau/` s'en charge.
 
 ## Avant de commencer
 
@@ -51,3 +53,36 @@ le même que celui du site.
       `printf '{"largeur": 12' > ~/Library/Application\ Support/fr.yarma.vibemap.bureau/fenetre.json`,
       l'application s'ouvre quand même, à la géométrie par défaut, et réécrit un
       fichier valide en quittant.
+
+## Le lecteur (#61)
+
+Ces vérifications demandent une machine reliée (`vibemap pair <code>`) et une
+pile Supabase joignable. Le verrou du poste vit à
+`~/.config/vibemap/lecteur.lock` ; `lsof ~/.config/vibemap/lecteur.lock` dit qui
+le tient.
+
+- [ ] **La machine bat dès l'ouverture.** L'application ouverte depuis une
+      minute, la liste des machines consultée depuis un autre appareil montre
+      cette machine vue il y a moins de 90 secondes.
+- [ ] **Rien ne survit à la fermeture.** Quitter l'application : le Moniteur
+      d'activité ne montre plus aucun processus de lecture,
+      `lsof ~/.config/vibemap/lecteur.lock` ne rend rien, et la machine passe
+      muette au bout de 90 secondes.
+- [ ] **Un signal ne laisse rien derrière.** L'application ouverte,
+      `kill -TERM <pid de Vibe Map>` : `lsof ~/.config/vibemap/lecteur.lock` ne
+      rend rien ensuite. Même chose avec `kill -9`.
+- [ ] **Deux ouvertures, un seul lecteur.** L'application déjà ouverte, la
+      relancer depuis le Finder : un seul lecteur tourne.
+- [ ] **Le poste tenu s'annonce.** Avec `vibemap` lancé au terminal, ouvrir
+      l'application : la fenêtre dit qu'un lecteur tourne déjà, nomme
+      « vibemap » et son processus, et propose « Afficher la carte ». Le
+      Moniteur d'activité n'en montre qu'un seul.
+- [ ] **Et l'inverse.** L'application ouverte, lancer `vibemap` au terminal : il
+      refuse en nommant « l'application de bureau ».
+- [ ] **Aucun démarrage automatique.** Session du Mac ouverte, application
+      jamais lancée depuis le démarrage : au bout de deux minutes, aucun
+      processus de lecture ne tourne et la machine reste muette.
+- [ ] **Le pont ne répond qu'à la fenêtre.** Ouvrir
+      `http://127.0.0.1:51789` dans Safari, puis dans la console :
+      `window.__TAURI__` est `undefined`, et aucune commande du pont n'est
+      joignable.

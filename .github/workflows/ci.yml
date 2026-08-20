@@ -38,7 +38,7 @@ jobs:
       # compte, et se lancent a la main avant chaque fusion (voir le README).
       # Ce qui tourne ici est tout ce qui n'a besoin de personne.
       - name: Tests hors reseau
-        run: cargo test --test journal --test config --test plan --test worktree --test reprise --test robustesse --test version --test verrou
+        run: cargo test --test journal --test config --test plan --test worktree --test reprise --test robustesse --test version --test verrou --test lecteur
 
   bureau:
     name: Bureau (Tauri)
@@ -69,7 +69,7 @@ jobs:
       # locale : ces tests ne parlent a personne. La fenetre elle-meme, elle,
       # ne se verifie qu'a la main (voir bureau/VERIFICATIONS.md).
       - name: Tests hors reseau
-        run: cargo test --test sonde --test url --test geometrie
+        run: cargo test --test sonde --test url --test geometrie --test lecteur
 
   web:
     name: Web (Next)

@@ -4,9 +4,11 @@
 //! le site, demarre sur la boucle locale a un port fixe, puis charge dans sa
 //! fenetre. Ce qui vit ici, c'est ce qui n'existe que sur le poste : le
 //! demarrage du service, la sonde qui dit s'il repond, ce qu'on affiche quand
-//! il ne repond pas, et ou l'utilisateur avait laisse sa fenetre.
+//! il ne repond pas, le lecteur qu'elle embarque, et ou l'utilisateur avait
+//! laisse sa fenetre.
 
 pub mod geometrie;
+pub mod lecteur;
 pub mod service;
 pub mod sonde;
 
