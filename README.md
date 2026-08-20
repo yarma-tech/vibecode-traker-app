@@ -17,13 +17,14 @@ et ceux de ses features -, et - plus tard - la phrase d'un verdict de
 vérification. Ni code, ni diff, ni prompt, ni secret : aucune table n'a de
 colonne où l'un d'eux pourrait entrer.
 
-## Les trois morceaux
+## Les quatre morceaux
 
 | | |
 |---|---|
 | `daemon/` | Un binaire Rust sur ton poste. Il cartographie tes repos, lit les journaux de Claude Code, et pousse des métadonnées. Voir [l'ADR 0001](docs/adr/0001-daemon-en-rust.md). |
 | `supabase/` | Le schéma : machines, repos, modules, sessions, activité. Toute la logique d'accès est en RLS ; révoquer une machine coupe ses écritures à la milliseconde. |
 | `web/` | Next.js. La carte, le journal, le relevé. |
+| `bureau/` | L'application macOS (Tauri). Elle sert `web/` depuis la machine sur `127.0.0.1:51789` et l'affiche dans sa fenêtre. Voir [le PRD-002](docs/prd/PRD-002-app-de-bureau.md). |
 
 La conception complète est dans
 [la spec](docs/superpowers/specs/2026-08-01-vibe-map-observabilite-web-design.md),
@@ -87,6 +88,20 @@ toutes les 2 s.
 
 Un hook `PostToolUse` facultatif fait gagner environ une seconde — voir
 [daemon/hooks/README.md](daemon/hooks/README.md). Sans lui, tout fonctionne.
+
+Pour l'application de bureau, il faut d'abord construire l'interface qu'elle
+sert, puis la lancer :
+
+```sh
+cd web && npm run build
+cd ../bureau && cargo run
+```
+
+Elle démarre le service d'interface sur `127.0.0.1:51789` - un port fixe,
+jamais un autre - et charge cette origine dans sa fenêtre. Ce qui ne se
+vérifie qu'à l'œil est listé dans
+[bureau/VERIFICATIONS.md](bureau/VERIFICATIONS.md), à jouer avant chaque
+fusion touchant `bureau/`.
 
 ## Vérifier
 

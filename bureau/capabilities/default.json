@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Ce que la page d'attente de l'application a le droit de faire. Rien de plus que le necessaire : elle demande ou en est l'ouverture de l'interface, et redemande a essayer.",
+  "windows": ["principale"],
+  "permissions": ["core:default"]
+}

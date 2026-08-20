@@ -1,0 +1,23 @@
+[package]
+name = "bureau"
+version = "0.1.0"
+edition = "2021"
+description = "Application de bureau de Vibe Map : sert l'interface depuis la machine et l'affiche dans sa fenetre"
+license = "MIT"
+
+[lib]
+name = "bureau"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bureau"
+path = "src/main.rs"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

@@ -37,6 +37,34 @@ jobs:
       - name: Tests hors reseau
         run: cargo test --test journal --test config --test plan --test worktree --test reprise --test robustesse --test version
 
+  bureau:
+    name: Bureau (Tauri)
+    # L'application de bureau ne vise que macOS. La compiler ailleurs
+    # demanderait un moteur web qui n'y sert a rien, et ne dirait rien de plus.
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: bureau
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            bureau/target
+          key: cargo-bureau-${{ hashFiles('bureau/Cargo.lock') }}
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      # La sonde s'eprouve sur des ports que le systeme donne, sur la boucle
+      # locale : ces tests ne parlent a personne. La fenetre elle-meme, elle,
+      # ne se verifie qu'a la main (voir bureau/VERIFICATIONS.md).
+      - name: Tests hors reseau
+        run: cargo test --test sonde --test url
+
   web:
     name: Web (Next)
     runs-on: ubuntu-latest

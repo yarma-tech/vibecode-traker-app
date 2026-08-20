@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vibe Map</title>
+    <!--
+      La seule page que l'application sert elle-même. Elle occupe la fenêtre le
+      temps que le service d'interface réponde, et reste dessus quand il ne
+      répond pas : une fenêtre blanche ne dit rien à personne (FR-004).
+      Les phrases vivent ici plutôt que dans le programme : c'est du texte
+      d'écran, et il se lit en français accentué comme le reste de l'interface.
+    -->
+    <style>
+      :root {
+        --paper: oklch(0.977 0.004 155);
+        --paper-2: oklch(0.948 0.005 155);
+        --ink: oklch(0.235 0.012 160);
+        --ink-2: oklch(0.475 0.011 160);
+        --ink-3: oklch(0.53 0.009 160);
+        --rule: oklch(0.873 0.007 160);
+        --edit: oklch(0.52 0.125 68);
+        --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+        --ui: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: oklch(0.185 0.01 160);
+          --paper-2: oklch(0.228 0.011 160);
+          --ink: oklch(0.94 0.006 160);
+          --ink-2: oklch(0.735 0.01 160);
+          --ink-3: oklch(0.615 0.011 160);
+          --rule: oklch(0.318 0.012 160);
+          --edit: oklch(0.795 0.13 78);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--ui);
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+        cursor: default;
+      }
+
+      main {
+        max-width: 34rem;
+      }
+
+      .marque {
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        margin: 0 0 1.25rem;
+      }
+
+      h1 {
+        font-size: 1.35rem;
+        font-weight: 600;
+        line-height: 1.35;
+        margin: 0 0 0.75rem;
+        letter-spacing: -0.01em;
+      }
+
+      p {
+        margin: 0 0 0.75rem;
+        color: var(--ink-2);
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+
+      .adresse {
+        font-family: var(--mono);
+        font-size: 0.85rem;
+        color: var(--ink);
+        background: var(--paper-2);
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+        padding: 0.4rem 0.6rem;
+        display: inline-block;
+        user-select: text;
+      }
+
+      button {
+        display: block;
+        margin-top: 1.25rem;
+        font: inherit;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--paper);
+        background: var(--ink);
+        border: 0;
+        border-radius: 7px;
+        padding: 0.55rem 1.1rem;
+        cursor: pointer;
+      }
+
+      button:hover {
+        opacity: 0.88;
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+
+      button:focus-visible {
+        outline: 2px solid var(--edit);
+        outline-offset: 2px;
+      }
+
+      .attente h1 {
+        color: var(--ink-2);
+        font-weight: 500;
+      }
+
+      .attente .adresse,
+      .attente button {
+        display: none;
+      }
+    </style>
+  </head>
+  <body class="attente">
+    <main>
+      <p class="marque">Vibe Map</p>
+      <h1 id="titre">Démarrage de l'interface…</h1>
+      <p id="explication">
+        L'application sert la carte depuis votre machine. Cela prend quelques secondes au premier
+        lancement.
+      </p>
+      <p><span class="adresse" id="adresse"></span></p>
+      <button id="reessayer" type="button">Réessayer</button>
+    </main>
+
+    <script>
+      // Sans ce pont, la page ne saurait jamais où en est l'ouverture et
+      // resterait indéfiniment sur son écran d'attente - la fenêtre muette
+      // que FR-004 interdit. Elle le dit plutôt que d'attendre.
+      const pont = window.__TAURI__?.core;
+      const invoke = pont
+        ? pont.invoke
+        : async () => ({
+            etat: "echouee",
+            cas: "service",
+            port: 51789,
+            secondes: 0,
+            detail:
+              "Cette page ne peut être affichée que par l'application Vibe Map, " +
+              "qui seule sait où en est le démarrage de l'interface.",
+          });
+      const titre = document.getElementById("titre");
+      const explication = document.getElementById("explication");
+      const adresse = document.getElementById("adresse");
+      const bouton = document.getElementById("reessayer");
+
+      // Chaque cas nomme le port : c'est le seul fait que l'utilisateur peut
+      // aller vérifier lui-même (FR-070).
+      function phrases(echec) {
+        if (echec.cas === "port_pris") {
+          return {
+            titre: `Le port ${echec.port} est déjà pris`,
+            explication:
+              "Un autre programme écoute déjà à cette adresse. Vibe Map n'en utilise aucune " +
+              "autre : son adresse de retour de connexion et sa session y sont attachées. " +
+              "Fermez ce programme, puis réessayez.",
+          };
+        }
+        if (echec.cas === "sans_reponse") {
+          return {
+            titre: `L'interface n'a pas répondu sur le port ${echec.port}`,
+            explication:
+              `Le service a été lancé, mais rien n'a répondu à cette adresse en ${echec.secondes} ` +
+              "secondes. Réessayez ; s'il reste muet, relancez l'application.",
+          };
+        }
+        return {
+          titre: `L'interface n'a pas pu démarrer sur le port ${echec.port}`,
+          explication: echec.detail,
+        };
+      }
+
+      function afficher(ouverture) {
+        if (ouverture.etat !== "echouee") {
+          return;
+        }
+        const dit = phrases(ouverture);
+        titre.textContent = dit.titre;
+        explication.textContent = dit.explication;
+        adresse.textContent = `http://127.0.0.1:${ouverture.port}`;
+        document.body.classList.remove("attente");
+        bouton.disabled = false;
+      }
+
+      // On demande où en est l'ouverture plutôt que d'attendre un signal :
+      // elle peut avoir échoué avant que cette page ne soit affichée.
+      async function suivre() {
+        try {
+          afficher(await invoke("etat_de_l_interface"));
+        } catch (erreur) {
+          console.error(erreur);
+        }
+      }
+
+      bouton.addEventListener("click", async () => {
+        bouton.disabled = true;
+        document.body.classList.add("attente");
+        titre.textContent = "Démarrage de l'interface…";
+        explication.textContent = "Nouvel essai en cours.";
+        await invoke("reessayer");
+      });
+
+      setInterval(suivre, 400);
+      suivre();
+    </script>
+  </body>
+</html>
