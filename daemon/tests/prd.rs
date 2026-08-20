@@ -1585,10 +1585,6 @@ async fn le_vrai_prd_001_du_depot_est_converti_en_seize_features() {
         resume.features_creees, 16,
         "PRD-001 porte seize sections ### Fn"
     );
-    assert_eq!(
-        resume.blocs_poses, 0,
-        "aucune exploration n'a jamais ete posee pour ce document"
-    );
     assert!(
         resume
             .sans_feature_reconnue
@@ -1601,7 +1597,29 @@ async fn le_vrai_prd_001_du_depot_est_converti_en_seize_features() {
         "PRD-001 est seul dans ce depot de test, aucune collision de cle possible"
     );
 
-    let blocs = ctx.lire_blocs(&repo_id).await;
+    // `docs/prd/` n'est plus le domaine reserve de PRD-001 : un second document
+    // en brouillon y vit desormais, et il laisse legitimement son exploration.
+    // Les compteurs globaux du resume ne disent donc plus rien de PRD-001 - on
+    // interroge les blocs, ou chacun porte sa cle de document.
+    let tous_les_blocs = ctx.lire_blocs(&repo_id).await;
+    assert!(
+        !tous_les_blocs.iter().any(|b| {
+            b["type"] == serde_json::json!("exploration")
+                && b["chemin"]
+                    .as_str()
+                    .is_some_and(|c| c.ends_with("PRD-001-espace-projet-kanban.md"))
+        }),
+        "aucune exploration n'a jamais ete posee pour ce document"
+    );
+
+    let blocs: Vec<_> = tous_les_blocs
+        .into_iter()
+        .filter(|b| {
+            b["prd_cle"]
+                .as_str()
+                .is_some_and(|c| c.starts_with("2026-08-10/PRD-001/"))
+        })
+        .collect();
     assert_eq!(blocs.len(), 16);
     assert!(blocs
         .iter()
