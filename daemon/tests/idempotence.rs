@@ -11,9 +11,15 @@ use vibemap::{Activite, SessionCout};
 
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
     let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
-        .await
-        .expect("appairage")
+    vibemap::appairer(
+        &ctx.url,
+        &ctx.anon_key,
+        &code,
+        "MacBook Pro",
+        Some("darwin"),
+    )
+    .await
+    .expect("appairage")
 }
 
 fn session() -> String {
@@ -69,7 +75,11 @@ async fn rejouer_le_meme_lot_de_cout_ne_double_pas_les_jetons() {
     }
 
     let s = ctx.lire_session(&s1).await;
-    assert_eq!(s["input_tokens"].as_i64(), Some(1000), "le rejeu ne double pas les jetons");
+    assert_eq!(
+        s["input_tokens"].as_i64(),
+        Some(1000),
+        "le rejeu ne double pas les jetons"
+    );
     assert_eq!(s["output_tokens"].as_i64(), Some(2000));
 
     // Un lot vraiment nouveau (autre cle) s'ajoute bien : l'idempotence ne gele
@@ -85,7 +95,11 @@ async fn rejouer_le_meme_lot_de_cout_ne_double_pas_les_jetons() {
         .expect("un nouveau lot doit etre accepte");
 
     let s = ctx.lire_session(&s1).await;
-    assert_eq!(s["input_tokens"].as_i64(), Some(1030), "un lot neuf s'ajoute");
+    assert_eq!(
+        s["input_tokens"].as_i64(),
+        Some(1030),
+        "un lot neuf s'ajoute"
+    );
     assert_eq!(s["output_tokens"].as_i64(), Some(2040));
 }
 
@@ -108,7 +122,11 @@ async fn rejouer_entierement_les_evenements_ne_cree_aucun_doublon() {
     }
 
     let poses = ctx.lire_evenements(&repo_id).await;
-    assert_eq!(poses.len(), 2, "la contrainte d'unicite absorbe le rejeu : pas de doublon");
+    assert_eq!(
+        poses.len(),
+        2,
+        "la contrainte d'unicite absorbe le rejeu : pas de doublon"
+    );
 }
 
 #[tokio::test]

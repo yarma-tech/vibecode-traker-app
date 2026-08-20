@@ -37,11 +37,19 @@ enum Envoi {
 impl Envoi {
     async fn tenter(&self, client: &Supabase, machine_id: &str) -> Result<(), ApiError> {
         match self {
-            Envoi::Activite { repo_id, branche, activites } => client
+            Envoi::Activite {
+                repo_id,
+                branche,
+                activites,
+            } => client
                 .pousser_activite(machine_id, repo_id, branche.as_deref(), activites)
                 .await
                 .map(|_| ()),
-            Envoi::Cout { repo_id, branche, sessions } => client
+            Envoi::Cout {
+                repo_id,
+                branche,
+                sessions,
+            } => client
                 .pousser_cout(machine_id, repo_id, branche.as_deref(), sessions)
                 .await
                 .map(|_| ()),
@@ -170,8 +178,7 @@ async fn appairer(code: Option<&str>) -> ExitCode {
         return ExitCode::FAILURE;
     };
 
-    let url = std::env::var("VIBEMAP_SUPABASE_URL")
-        .unwrap_or_else(|_| URL_PAR_DEFAUT.to_string());
+    let url = std::env::var("VIBEMAP_SUPABASE_URL").unwrap_or_else(|_| URL_PAR_DEFAUT.to_string());
 
     let Ok(anon_key) = std::env::var("VIBEMAP_SUPABASE_ANON_KEY") else {
         eprintln!(
@@ -184,14 +191,13 @@ async fn appairer(code: Option<&str>) -> ExitCode {
     let label = nom_de_la_machine();
     let plateforme = std::env::consts::OS;
 
-    let identite =
-        match vibemap::appairer(&url, &anon_key, code, &label, Some(plateforme)).await {
-            Ok(identite) => identite,
-            Err(erreur) => {
-                eprintln!("{erreur}");
-                return ExitCode::FAILURE;
-            }
-        };
+    let identite = match vibemap::appairer(&url, &anon_key, code, &label, Some(plateforme)).await {
+        Ok(identite) => identite,
+        Err(erreur) => {
+            eprintln!("{erreur}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     if let Err(erreur) = vibemap::trousseau::ranger(&identite.machine_id, &identite.token) {
         eprintln!("{erreur}");
@@ -265,14 +271,11 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
     let client = Supabase::new(&config.supabase_url, &token);
     let mut horloge =
         tokio::time::interval(std::time::Duration::from_secs(config.interval_seconds));
-    let mut arpentage =
-        tokio::time::interval(std::time::Duration::from_secs(config.scan_seconds));
-    let mut veille =
-        tokio::time::interval(std::time::Duration::from_secs(config.journal_seconds));
+    let mut arpentage = tokio::time::interval(std::time::Duration::from_secs(config.scan_seconds));
+    let mut veille = tokio::time::interval(std::time::Duration::from_secs(config.journal_seconds));
     let mut chantier =
         tokio::time::interval(std::time::Duration::from_secs(config.worktree_seconds));
-    let mut commits =
-        tokio::time::interval(std::time::Duration::from_secs(config.commit_seconds));
+    let mut commits = tokio::time::interval(std::time::Duration::from_secs(config.commit_seconds));
 
     println!(
         "vibemap surveille depuis « {} », battement toutes les {} s, \
@@ -334,11 +337,7 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
 ///
 /// Un repo qui echoue n'arrete pas les autres : mieux vaut une carte partielle
 /// qu'un ecran vide parce qu'un seul dossier posait probleme.
-async fn cartographier(
-    client: &Supabase,
-    config: &Config,
-    carte: &mut BTreeMap<PathBuf, String>,
-) {
+async fn cartographier(client: &Supabase, config: &Config, carte: &mut BTreeMap<PathBuf, String>) {
     let mut trouves = 0;
     let mut envoyes = 0;
     let mut blocs_prd = 0;
@@ -430,8 +429,8 @@ async fn suivre(
     suivi: &mut Suivi,
     tampon: &mut Tampon,
 ) {
-    let horizon = chrono::Utc::now()
-        - chrono::Duration::seconds(config.journal_lookback_seconds as i64);
+    let horizon =
+        chrono::Utc::now() - chrono::Duration::seconds(config.journal_lookback_seconds as i64);
     let lecture = suivi.nouveaux(&config.journaux(), horizon);
 
     let retard = !tampon.file.est_vide();
@@ -546,7 +545,9 @@ async fn traiter_commits_du_repo(
     let branche = vibemap::branche_courante(racine);
 
     for commit in &nouveaux {
-        client.ingerer_commit(repo_id, branche.as_deref(), commit).await?;
+        client
+            .ingerer_commit(repo_id, branche.as_deref(), commit)
+            .await?;
     }
 
     let plus_recent = &nouveaux

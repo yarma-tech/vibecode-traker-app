@@ -13,9 +13,15 @@ mod common;
 
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
     let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
-        .await
-        .expect("appairage")
+    vibemap::appairer(
+        &ctx.url,
+        &ctx.anon_key,
+        &code,
+        "MacBook Pro",
+        Some("darwin"),
+    )
+    .await
+    .expect("appairage")
 }
 
 const ARBRE: &[&str] = &["src", "src/core", "docs"];
@@ -51,7 +57,8 @@ async fn l_apercu_porte_l_heure_du_dernier_battement() {
     let repo = ctx.creer_repo(&machine.machine_id, ARBRE).await;
 
     let battement = "2020-01-01T00:00:00Z";
-    ctx.poser_derniere_presence(&machine.machine_id, battement).await;
+    ctx.poser_derniere_presence(&machine.machine_id, battement)
+        .await;
 
     let apercu = ctx.apercu_repos(600).await;
     let ligne = apercu
@@ -90,7 +97,8 @@ async fn chaque_repo_porte_la_presence_de_sa_propre_machine() {
     let repo_muet = ctx.creer_repo(&muette.machine_id, ARBRE).await;
 
     let recent = chrono::Utc::now().to_rfc3339();
-    ctx.poser_derniere_presence(&vivante.machine_id, &recent).await;
+    ctx.poser_derniere_presence(&vivante.machine_id, &recent)
+        .await;
     ctx.poser_derniere_presence(&muette.machine_id, "2020-01-01T00:00:00Z")
         .await;
 

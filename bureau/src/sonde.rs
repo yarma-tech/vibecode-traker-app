@@ -111,9 +111,8 @@ pub fn sonder(port: u16, budget: Duration) -> Result<(), Indisponibilite> {
     let _ = flux.set_write_timeout(Some(budget));
     let _ = flux.set_read_timeout(Some(budget));
 
-    let requete = format!(
-        "GET / HTTP/1.1\r\nHost: {HOTE_INTERFACE}:{port}\r\nConnection: close\r\n\r\n"
-    );
+    let requete =
+        format!("GET / HTTP/1.1\r\nHost: {HOTE_INTERFACE}:{port}\r\nConnection: close\r\n\r\n");
     if flux.write_all(requete.as_bytes()).is_err() {
         return Err(Indisponibilite::PortPris { port });
     }

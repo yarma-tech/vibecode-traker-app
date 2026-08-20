@@ -71,7 +71,14 @@ impl TestContext {
             .unwrap_or_else(|| panic!("pas de jeton dans {session}"))
             .to_string();
 
-        Self { url, service_key, anon_key, user_token, user_id, http }
+        Self {
+            url,
+            service_key,
+            anon_key,
+            user_token,
+            user_id,
+            http,
+        }
     }
 
     /// Demande un code d'appairage, comme le ferait la page web.
@@ -218,7 +225,9 @@ impl TestContext {
 
     /// Relit une session en contournant la RLS.
     pub async fn lire_session(&self, session_id: &str) -> Value {
-        self.lire(&format!("sessions?id=eq.{session_id}&select=*")).await[0].clone()
+        self.lire(&format!("sessions?id=eq.{session_id}&select=*"))
+            .await[0]
+            .clone()
     }
 
     /// Demande a la base l'etat de chaque module, comme le fera l'ecran.
@@ -238,7 +247,10 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "etat_modules a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "etat_modules a echoue ({code}) : {texte}"
+        );
 
         serde_json::from_str::<Value>(&texte)
             .expect("reponse JSON de etat_modules")
@@ -274,7 +286,10 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "apercu_repos a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "apercu_repos a echoue ({code}) : {texte}"
+        );
 
         serde_json::from_str::<Value>(&texte)
             .expect("reponse JSON de apercu_repos")
@@ -352,9 +367,15 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "agents_actifs a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "agents_actifs a echoue ({code}) : {texte}"
+        );
 
-        texte.trim().parse().unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
+        texte
+            .trim()
+            .parse()
+            .unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
     }
 
     /// Les worktrees ouverts d'un repo, tels que le plan les lira.
@@ -386,8 +407,14 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "purger_activite a echoue ({code}) : {texte}");
-        texte.trim().parse().unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
+        assert!(
+            code.is_success(),
+            "purger_activite a echoue ({code}) : {texte}"
+        );
+        texte
+            .trim()
+            .parse()
+            .unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
     }
 
     /// Dit si la purge des evenements est bien programmee cote base (pg_cron).
@@ -404,17 +431,15 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "purge_planifiee a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "purge_planifiee a echoue ({code}) : {texte}"
+        );
         texte.trim() == "true"
     }
 
     /// Pose un evenement daté à la main, pour éprouver la purge sans attendre.
-    pub async fn poser_evenement_ancien(
-        &self,
-        repo_id: &str,
-        session_id: &str,
-        occurred_at: &str,
-    ) {
+    pub async fn poser_evenement_ancien(&self, repo_id: &str, session_id: &str, occurred_at: &str) {
         self.ecrire_service(
             "activity_events",
             json!([{
@@ -498,7 +523,10 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "POST {chemin} a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "POST {chemin} a echoue ({code}) : {texte}"
+        );
 
         serde_json::from_str(&texte).expect("reponse JSON d'insertion")
     }
@@ -549,7 +577,10 @@ impl TestContext {
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
 
-        assert!(code.is_success(), "PATCH {chemin} a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "PATCH {chemin} a echoue ({code}) : {texte}"
+        );
         assert!(
             texte.trim_start().starts_with('[') && texte.trim() != "[]",
             "PATCH {chemin} n'a touche aucune ligne : {texte}"
@@ -722,36 +753,44 @@ impl TestContext {
 
     /// Relit une seule issue en contournant la RLS.
     pub async fn lire_issue(&self, issue_id: &str) -> Value {
-        self.lire(&format!("issues?id=eq.{issue_id}&select=*")).await[0].clone()
+        self.lire(&format!("issues?id=eq.{issue_id}&select=*"))
+            .await[0]
+            .clone()
     }
 
     /// Relit les commits d'un repo en contournant la RLS.
     pub async fn lire_commits(&self, repo_id: &str) -> Vec<Value> {
-        self.lire(&format!("commits?repo_id=eq.{repo_id}&select=*&order=authored_at"))
-            .await
-            .as_array()
-            .cloned()
-            .unwrap_or_default()
+        self.lire(&format!(
+            "commits?repo_id=eq.{repo_id}&select=*&order=authored_at"
+        ))
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
     }
 
     /// Relit les fermetures d'un bloc en contournant la RLS, dans l'ordre ou
     /// elles ont ete posees : c'est l'historique des versions d'un travail
     /// (FR-024).
     pub async fn lire_fermetures_bloc(&self, bloc_id: &str) -> Vec<Value> {
-        self.lire(&format!("fermetures?bloc_id=eq.{bloc_id}&select=*&order=ferme_le"))
-            .await
-            .as_array()
-            .cloned()
-            .unwrap_or_default()
+        self.lire(&format!(
+            "fermetures?bloc_id=eq.{bloc_id}&select=*&order=ferme_le"
+        ))
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
     }
 
     /// Relit les fermetures d'une issue en contournant la RLS.
     pub async fn lire_fermetures_issue(&self, issue_id: &str) -> Vec<Value> {
-        self.lire(&format!("fermetures?issue_id=eq.{issue_id}&select=*&order=ferme_le"))
-            .await
-            .as_array()
-            .cloned()
-            .unwrap_or_default()
+        self.lire(&format!(
+            "fermetures?issue_id=eq.{issue_id}&select=*&order=ferme_le"
+        ))
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
     }
 
     /// Pose une ligne `commits` directement, en contournant la RLS et le
@@ -870,7 +909,10 @@ impl TestContext {
     pub async fn lire_issues_avec_jeton(&self, jeton: &str, repo_id: &str) -> Vec<Value> {
         let reponse = self
             .http
-            .get(format!("{}/rest/v1/issues?repo_id=eq.{repo_id}&select=*", self.url))
+            .get(format!(
+                "{}/rest/v1/issues?repo_id=eq.{repo_id}&select=*",
+                self.url
+            ))
             .header("apikey", &self.anon_key)
             .bearer_auth(jeton)
             .send()
@@ -894,15 +936,21 @@ impl TestContext {
     /// capable de poser `done` directement : c'est la meme requete que
     /// prendrait un automatisme cote serveur, jamais le navigateur.
     pub async fn poser_statut_issue(&self, issue_id: &str, statut: &str) {
-        self.ecrire(&format!("issues?id=eq.{issue_id}"), json!({ "statut": statut }))
-            .await;
+        self.ecrire(
+            &format!("issues?id=eq.{issue_id}"),
+            json!({ "statut": statut }),
+        )
+        .await;
     }
 
     /// Le pendant de `poser_statut_issue` pour un bloc : pose son statut avec
     /// la cle de service, en contournant la RLS.
     pub async fn poser_statut_bloc(&self, bloc_id: &str, statut: &str) {
-        self.ecrire(&format!("blocs?id=eq.{bloc_id}"), json!({ "statut": statut }))
-            .await;
+        self.ecrire(
+            &format!("blocs?id=eq.{bloc_id}"),
+            json!({ "statut": statut }),
+        )
+        .await;
     }
 
     /// Tente de poser `prd_priorite` avec la cle de SERVICE - qui echappe a
@@ -944,7 +992,8 @@ impl TestContext {
         bloc_id: &str,
         statut: &str,
     ) -> Result<(), (reqwest::StatusCode, String)> {
-        self.patch_bloc_avec_jeton(jeton, bloc_id, json!({ "statut": statut })).await
+        self.patch_bloc_avec_jeton(jeton, bloc_id, json!({ "statut": statut }))
+            .await
     }
 
     /// Meme geste, avec un corps de requete libre : sert a eprouver qu'un
@@ -988,7 +1037,8 @@ impl TestContext {
         issue_id: &str,
         statut: &str,
     ) -> Result<(), (reqwest::StatusCode, String)> {
-        self.patch_issue_avec_jeton(jeton, issue_id, json!({ "statut": statut })).await
+        self.patch_issue_avec_jeton(jeton, issue_id, json!({ "statut": statut }))
+            .await
     }
 
     /// Le pendant de `patch_bloc_avec_jeton` pour une issue.
@@ -1025,7 +1075,10 @@ impl TestContext {
     pub async fn lire_blocs_avec_jeton(&self, jeton: &str, repo_id: &str) -> Vec<Value> {
         let reponse = self
             .http
-            .get(format!("{}/rest/v1/blocs?repo_id=eq.{repo_id}&select=*", self.url))
+            .get(format!(
+                "{}/rest/v1/blocs?repo_id=eq.{repo_id}&select=*",
+                self.url
+            ))
             .header("apikey", &self.anon_key)
             .bearer_auth(jeton)
             .send()

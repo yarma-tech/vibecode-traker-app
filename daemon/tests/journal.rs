@@ -7,8 +7,7 @@ use chrono::{TimeZone, Utc};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use vibemap::journal::{
-    depuis_hook, lire, lire_usage, localiser, racine_git, rattacher, rattacher_usage, Nature,
-    Suivi,
+    depuis_hook, lire, lire_usage, localiser, racine_git, rattacher, rattacher_usage, Nature, Suivi,
 };
 
 /// Une ligne d'assistant telle qu'elle apparait dans un vrai journal.
@@ -135,9 +134,17 @@ fn un_lot_de_consommation_porte_une_cle_stable_et_sensible_au_contenu() {
     let deux_lignes = cle(&format!("{a}\n{b}"));
     assert!(deux_lignes.is_some(), "un lot lu porte une cle");
     // Meme contenu, meme cle : c'est ce qui laisse la base reconnaitre un rejeu.
-    assert_eq!(deux_lignes, cle(&format!("{a}\n{b}")), "meme contenu, meme cle");
+    assert_eq!(
+        deux_lignes,
+        cle(&format!("{a}\n{b}")),
+        "meme contenu, meme cle"
+    );
     // Insensible a l'ordre d'arrivee : les identifiants sont tries avant hachage.
-    assert_eq!(deux_lignes, cle(&format!("{b}\n{a}")), "l'ordre n'a pas d'importance");
+    assert_eq!(
+        deux_lignes,
+        cle(&format!("{b}\n{a}")),
+        "l'ordre n'a pas d'importance"
+    );
 
     // Une ligne de plus : le lot est different, la cle change, les jetons
     // nouveaux seront bien comptes.
@@ -148,7 +155,11 @@ fn un_lot_de_consommation_porte_une_cle_stable_et_sensible_au_contenu() {
         serde_json::json!({ "input_tokens": 7, "output_tokens": 3 }),
         "2026-08-04T12:10:00.000Z",
     );
-    assert_ne!(deux_lignes, cle(&format!("{a}\n{b}\n{c}")), "un contenu different, une cle differente");
+    assert_ne!(
+        deux_lignes,
+        cle(&format!("{a}\n{b}\n{c}")),
+        "un contenu different, une cle differente"
+    );
 }
 
 #[test]
@@ -166,7 +177,10 @@ fn un_usage_hors_de_tout_repo_connu_est_ignore() {
         &repos_connus(&[("/Users/moi/Developer/atelier", "repo-1")]),
     );
 
-    assert!(lots.is_empty(), "un usage hors repo cartographie ne sort pas");
+    assert!(
+        lots.is_empty(),
+        "un usage hors repo cartographie ne sort pas"
+    );
 }
 
 #[test]
@@ -243,7 +257,10 @@ fn un_appel_edit_donne_une_ecriture() {
     assert_eq!(evenements[0].nature, Nature::Ecriture);
     // Le contenu edite ne doit exister nulle part dans ce qu'on retient.
     let trace = format!("{:?}", evenements[0]);
-    assert!(!trace.contains("secret"), "le contenu edite a fuite : {trace}");
+    assert!(
+        !trace.contains("secret"),
+        "le contenu edite a fuite : {trace}"
+    );
 }
 
 #[test]
@@ -304,7 +321,10 @@ fn grep_sans_chemin_vise_le_dossier_courant() {
 
     assert_eq!(evenements[0].nature, Nature::Lecture);
     assert_eq!(evenements[0].chemin, "/Users/moi/Developer/atelier");
-    assert!(evenements[0].dossier, "un grep vise un dossier, pas un fichier");
+    assert!(
+        evenements[0].dossier,
+        "un grep vise un dossier, pas un fichier"
+    );
 }
 
 #[test]
@@ -316,7 +336,10 @@ fn un_chemin_relatif_se_lit_depuis_le_dossier_courant() {
         "2026-08-04T12:00:06.000Z",
     );
 
-    assert_eq!(lire(&contenu)[0].chemin, "/Users/moi/Developer/atelier/src/b.ts");
+    assert_eq!(
+        lire(&contenu)[0].chemin,
+        "/Users/moi/Developer/atelier/src/b.ts"
+    );
 }
 
 #[test]
@@ -591,7 +614,10 @@ fn un_fichier_hors_du_repo_courant_est_ignore() {
         &repos_connus(&[("/Users/moi/Developer/atelier", "repo-1")]),
     );
 
-    assert!(lots.is_empty(), "un secret du systeme n'entre pas dans la carte");
+    assert!(
+        lots.is_empty(),
+        "un secret du systeme n'entre pas dans la carte"
+    );
 }
 
 #[test]
@@ -661,7 +687,8 @@ fn poser_journal(dossier: &Path, nom: &str, contenu: &str) -> std::path::PathBuf
 }
 
 fn dossier_neuf(nom: &str) -> std::path::PathBuf {
-    let dossier = std::env::temp_dir().join(format!("vibemap-journal-{nom}-{}", std::process::id()));
+    let dossier =
+        std::env::temp_dir().join(format!("vibemap-journal-{nom}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dossier);
     std::fs::create_dir_all(&dossier).expect("creation du dossier de test");
     dossier

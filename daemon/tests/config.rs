@@ -6,8 +6,7 @@
 use std::path::PathBuf;
 
 fn fichier_temporaire(contenu: &str) -> PathBuf {
-    let chemin =
-        std::env::temp_dir().join(format!("vibemap-{}.toml", uuid::Uuid::new_v4()));
+    let chemin = std::env::temp_dir().join(format!("vibemap-{}.toml", uuid::Uuid::new_v4()));
     std::fs::write(&chemin, contenu).expect("ecriture du fichier de test");
     chemin
 }
@@ -150,8 +149,7 @@ fn dit_ou_il_a_cherche_quand_le_fichier_manque() {
     let chemin = std::env::temp_dir().join("vibemap-ce-fichier-n-existe-pas.toml");
     let _ = std::fs::remove_file(&chemin);
 
-    let erreur =
-        vibemap::Config::load(&chemin).expect_err("un fichier absent ne doit pas charger");
+    let erreur = vibemap::Config::load(&chemin).expect_err("un fichier absent ne doit pas charger");
 
     let message = erreur.to_string();
     assert!(

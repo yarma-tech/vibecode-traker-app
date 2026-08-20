@@ -203,7 +203,14 @@ fn lire_usage_une_ligne(ligne: &str) -> Option<Usage> {
         .or_else(|| entree.pointer("/message/id").and_then(Value::as_str))
         .map(str::to_string)
         .unwrap_or_else(|| {
-            empreinte_usage(session_id, instant, input, output, cache_read, cache_creation)
+            empreinte_usage(
+                session_id,
+                instant,
+                input,
+                output,
+                cache_read,
+                cache_creation,
+            )
         });
 
     Some(Usage {
@@ -300,8 +307,14 @@ pub fn depuis_hook(charge: &str) -> Option<Evenement> {
     let (brut, dossier) = cible(outil, entree)?;
 
     Some(Evenement {
-        session_id: charge.get("session_id").and_then(Value::as_str)?.to_string(),
-        tool_use_id: charge.get("tool_use_id").and_then(Value::as_str)?.to_string(),
+        session_id: charge
+            .get("session_id")
+            .and_then(Value::as_str)?
+            .to_string(),
+        tool_use_id: charge
+            .get("tool_use_id")
+            .and_then(Value::as_str)?
+            .to_string(),
         // Le hook parle au moment ou l'outil vient de rendre la main.
         instant: Utc::now(),
         cwd: cwd.to_string(),
@@ -687,9 +700,7 @@ fn journaux(racine: &Path) -> Vec<PathBuf> {
             let chemin = entree.path();
             match entree.file_type() {
                 Ok(sorte) if sorte.is_dir() => a_visiter.push(chemin),
-                Ok(_) if chemin.extension().is_some_and(|e| e == "jsonl") => {
-                    trouves.push(chemin)
-                }
+                Ok(_) if chemin.extension().is_some_and(|e| e == "jsonl") => trouves.push(chemin),
                 _ => {}
             }
         }

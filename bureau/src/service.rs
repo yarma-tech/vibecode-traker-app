@@ -94,7 +94,15 @@ pub fn lancer(port: u16) -> Result<Service, ErreurService> {
         // developpement refuse de tourner deux fois sur le meme dossier -
         // un `npm run dev` ouvert a cote empecherait l'application de
         // s'ouvrir.
-        .args(["run", "start", "--", "-H", "127.0.0.1", "-p", &port.to_string()])
+        .args([
+            "run",
+            "start",
+            "--",
+            "-H",
+            "127.0.0.1",
+            "-p",
+            &port.to_string(),
+        ])
         .current_dir(&racine)
         // Le service devient le chef de son propre groupe de processus : il
         // en lance lui-meme d'autres, et c'est le groupe entier qu'il faudra
@@ -122,9 +130,18 @@ static GROUPE_DU_SERVICE: AtomicI32 = AtomicI32::new(0);
 fn armer_l_arret_au_signal() {
     static UNE_FOIS: Once = Once::new();
     UNE_FOIS.call_once(|| unsafe {
-        libc::signal(libc::SIGTERM, arreter_au_signal as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGINT, arreter_au_signal as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGHUP, arreter_au_signal as *const () as libc::sighandler_t);
+        libc::signal(
+            libc::SIGTERM,
+            arreter_au_signal as *const () as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGINT,
+            arreter_au_signal as *const () as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGHUP,
+            arreter_au_signal as *const () as libc::sighandler_t,
+        );
     });
 }
 

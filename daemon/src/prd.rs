@@ -90,7 +90,15 @@ impl EnTete {
         let valide_le = requis("valide_le").filter(|d| date_valide(d));
         let maj = requis("maj").filter(|d| date_valide(d));
 
-        Some(Self { id, statut, date, repo, titre, valide_le, maj })
+        Some(Self {
+            id,
+            statut,
+            date,
+            repo,
+            titre,
+            valide_le,
+            maj,
+        })
     }
 }
 
@@ -118,7 +126,9 @@ fn entete_et_corps(contenu: &str) -> Option<(std::collections::HashMap<String, S
 
     let mut champs = std::collections::HashMap::new();
     for ligne in bloc.lines() {
-        let Some((cle, valeur)) = ligne.split_once(':') else { continue };
+        let Some((cle, valeur)) = ligne.split_once(':') else {
+            continue;
+        };
         let cle = cle.trim();
         let valeur = sans_guillemets(valeur.trim());
         if !cle.is_empty() && !valeur.is_empty() {
@@ -186,7 +196,9 @@ fn features_du_corps(corps: &str, date: &str, id: &str) -> Vec<Feature> {
 /// faute de chiffre apres le `F`.
 fn entete_de_feature(ligne: &str) -> Option<(&str, &str)> {
     let reste = ligne.strip_prefix("### F")?;
-    let fin_numero = reste.find(|c: char| !c.is_ascii_digit()).unwrap_or(reste.len());
+    let fin_numero = reste
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(reste.len());
     if fin_numero == 0 {
         return None;
     }
@@ -248,7 +260,11 @@ pub fn nom_logique(plan: &crate::Plan) -> String {
     if plan.identity.starts_with("local:") {
         plan.name.clone()
     } else {
-        plan.identity.rsplit('/').next().unwrap_or(&plan.name).to_string()
+        plan.identity
+            .rsplit('/')
+            .next()
+            .unwrap_or(&plan.name)
+            .to_string()
     }
 }
 
@@ -259,11 +275,21 @@ pub fn nom_logique(plan: &crate::Plan) -> String {
 /// en-tete, pas a son emplacement.
 fn markdowns_du_depot(racine: &Path) -> Vec<PathBuf> {
     let sortie = Command::new("git")
-        .args(["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "*.md"])
+        .args([
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z",
+            "--",
+            "*.md",
+        ])
         .current_dir(racine)
         .output();
 
-    let Ok(sortie) = sortie else { return Vec::new() };
+    let Ok(sortie) = sortie else {
+        return Vec::new();
+    };
     if !sortie.status.success() {
         return Vec::new();
     }
@@ -465,7 +491,10 @@ pub async fn traiter(
                     )
                     .await
                 {
-                    eprintln!("PRD {} non marque absent : {erreur}", chemin_relatif.display());
+                    eprintln!(
+                        "PRD {} non marque absent : {erreur}",
+                        chemin_relatif.display()
+                    );
                 }
             }
 

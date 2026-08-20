@@ -8,9 +8,15 @@ use vibemap::Activite;
 /// Appaire une machine et rend son jeton.
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
     let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
-        .await
-        .expect("appairage")
+    vibemap::appairer(
+        &ctx.url,
+        &ctx.anon_key,
+        &code,
+        "MacBook Pro",
+        Some("darwin"),
+    )
+    .await
+    .expect("appairage")
 }
 
 /// Un identifiant de session unique par test.
@@ -22,13 +28,7 @@ fn session() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-fn evenement(
-    session: &str,
-    id: &str,
-    module: &str,
-    fichier: &str,
-    kind: &'static str,
-) -> Activite {
+fn evenement(session: &str, id: &str, module: &str, fichier: &str, kind: &'static str) -> Activite {
     Activite {
         session_id: session.to_string(),
         tool_use_id: id.to_string(),
@@ -53,7 +53,9 @@ async fn etat(ctx: &common::TestContext, repo_id: &str, module: &str) -> String 
 async fn une_ecriture_arrive_en_base() {
     let ctx = common::TestContext::new().await;
     let machine = machine_reliee(&ctx).await;
-    let repo_id = ctx.creer_repo(&machine.machine_id, &["src", "src/core"]).await;
+    let repo_id = ctx
+        .creer_repo(&machine.machine_id, &["src", "src/core"])
+        .await;
     let client = vibemap::Supabase::new(&ctx.url, &machine.token);
     let s1 = session();
 
@@ -62,7 +64,13 @@ async fn une_ecriture_arrive_en_base() {
             &machine.machine_id,
             &repo_id,
             Some("main"),
-            &[evenement(&s1, "toolu_1", "src/core", "src/core/auth.ts", "write")],
+            &[evenement(
+                &s1,
+                "toolu_1",
+                "src/core",
+                "src/core/auth.ts",
+                "write",
+            )],
         )
         .await
         .expect("l'evenement doit etre accepte");
@@ -176,7 +184,10 @@ async fn deux_sessions_qui_ecrivent_dans_le_meme_sous_arbre_donnent_un_conflit()
     let ctx = common::TestContext::new().await;
     let machine = machine_reliee(&ctx).await;
     let repo_id = ctx
-        .creer_repo(&machine.machine_id, &["src", "src/core", "src/core/auth", "src/core/db"])
+        .creer_repo(
+            &machine.machine_id,
+            &["src", "src/core", "src/core/auth", "src/core/db"],
+        )
         .await;
     let client = vibemap::Supabase::new(&ctx.url, &machine.token);
     let s_a = session();
@@ -188,8 +199,20 @@ async fn deux_sessions_qui_ecrivent_dans_le_meme_sous_arbre_donnent_un_conflit()
             &repo_id,
             Some("main"),
             &[
-                evenement(&s_a, "toolu_1", "src/core/auth", "src/core/auth/jeton.ts", "write"),
-                evenement(&s_c, "toolu_2", "src/core/db", "src/core/db/pool.ts", "write"),
+                evenement(
+                    &s_a,
+                    "toolu_1",
+                    "src/core/auth",
+                    "src/core/auth/jeton.ts",
+                    "write",
+                ),
+                evenement(
+                    &s_c,
+                    "toolu_2",
+                    "src/core/db",
+                    "src/core/db/pool.ts",
+                    "write",
+                ),
             ],
         )
         .await
@@ -212,7 +235,10 @@ async fn une_seule_session_dans_deux_sous_dossiers_ne_fait_pas_conflit() {
     let ctx = common::TestContext::new().await;
     let machine = machine_reliee(&ctx).await;
     let repo_id = ctx
-        .creer_repo(&machine.machine_id, &["src", "src/core", "src/core/auth", "src/core/db"])
+        .creer_repo(
+            &machine.machine_id,
+            &["src", "src/core", "src/core/auth", "src/core/db"],
+        )
         .await;
     let client = vibemap::Supabase::new(&ctx.url, &machine.token);
     let s_a = session();
@@ -223,8 +249,20 @@ async fn une_seule_session_dans_deux_sous_dossiers_ne_fait_pas_conflit() {
             &repo_id,
             Some("main"),
             &[
-                evenement(&s_a, "toolu_1", "src/core/auth", "src/core/auth/jeton.ts", "write"),
-                evenement(&s_a, "toolu_2", "src/core/db", "src/core/db/pool.ts", "write"),
+                evenement(
+                    &s_a,
+                    "toolu_1",
+                    "src/core/auth",
+                    "src/core/auth/jeton.ts",
+                    "write",
+                ),
+                evenement(
+                    &s_a,
+                    "toolu_2",
+                    "src/core/db",
+                    "src/core/db/pool.ts",
+                    "write",
+                ),
             ],
         )
         .await
@@ -237,7 +275,9 @@ async fn une_seule_session_dans_deux_sous_dossiers_ne_fait_pas_conflit() {
 async fn deux_lectures_de_sessions_differentes_ne_font_jamais_conflit() {
     let ctx = common::TestContext::new().await;
     let machine = machine_reliee(&ctx).await;
-    let repo_id = ctx.creer_repo(&machine.machine_id, &["src", "src/core"]).await;
+    let repo_id = ctx
+        .creer_repo(&machine.machine_id, &["src", "src/core"])
+        .await;
     let client = vibemap::Supabase::new(&ctx.url, &machine.token);
     let s_a = session();
     let s_c = session();
@@ -262,7 +302,9 @@ async fn deux_lectures_de_sessions_differentes_ne_font_jamais_conflit() {
 async fn l_activite_remonte_au_dossier_parent() {
     let ctx = common::TestContext::new().await;
     let machine = machine_reliee(&ctx).await;
-    let repo_id = ctx.creer_repo(&machine.machine_id, &["src", "src/core"]).await;
+    let repo_id = ctx
+        .creer_repo(&machine.machine_id, &["src", "src/core"])
+        .await;
     let client = vibemap::Supabase::new(&ctx.url, &machine.token);
     let s1 = session();
 
@@ -271,7 +313,13 @@ async fn l_activite_remonte_au_dossier_parent() {
             &machine.machine_id,
             &repo_id,
             Some("main"),
-            &[evenement(&s1, "toolu_1", "src/core", "src/core/a.ts", "write")],
+            &[evenement(
+                &s1,
+                "toolu_1",
+                "src/core",
+                "src/core/a.ts",
+                "write",
+            )],
         )
         .await
         .expect("envoi");
@@ -373,11 +421,21 @@ async fn la_session_retient_son_debut_et_son_dernier_evenement() {
 
     // Deux envois separes : le second ne doit pas ecraser le debut du premier.
     client
-        .pousser_activite(&machine.machine_id, &repo_id, Some("main"), std::slice::from_ref(&tot))
+        .pousser_activite(
+            &machine.machine_id,
+            &repo_id,
+            Some("main"),
+            std::slice::from_ref(&tot),
+        )
         .await
         .expect("premier envoi");
     client
-        .pousser_activite(&machine.machine_id, &repo_id, Some("main"), std::slice::from_ref(&tard))
+        .pousser_activite(
+            &machine.machine_id,
+            &repo_id,
+            Some("main"),
+            std::slice::from_ref(&tard),
+        )
         .await
         .expect("second envoi");
 

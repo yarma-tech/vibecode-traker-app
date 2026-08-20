@@ -11,9 +11,15 @@ use vibemap::SessionCout;
 /// Appaire une machine et rend son jeton.
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
     let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
-        .await
-        .expect("appairage")
+    vibemap::appairer(
+        &ctx.url,
+        &ctx.anon_key,
+        &code,
+        "MacBook Pro",
+        Some("darwin"),
+    )
+    .await
+    .expect("appairage")
 }
 
 fn session() -> String {
@@ -99,7 +105,10 @@ async fn un_modele_inconnu_montre_les_jetons_sans_cout() {
     assert_eq!(releve["input_tokens"].as_i64(), Some(500));
     assert_eq!(releve["output_tokens"].as_i64(), Some(500));
     // Un modele inconnu : les jetons, mais pas de cout faux.
-    assert!(releve["cout_usd"].is_null(), "un modele inconnu ne coute rien de faux");
+    assert!(
+        releve["cout_usd"].is_null(),
+        "un modele inconnu ne coute rien de faux"
+    );
     assert_eq!(releve["sessions"].as_i64(), Some(1));
     assert_eq!(releve["sessions_tarifees"].as_i64(), Some(0));
 }
@@ -125,7 +134,11 @@ async fn deux_lots_additionnent_les_jetons_de_la_session() {
     }
 
     let s = ctx.lire_session(&s1).await;
-    assert_eq!(s["input_tokens"].as_i64(), Some(20), "les jetons s'additionnent");
+    assert_eq!(
+        s["input_tokens"].as_i64(),
+        Some(20),
+        "les jetons s'additionnent"
+    );
     assert_eq!(s["output_tokens"].as_i64(), Some(40));
     assert_eq!(s["cache_read_tokens"].as_i64(), Some(60));
     assert_eq!(s["cache_creation_tokens"].as_i64(), Some(80));
@@ -150,9 +163,21 @@ async fn la_duree_vaut_le_dernier_evenement_moins_le_debut() {
         .expect("la consommation doit etre acceptee");
 
     let s = ctx.lire_session(&s1).await;
-    let debut = s["started_at"].as_str().unwrap().parse::<chrono::DateTime<Utc>>().unwrap();
-    let fin = s["last_event_at"].as_str().unwrap().parse::<chrono::DateTime<Utc>>().unwrap();
-    assert_eq!((fin - debut).num_minutes(), 30, "la duree est fin moins debut");
+    let debut = s["started_at"]
+        .as_str()
+        .unwrap()
+        .parse::<chrono::DateTime<Utc>>()
+        .unwrap();
+    let fin = s["last_event_at"]
+        .as_str()
+        .unwrap()
+        .parse::<chrono::DateTime<Utc>>()
+        .unwrap();
+    assert_eq!(
+        (fin - debut).num_minutes(),
+        30,
+        "la duree est fin moins debut"
+    );
 }
 
 #[tokio::test]
@@ -174,12 +199,20 @@ async fn les_agregats_survivent_a_la_purge_des_evenements() {
         .expect("la consommation doit etre acceptee");
 
     // Un evenement vieux de huit jours, que la purge doit emporter.
-    ctx.poser_evenement_ancien(&repo_id, &s1, "2026-07-27T00:00:00Z").await;
+    ctx.poser_evenement_ancien(&repo_id, &s1, "2026-07-27T00:00:00Z")
+        .await;
     ctx.purger().await;
 
     // L'evenement est parti, mais les jetons de la session restent.
-    assert!(ctx.lire_evenements(&repo_id).await.is_empty(), "la purge a emporte l'evenement");
+    assert!(
+        ctx.lire_evenements(&repo_id).await.is_empty(),
+        "la purge a emporte l'evenement"
+    );
     let s = ctx.lire_session(&s1).await;
-    assert_eq!(s["input_tokens"].as_i64(), Some(1000), "les agregats survivent a la purge");
+    assert_eq!(
+        s["input_tokens"].as_i64(),
+        Some(1000),
+        "les agregats survivent a la purge"
+    );
     assert_eq!(s["output_tokens"].as_i64(), Some(2000));
 }

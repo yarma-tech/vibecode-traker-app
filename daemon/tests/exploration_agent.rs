@@ -18,23 +18,36 @@ use vibemap::Activite;
 /// Appaire une machine et rend son identite, comme le ferait le daemon.
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
     let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
-        .await
-        .expect("appairage")
+    vibemap::appairer(
+        &ctx.url,
+        &ctx.anon_key,
+        &code,
+        "MacBook Pro",
+        Some("darwin"),
+    )
+    .await
+    .expect("appairage")
 }
 
 /// Un repo pret a porter des blocs, avec son client daemon.
 async fn repo_de_test(ctx: &common::TestContext) -> (vibemap::Supabase, String, String) {
     let machine = machine_reliee(ctx).await;
     let repo_id = ctx.creer_repo(&machine.machine_id, &[]).await;
-    (vibemap::Supabase::new(&ctx.url, &machine.token), machine.machine_id, repo_id)
+    (
+        vibemap::Supabase::new(&ctx.url, &machine.token),
+        machine.machine_id,
+        repo_id,
+    )
 }
 
 fn ecriture(fichier: &str) -> Activite {
     Activite {
         session_id: Uuid::new_v4().to_string(),
         tool_use_id: Uuid::new_v4().to_string(),
-        module_path: fichier.rsplit_once('/').map(|(m, _)| m.to_string()).unwrap_or_default(),
+        module_path: fichier
+            .rsplit_once('/')
+            .map(|(m, _)| m.to_string())
+            .unwrap_or_default(),
         file_path: fichier.to_string(),
         kind: "write",
         occurred_at: Utc::now(),
@@ -62,9 +75,16 @@ async fn une_ecriture_sous_docs_adr_non_couverte_cree_une_exploration_en_cours()
     let blocs = ctx.lire_blocs(&repo_id).await;
     assert_eq!(blocs.len(), 1, "une seule carte doit apparaitre");
     assert_eq!(blocs[0]["type"], json!("exploration"));
-    assert_eq!(blocs[0]["statut"], json!("doing"), "directement en cours, jamais a faire (FR-045)");
+    assert_eq!(
+        blocs[0]["statut"],
+        json!("doing"),
+        "directement en cours, jamais a faire (FR-045)"
+    );
     assert_eq!(blocs[0]["chemin"], json!("docs/adr/0012-file-attente.md"));
-    assert!(blocs[0]["ref"].as_i64().is_some(), "elle porte une reference VM-n comme tout travail suivi");
+    assert!(
+        blocs[0]["ref"].as_i64().is_some(),
+        "elle porte une reference VM-n comme tout travail suivi"
+    );
 }
 
 /// FR-046 : le titre vient du NOM du fichier, jamais de son contenu - le
@@ -80,7 +100,9 @@ async fn le_titre_vient_du_nom_de_fichier_seul() {
             &machine_id,
             &repo_id,
             Some("main"),
-            &[ecriture("docs/superpowers/plans/sous-dossier/2026-08-12-plan-du-jour.md")],
+            &[ecriture(
+                "docs/superpowers/plans/sous-dossier/2026-08-12-plan-du-jour.md",
+            )],
         )
         .await
         .expect("l'evenement doit etre accepte");
@@ -125,14 +147,22 @@ async fn hors_des_trois_dossiers_surveilles_rien_ne_se_cree() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    for fichier in ["README.md", "docs/prd/PRD-1.md", "docs/guides/x.md", "web/app/hero/page.tsx"] {
+    for fichier in [
+        "README.md",
+        "docs/prd/PRD-1.md",
+        "docs/guides/x.md",
+        "web/app/hero/page.tsx",
+    ] {
         client
             .pousser_activite(&machine_id, &repo_id, Some("main"), &[ecriture(fichier)])
             .await
             .expect("l'evenement doit etre accepte");
     }
 
-    assert!(ctx.lire_blocs(&repo_id).await.is_empty(), "aucun de ces chemins n'est un dossier surveille");
+    assert!(
+        ctx.lire_blocs(&repo_id).await.is_empty(),
+        "aucun de ces chemins n'est un dossier surveille"
+    );
 }
 
 /// Le piege du faux prefixe de dossier (piste de casse de l'issue) :
@@ -153,7 +183,10 @@ async fn un_dossier_qui_ressemble_a_docs_adr_sans_en_etre_un_nest_pas_surveille(
         .await
         .expect("l'evenement doit etre accepte");
 
-    assert!(ctx.lire_blocs(&repo_id).await.is_empty(), "« docs/adr-old » n'est pas « docs/adr »");
+    assert!(
+        ctx.lire_blocs(&repo_id).await.is_empty(),
+        "« docs/adr-old » n'est pas « docs/adr »"
+    );
 }
 
 /// FR-045, deuxieme moitie du critere central : un fichier deja couvert par
@@ -165,7 +198,12 @@ async fn un_fichier_deja_couvert_par_un_bloc_existant_ne_cree_pas_de_second_bloc
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
     let existant = ctx
-        .creer_bloc(&repo_id, "Deja suivi a la main", "technique", "docs/adr/0012-file-attente.md")
+        .creer_bloc(
+            &repo_id,
+            "Deja suivi a la main",
+            "technique",
+            "docs/adr/0012-file-attente.md",
+        )
         .await;
 
     client
@@ -180,7 +218,10 @@ async fn un_fichier_deja_couvert_par_un_bloc_existant_ne_cree_pas_de_second_bloc
 
     let blocs = ctx.lire_blocs(&repo_id).await;
     assert_eq!(blocs.len(), 1, "aucun second bloc ne doit apparaitre");
-    assert_eq!(blocs[0]["id"], existant["id"], "c'est bien le meme bloc, pas un doublon");
+    assert_eq!(
+        blocs[0]["id"], existant["id"],
+        "c'est bien le meme bloc, pas un doublon"
+    );
 }
 
 /// La couverture reprend la notion de prefixe segmente du plus profond
@@ -192,7 +233,13 @@ async fn un_bloc_ancre_au_dossier_couvre_tout_fichier_quil_contient() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    ctx.creer_bloc(&repo_id, "Toutes les ADR de ce trimestre", "technique", "docs/adr").await;
+    ctx.creer_bloc(
+        &repo_id,
+        "Toutes les ADR de ce trimestre",
+        "technique",
+        "docs/adr",
+    )
+    .await;
 
     client
         .pousser_activite(
@@ -205,7 +252,11 @@ async fn un_bloc_ancre_au_dossier_couvre_tout_fichier_quil_contient() {
         .expect("l'evenement doit etre accepte");
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs.len(), 1, "le dossier couvre le fichier, aucune exploration ne doit s'ajouter");
+    assert_eq!(
+        blocs.len(),
+        1,
+        "le dossier couvre le fichier, aucune exploration ne doit s'ajouter"
+    );
 }
 
 /// Le meme piege de faux prefixe, cote couverture cette fois (et non plus
@@ -216,7 +267,13 @@ async fn un_bloc_ancre_a_un_dossier_voisin_ne_couvre_pas_par_coincidence_de_cara
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    ctx.creer_bloc(&repo_id, "Un tout autre chantier", "technique", "docs/adr-general").await;
+    ctx.creer_bloc(
+        &repo_id,
+        "Un tout autre chantier",
+        "technique",
+        "docs/adr-general",
+    )
+    .await;
 
     client
         .pousser_activite(
@@ -229,8 +286,15 @@ async fn un_bloc_ancre_a_un_dossier_voisin_ne_couvre_pas_par_coincidence_de_cara
         .expect("l'evenement doit etre accepte");
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    let explorations: Vec<_> = blocs.iter().filter(|b| b["type"] == json!("exploration")).collect();
-    assert_eq!(explorations.len(), 1, "« docs/adr-general » ne prefixe pas « docs/adr/0001-x.md » au sens des segments");
+    let explorations: Vec<_> = blocs
+        .iter()
+        .filter(|b| b["type"] == json!("exploration"))
+        .collect();
+    assert_eq!(
+        explorations.len(),
+        1,
+        "« docs/adr-general » ne prefixe pas « docs/adr/0001-x.md » au sens des segments"
+    );
 }
 
 /// Decision documentee de la migration (voir son commentaire) : la
@@ -245,16 +309,33 @@ async fn un_bloc_deja_termine_a_cet_emplacement_couvre_aussi() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "ADR deja livree", "technique", "docs/adr/0001-x.md").await;
-    ctx.poser_statut_bloc(bloc["id"].as_str().unwrap(), "done").await;
+    let bloc = ctx
+        .creer_bloc(
+            &repo_id,
+            "ADR deja livree",
+            "technique",
+            "docs/adr/0001-x.md",
+        )
+        .await;
+    ctx.poser_statut_bloc(bloc["id"].as_str().unwrap(), "done")
+        .await;
 
     client
-        .pousser_activite(&machine_id, &repo_id, Some("main"), &[ecriture("docs/adr/0001-x.md")])
+        .pousser_activite(
+            &machine_id,
+            &repo_id,
+            Some("main"),
+            &[ecriture("docs/adr/0001-x.md")],
+        )
         .await
         .expect("l'evenement doit etre accepte");
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs.len(), 1, "le bloc termine couvre deja ce chemin, aucune exploration ne doit s'ajouter");
+    assert_eq!(
+        blocs.len(),
+        1,
+        "le bloc termine couvre deja ce chemin, aucune exploration ne doit s'ajouter"
+    );
 }
 
 /// FR-045 : une issue (pas seulement un bloc) ancree a ce chemin couvre tout
@@ -265,11 +346,23 @@ async fn une_issue_ancree_a_ce_chemin_couvre_aussi() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Chantier decoupe", "feature", "docs/adr").await;
-    ctx.creer_issue(bloc["id"].as_str().unwrap(), "Premiere ADR", Some("docs/adr/0001-x.md")).await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Chantier decoupe", "feature", "docs/adr")
+        .await;
+    ctx.creer_issue(
+        bloc["id"].as_str().unwrap(),
+        "Premiere ADR",
+        Some("docs/adr/0001-x.md"),
+    )
+    .await;
 
     client
-        .pousser_activite(&machine_id, &repo_id, Some("main"), &[ecriture("docs/adr/0001-x.md")])
+        .pousser_activite(
+            &machine_id,
+            &repo_id,
+            Some("main"),
+            &[ecriture("docs/adr/0001-x.md")],
+        )
         .await
         .expect("l'evenement doit etre accepte");
 
@@ -289,19 +382,33 @@ async fn la_couverture_et_la_creation_se_scopent_par_depot() {
     let machine_b = ctx.create_machine("Autre machine").await;
     let repo_b = ctx.creer_repo(&machine_b, &[]).await;
 
-    ctx.creer_bloc(&repo_b, "Couvert seulement chez B", "technique", "docs/adr").await;
+    ctx.creer_bloc(&repo_b, "Couvert seulement chez B", "technique", "docs/adr")
+        .await;
 
     client_a
-        .pousser_activite(&machine_a, &repo_a, Some("main"), &[ecriture("docs/adr/0001-x.md")])
+        .pousser_activite(
+            &machine_a,
+            &repo_a,
+            Some("main"),
+            &[ecriture("docs/adr/0001-x.md")],
+        )
         .await
         .expect("l'evenement doit etre accepte");
 
     let blocs_a = ctx.lire_blocs(&repo_a).await;
-    assert_eq!(blocs_a.len(), 1, "le depot A n'a rien qui couvre ce chemin, une exploration doit y apparaitre");
+    assert_eq!(
+        blocs_a.len(),
+        1,
+        "le depot A n'a rien qui couvre ce chemin, une exploration doit y apparaitre"
+    );
     assert_eq!(blocs_a[0]["type"], json!("exploration"));
 
     let blocs_b = ctx.lire_blocs(&repo_b).await;
-    assert_eq!(blocs_b.len(), 1, "le depot B garde son unique bloc, l'ecriture de A ne l'a pas double");
+    assert_eq!(
+        blocs_b.len(),
+        1,
+        "le depot B garde son unique bloc, l'ecriture de A ne l'a pas double"
+    );
 }
 
 /// Une lecture n'entame ni ne fait apparaitre quoi que ce soit (meme regle
@@ -319,7 +426,10 @@ async fn une_lecture_ne_cree_rien() {
         .await
         .expect("l'evenement doit etre accepte");
 
-    assert!(ctx.lire_blocs(&repo_id).await.is_empty(), "une lecture ne cree jamais d'exploration");
+    assert!(
+        ctx.lire_blocs(&repo_id).await.is_empty(),
+        "une lecture ne cree jamais d'exploration"
+    );
 }
 
 /// Casse (pistee par l'issue) : deux agents qui ecrivent le meme fichier au
@@ -342,8 +452,15 @@ async fn deux_ecritures_concurrentes_sur_le_meme_fichier_ne_creent_quune_explora
     b.expect("le second evenement doit etre accepte");
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    let explorations: Vec<_> = blocs.iter().filter(|bloc| bloc["chemin"] == json!(fichier)).collect();
-    assert_eq!(explorations.len(), 1, "deux ecritures simultanees ne doivent produire qu'une seule carte");
+    let explorations: Vec<_> = blocs
+        .iter()
+        .filter(|bloc| bloc["chemin"] == json!(fichier))
+        .collect();
+    assert_eq!(
+        explorations.len(),
+        1,
+        "deux ecritures simultanees ne doivent produire qu'une seule carte"
+    );
 }
 
 /// FR-048 : un bloc que le systeme a cree seul se renomme comme n'importe
@@ -356,14 +473,26 @@ async fn un_bloc_dexploration_cree_par_le_systeme_se_renomme() {
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
     client
-        .pousser_activite(&machine_id, &repo_id, Some("main"), &[ecriture("docs/adr/0012-file-attente.md")])
+        .pousser_activite(
+            &machine_id,
+            &repo_id,
+            Some("main"),
+            &[ecriture("docs/adr/0012-file-attente.md")],
+        )
         .await
         .expect("l'evenement doit etre accepte");
-    let bloc_id = ctx.lire_blocs(&repo_id).await[0]["id"].as_str().unwrap().to_string();
+    let bloc_id = ctx.lire_blocs(&repo_id).await[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
-    ctx.patch_bloc_avec_jeton(&ctx.user_token, &bloc_id, json!({ "titre": "File d'attente : la vraie histoire" }))
-        .await
-        .expect("renommer un bloc d'exploration cree par le systeme doit rester possible (FR-048)");
+    ctx.patch_bloc_avec_jeton(
+        &ctx.user_token,
+        &bloc_id,
+        json!({ "titre": "File d'attente : la vraie histoire" }),
+    )
+    .await
+    .expect("renommer un bloc d'exploration cree par le systeme doit rester possible (FR-048)");
 
     let apres = ctx.lire_bloc(&bloc_id).await;
     assert_eq!(apres["titre"], json!("File d'attente : la vraie histoire"));
@@ -378,10 +507,18 @@ async fn un_bloc_dexploration_cree_par_le_systeme_se_retype() {
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
     client
-        .pousser_activite(&machine_id, &repo_id, Some("main"), &[ecriture("docs/adr/0012-file-attente.md")])
+        .pousser_activite(
+            &machine_id,
+            &repo_id,
+            Some("main"),
+            &[ecriture("docs/adr/0012-file-attente.md")],
+        )
         .await
         .expect("l'evenement doit etre accepte");
-    let bloc_id = ctx.lire_blocs(&repo_id).await[0]["id"].as_str().unwrap().to_string();
+    let bloc_id = ctx.lire_blocs(&repo_id).await[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     ctx.patch_bloc_avec_jeton(&ctx.user_token, &bloc_id, json!({ "type": "technique" }))
         .await
@@ -399,14 +536,24 @@ async fn un_bloc_dexploration_cree_par_le_systeme_se_supprime() {
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
     client
-        .pousser_activite(&machine_id, &repo_id, Some("main"), &[ecriture("docs/adr/0012-file-attente.md")])
+        .pousser_activite(
+            &machine_id,
+            &repo_id,
+            Some("main"),
+            &[ecriture("docs/adr/0012-file-attente.md")],
+        )
         .await
         .expect("l'evenement doit etre accepte");
-    let bloc_id = ctx.lire_blocs(&repo_id).await[0]["id"].as_str().unwrap().to_string();
+    let bloc_id = ctx.lire_blocs(&repo_id).await[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     ctx.supprimer_bloc_avec_jeton(&ctx.user_token, &bloc_id)
         .await
-        .expect("supprimer un bloc d'exploration cree par le systeme doit rester possible (FR-048)");
+        .expect(
+            "supprimer un bloc d'exploration cree par le systeme doit rester possible (FR-048)",
+        );
 
     assert!(ctx.lire_blocs(&repo_id).await.is_empty());
 }
@@ -430,7 +577,11 @@ async fn un_fichier_reecrit_apres_coup_ne_double_pas_la_carte_existante() {
         .await
         .expect("seconde ecriture (reecriture) acceptee");
 
-    assert_eq!(ctx.lire_blocs(&repo_id).await.len(), 1, "reecrire le meme fichier ne double jamais sa carte");
+    assert_eq!(
+        ctx.lire_blocs(&repo_id).await.len(),
+        1,
+        "reecrire le meme fichier ne double jamais sa carte"
+    );
 }
 
 /// Casse (pistee par l'issue) : mais si la carte a ete SUPPRIMEE entre-temps
@@ -447,7 +598,10 @@ async fn un_fichier_reecrit_apres_suppression_de_sa_carte_en_recree_une() {
         .pousser_activite(&machine_id, &repo_id, Some("main"), &[ecriture(fichier)])
         .await
         .expect("premiere ecriture acceptee");
-    let premiere_id = ctx.lire_blocs(&repo_id).await[0]["id"].as_str().unwrap().to_string();
+    let premiere_id = ctx.lire_blocs(&repo_id).await[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     ctx.supprimer_bloc_avec_jeton(&ctx.user_token, &premiere_id)
         .await
@@ -460,8 +614,16 @@ async fn un_fichier_reecrit_apres_suppression_de_sa_carte_en_recree_une() {
         .expect("reecriture acceptee");
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs.len(), 1, "une carte redevient possible une fois l'ancienne supprimee");
-    assert_ne!(blocs[0]["id"], json!(premiere_id), "c'est une carte neuve, pas la ressuscitation de l'ancienne");
+    assert_eq!(
+        blocs.len(),
+        1,
+        "une carte redevient possible une fois l'ancienne supprimee"
+    );
+    assert_ne!(
+        blocs[0]["id"],
+        json!(premiere_id),
+        "c'est une carte neuve, pas la ressuscitation de l'ancienne"
+    );
 }
 
 /// Un nom de fichier tres long et a caracteres inhabituels (piste de casse

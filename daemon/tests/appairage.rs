@@ -12,9 +12,15 @@ async fn un_code_valide_donne_un_jeton_qui_ecrit() {
     let ctx = common::TestContext::new().await;
     let code = ctx.creer_code().await;
 
-    let identite = vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
-        .await
-        .expect("un code frais doit etre accepte");
+    let identite = vibemap::appairer(
+        &ctx.url,
+        &ctx.anon_key,
+        &code,
+        "MacBook Pro",
+        Some("darwin"),
+    )
+    .await
+    .expect("un code frais doit etre accepte");
 
     assert_eq!(identite.label, "MacBook Pro");
 
@@ -133,7 +139,9 @@ async fn une_machine_revoquee_ne_peut_plus_ecrire() {
 
     ctx.revoquer(&machine.machine_id).await;
 
-    let resultat = client.announce(&machine.machine_id, chrono::Utc::now()).await;
+    let resultat = client
+        .announce(&machine.machine_id, chrono::Utc::now())
+        .await;
     assert!(
         resultat.is_err(),
         "une machine revoquee ne doit plus pouvoir ecrire, meme avec son ancien jeton"

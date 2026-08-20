@@ -112,14 +112,13 @@ impl Supabase {
     }
 
     /// Signale que la machine est vivante a l'instant donne.
-    pub async fn announce(
-        &self,
-        machine_id: &str,
-        at: DateTime<Utc>,
-    ) -> Result<(), ApiError> {
+    pub async fn announce(&self, machine_id: &str, at: DateTime<Utc>) -> Result<(), ApiError> {
         let reponse = self
             .http
-            .patch(format!("{}/rest/v1/machines?id=eq.{}", self.url, machine_id))
+            .patch(format!(
+                "{}/rest/v1/machines?id=eq.{}",
+                self.url, machine_id
+            ))
             .header("apikey", &self.token)
             .bearer_auth(&self.token)
             .header("Content-Type", "application/json")
@@ -134,7 +133,10 @@ impl Supabase {
         let code = reponse.status();
         if !code.is_success() {
             let corps = reponse.text().await.unwrap_or_default();
-            return Err(ApiError::Refuse { code: code.as_u16(), corps });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps,
+            });
         }
 
         let lignes: serde_json::Value = reponse.json().await?;
@@ -199,7 +201,10 @@ impl Supabase {
         // peut pas laisser de dossier fantome derriere lui.
         let effacement = self
             .http
-            .delete(format!("{}/rest/v1/modules?repo_id=eq.{}", self.url, repo_id))
+            .delete(format!(
+                "{}/rest/v1/modules?repo_id=eq.{}",
+                self.url, repo_id
+            ))
             .header("apikey", &self.token)
             .bearer_auth(&self.token)
             .send()
@@ -273,7 +278,10 @@ impl Supabase {
     ) -> Result<Option<serde_json::Value>, ApiError> {
         let reponse = self
             .http
-            .patch(format!("{}/rest/v1/repos?identity=eq.{identite_locale}", self.url))
+            .patch(format!(
+                "{}/rest/v1/repos?identity=eq.{identite_locale}",
+                self.url
+            ))
             .header("apikey", &self.token)
             .bearer_auth(&self.token)
             .header("Content-Type", "application/json")
@@ -296,7 +304,10 @@ impl Supabase {
         let texte = reponse.text().await.unwrap_or_default();
 
         if !code.is_success() {
-            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps: texte,
+            });
         }
 
         let lignes: serde_json::Value =
@@ -319,7 +330,10 @@ impl Supabase {
     pub async fn repo_par_identite(&self, identity: &str) -> Result<Option<String>, ApiError> {
         let reponse = self
             .http
-            .get(format!("{}/rest/v1/repos?identity=eq.{identity}&select=id", self.url))
+            .get(format!(
+                "{}/rest/v1/repos?identity=eq.{identity}&select=id",
+                self.url
+            ))
             .header("apikey", &self.token)
             .bearer_auth(&self.token)
             .send()
@@ -329,7 +343,10 @@ impl Supabase {
         let texte = reponse.text().await.unwrap_or_default();
 
         if !code.is_success() {
-            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps: texte,
+            });
         }
 
         let lignes: serde_json::Value = serde_json::from_str(&texte).unwrap_or_default();
@@ -496,7 +513,10 @@ impl Supabase {
         let texte = reponse.text().await.unwrap_or_default();
 
         if !code.is_success() {
-            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps: texte,
+            });
         }
 
         let lignes: serde_json::Value = serde_json::from_str(&texte).unwrap_or_default();
@@ -519,7 +539,10 @@ impl Supabase {
         let code = reponse.status();
         if !code.is_success() {
             let corps = reponse.text().await.unwrap_or_default();
-            return Err(ApiError::Refuse { code: code.as_u16(), corps });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps,
+            });
         }
 
         Ok(())
@@ -667,7 +690,10 @@ impl Supabase {
         let texte = reponse.text().await.unwrap_or_default();
 
         if !code.is_success() {
-            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps: texte,
+            });
         }
 
         Ok(serde_json::from_str(&texte).unwrap_or(serde_json::Value::Null))

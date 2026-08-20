@@ -86,7 +86,11 @@ fn analyser(sortie: &str) -> Vec<CommitLocal> {
             let date = champs.next()?;
             let message = champs.next().unwrap_or_default().trim().to_string();
             let authored_at = DateTime::parse_from_rfc3339(date).ok()?.with_timezone(&Utc);
-            Some(CommitLocal { sha, message, authored_at })
+            Some(CommitLocal {
+                sha,
+                message,
+                authored_at,
+            })
         })
         .collect()
 }

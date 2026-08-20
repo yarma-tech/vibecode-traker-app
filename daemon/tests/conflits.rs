@@ -10,22 +10,22 @@ use vibemap::Activite;
 
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
     let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
-        .await
-        .expect("appairage")
+    vibemap::appairer(
+        &ctx.url,
+        &ctx.anon_key,
+        &code,
+        "MacBook Pro",
+        Some("darwin"),
+    )
+    .await
+    .expect("appairage")
 }
 
 fn session() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-fn evenement(
-    session: &str,
-    id: &str,
-    module: &str,
-    fichier: &str,
-    kind: &'static str,
-) -> Activite {
+fn evenement(session: &str, id: &str, module: &str, fichier: &str, kind: &'static str) -> Activite {
     Activite {
         session_id: session.to_string(),
         tool_use_id: id.to_string(),
@@ -62,7 +62,13 @@ async fn le_conflit_se_signale_au_dossier_le_plus_profond_qui_le_contient() {
             &repo_id,
             Some("main"),
             &[
-                evenement(&a, "toolu_1", "src/core/auth", "src/core/auth/jeton.ts", "write"),
+                evenement(
+                    &a,
+                    "toolu_1",
+                    "src/core/auth",
+                    "src/core/auth/jeton.ts",
+                    "write",
+                ),
                 evenement(&c, "toolu_2", "src/core/db", "src/core/db/pool.ts", "write"),
             ],
         )
@@ -95,7 +101,13 @@ async fn le_conflit_nomme_les_sessions_en_cause() {
             &repo_id,
             Some("main"),
             &[
-                evenement(&a, "toolu_1", "src/core/auth", "src/core/auth/jeton.ts", "write"),
+                evenement(
+                    &a,
+                    "toolu_1",
+                    "src/core/auth",
+                    "src/core/auth/jeton.ts",
+                    "write",
+                ),
                 evenement(&c, "toolu_2", "src/core/db", "src/core/db/pool.ts", "write"),
             ],
         )
@@ -110,7 +122,11 @@ async fn le_conflit_nomme_les_sessions_en_cause() {
         .map(|s| s.as_str().unwrap_or_default().to_string())
         .collect();
 
-    assert_eq!(nommees.len(), 2, "le journal doit pouvoir nommer les deux agents");
+    assert_eq!(
+        nommees.len(),
+        2,
+        "le journal doit pouvoir nommer les deux agents"
+    );
     assert!(nommees.contains(&a));
     assert!(nommees.contains(&c));
 }
@@ -158,7 +174,13 @@ async fn une_seule_session_ne_declenche_jamais_de_conflit() {
             &repo_id,
             Some("main"),
             &[
-                evenement(&a, "toolu_1", "src/core/auth", "src/core/auth/jeton.ts", "write"),
+                evenement(
+                    &a,
+                    "toolu_1",
+                    "src/core/auth",
+                    "src/core/auth/jeton.ts",
+                    "write",
+                ),
                 evenement(&a, "toolu_2", "src/core/db", "src/core/db/pool.ts", "write"),
             ],
         )
@@ -182,10 +204,22 @@ async fn deux_lectures_ne_declenchent_jamais_de_conflit() {
             &repo_id,
             Some("main"),
             &[
-                evenement(&a, "toolu_1", "src/core/auth", "src/core/auth/jeton.ts", "read"),
+                evenement(
+                    &a,
+                    "toolu_1",
+                    "src/core/auth",
+                    "src/core/auth/jeton.ts",
+                    "read",
+                ),
                 evenement(&c, "toolu_2", "src/core/db", "src/core/db/pool.ts", "read"),
                 // Une ecriture d'un seul des deux ne suffit pas non plus.
-                evenement(&a, "toolu_3", "src/core/auth", "src/core/auth/jeton.ts", "write"),
+                evenement(
+                    &a,
+                    "toolu_3",
+                    "src/core/auth",
+                    "src/core/auth/jeton.ts",
+                    "write",
+                ),
             ],
         )
         .await
@@ -202,13 +236,24 @@ async fn le_rouge_disparait_quand_la_fenetre_s_ecoule() {
     let client = vibemap::Supabase::new(&ctx.url, &machine.token);
     let (a, c) = (session(), session());
 
-    let mut premier = evenement(&a, "toolu_1", "src/core/auth", "src/core/auth/jeton.ts", "write");
+    let mut premier = evenement(
+        &a,
+        "toolu_1",
+        "src/core/auth",
+        "src/core/auth/jeton.ts",
+        "write",
+    );
     premier.occurred_at = Utc::now() - Duration::minutes(9);
     let mut second = evenement(&c, "toolu_2", "src/core/db", "src/core/db/pool.ts", "write");
     second.occurred_at = Utc::now() - Duration::minutes(9);
 
     client
-        .pousser_activite(&machine.machine_id, &repo_id, Some("main"), &[premier, second])
+        .pousser_activite(
+            &machine.machine_id,
+            &repo_id,
+            Some("main"),
+            &[premier, second],
+        )
         .await
         .expect("envoi");
 
@@ -276,7 +321,13 @@ async fn les_conflits_de_tous_les_repos_se_lisent_ensemble() {
             &machine.machine_id,
             &paisible,
             Some("main"),
-            &[evenement(&a, "toolu_1", "src/core", "src/core/a.ts", "write")],
+            &[evenement(
+                &a,
+                "toolu_1",
+                "src/core",
+                "src/core/a.ts",
+                "write",
+            )],
         )
         .await
         .expect("envoi paisible");
@@ -287,7 +338,13 @@ async fn les_conflits_de_tous_les_repos_se_lisent_ensemble() {
             &agite,
             Some("main"),
             &[
-                evenement(&a, "toolu_2", "src/core/auth", "src/core/auth/jeton.ts", "write"),
+                evenement(
+                    &a,
+                    "toolu_2",
+                    "src/core/auth",
+                    "src/core/auth/jeton.ts",
+                    "write",
+                ),
                 evenement(&c, "toolu_3", "src/core/db", "src/core/db/pool.ts", "write"),
             ],
         )

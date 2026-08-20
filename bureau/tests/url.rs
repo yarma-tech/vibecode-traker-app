@@ -15,10 +15,7 @@ fn la_fenetre_charge_toujours_la_meme_origine_locale() {
 
 #[test]
 fn aucune_configuration_du_poste_ne_deplace_cette_origine() {
-    let maison = std::env::temp_dir().join(format!(
-        "bureau-test-url-{}",
-        std::process::id()
-    ));
+    let maison = std::env::temp_dir().join(format!("bureau-test-url-{}", std::process::id()));
     std::fs::create_dir_all(maison.join(".vibemap")).expect("faux dossier personnel");
     std::fs::write(
         maison.join(".vibemap/config.toml"),
