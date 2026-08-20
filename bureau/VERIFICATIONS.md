@@ -5,7 +5,7 @@ vérifie sans un écran. Cette liste est ce que le PRD-002 impose de jouer **ava
 chaque fusion touchant `bureau/`**. Elle s'allonge avec les tranches ; #57 l'a
 commencée, #58 y ajoute la géométrie de la fenêtre, #61 le lecteur embarqué,
 #62 son état affiché et sa relance, #68 l'ouverture du pont à l'interface, #70
-l'ajout d'un dossier au sélecteur du système.
+l'ajout d'un dossier au sélecteur du système, #63 l'entrée avec GitHub.
 
 Ce qui est déjà couvert par les tests automatiques - la sonde de disponibilité,
 l'URL fixe de la fenêtre, la lecture et l'écriture de la géométrie, la prise et
@@ -176,6 +176,51 @@ qui se joue ici est le geste lui-même, du clic au dépôt qui apparaît.
       « Ajouter un dossier » - hors de l'application, il n'y a pas de sélecteur
       à ouvrir.
 
+## Entrer avec GitHub (#63)
+
+**Prérequis humain n° 1 : une application OAuth GitHub.** Sans elle, rien de
+cette section ne se joue. Il faut une application GitHub dont l'URL de rappel
+est celle de la pile Supabase (`http://127.0.0.1:54321/auth/v1/callback` en
+local), puis `SUPABASE_AUTH_GITHUB_CLIENT_ID` et `SUPABASE_AUTH_GITHUB_SECRET`
+dans l'environnement du `supabase start`. Tant que ces valeurs manquent, la
+pile locale répond à l'autorisation par une erreur de fournisseur, et
+l'aller-retour ne peut pas avoir lieu - c'est le seul morceau de cette tranche
+qui n'a **pas** pu être vérifié (voir la dernière section).
+
+- [ ] **Un seul bouton.** Sur un Mac où aucune session n'a jamais été ouverte,
+      la fenêtre ne présente que « Continuer avec GitHub ». Aucun autre bouton,
+      aucun champ, aucun lien (FR-012).
+- [ ] **GitHub s'ouvre dehors.** Cliquer : la page d'autorisation apparaît dans
+      le navigateur **par défaut du Mac**, dans un nouvel onglet, et la fenêtre
+      de Vibe Map reste sur son écran de connexion en disant qu'elle attend.
+      Elle ne charge à aucun moment `github.com` (FR-071).
+- [ ] **Le retour vise l'origine fixe.** Dans la barre d'adresse du navigateur,
+      pendant l'aller-retour : le paramètre `redirect_to` de l'adresse
+      d'autorisation vaut exactement
+      `http://127.0.0.1:51789/auth/callback`, et l'onglet finit sur
+      `http://127.0.0.1:51789/auth/retour`.
+- [ ] **La fenêtre reprend la main toute seule.** Accepter dans GitHub : sans
+      rien cliquer d'autre, sans revenir au Dock et sans recopier quoi que ce
+      soit, la fenêtre de Vibe Map repasse **devant le navigateur** avec la
+      carte affichée (FR-072, FR-013).
+- [ ] **Rien à faire dans le navigateur.** L'onglet resté ouvert dit seulement
+      que la suite se passe dans la fenêtre. Le fermer ne change rien à la
+      session de l'application.
+- [ ] **Un refus se dit.** Recommencer et cliquer « Cancel » sur la page
+      GitHub : la fenêtre affiche la raison du refus et son bouton reste
+      cliquable ; un second essai, accepté cette fois, ouvre la carte (FR-016).
+- [ ] **La session tient d'un lancement à l'autre.** Quitter l'application et
+      la rouvrir : la carte s'affiche directement, sans écran de connexion
+      (FR-014).
+- [ ] **Le même écran dans Safari.** `http://127.0.0.1:51789` dans Safari, sans
+      session : le bouton part vers GitHub **dans l'onglet**, sans passer par
+      l'application, et le retour ouvre la session dans Safari. Aucun message
+      d'attente n'apparaît : hors de l'application, il n'y a pas de relais.
+- [ ] **Rien d'autre ne s'ouvre.** Dans l'inspecteur web de la fenêtre, onglet
+      Réseau, pendant tout l'aller-retour : les seuls appels sortants vont à la
+      pile Supabase. Le pont n'est appelé que pour `ouvrir_l_autorisation` puis
+      `revenir_au_premier_plan`.
+
 ## Ce que cette liste ne peut pas jouer (#62)
 
 **Tuer le lecteur depuis le Moniteur d'activité.** Le critère d'acceptation du
@@ -191,3 +236,31 @@ poste tenu et depuis un trousseau refusé.
 #68 : le pont est désormais ouvert à l'origine que la fenêtre charge, et `web/`
 affiche le bandeau de FR-009 et FR-010 par-dessus n'importe quel écran. Il se
 joue ci-dessus, dans « Le pont, l'écran Réglages et le bandeau ».
+
+## Ce qui n'a pas pu être vérifié, faute d'application GitHub (#63)
+
+La pile locale n'a **aucune** application OAuth GitHub déclarée :
+`SUPABASE_AUTH_GITHUB_CLIENT_ID` et `SUPABASE_AUTH_GITHUB_SECRET` sont vides.
+L'aller-retour réel avec GitHub n'a donc jamais eu lieu. Ce qui suit est écrit,
+raisonné, et **non observé** - ne pas le cocher sur la foi de cette tranche :
+
+- **GitHub accepte l'adresse de retour.** Le fournisseur exige que l'URL de
+  rappel de l'application GitHub soit celle de la pile Supabase, et c'est
+  Supabase qui renvoie ensuite vers `127.0.0.1:51789`. Cette seconde étape n'a
+  pas été jouée en vrai : seule la liste blanche de `supabase/config.toml` a
+  été mise en place, et un test la garde.
+- **Le navigateur du système s'ouvre bien.** L'ouverture passe par
+  `/usr/bin/open`, appelée depuis l'application. Ce chemin n'a été éprouvé que
+  jusqu'à la borne qui décide d'ouvrir ou non (`cargo test --test
+  autorisation`) : personne n'a vu l'onglet apparaître.
+- **La fenêtre repasse devant.** `revenir_au_premier_plan` n'a pas été observée
+  en situation - il faut un vrai retour d'autorisation pour l'atteindre.
+- **Le code s'échange réellement.** Ce qui a été joué de bout en bout, service
+  d'interface lancé sur le port fixe, c'est tout le reste : la fenêtre demande
+  l'adresse d'autorisation avec un défi PKCE et un `redirect_to` valant
+  l'origine locale fixe ; le retour déposé par un client sans vérificateur est
+  repris pour la fenêtre ; la fenêtre le relève et appelle bien
+  `/auth/v1/token?grant_type=pkce` avec son propre vérificateur. Seule la
+  RÉPONSE de ce dernier appel n'a pas pu être une vraie session : le code joué
+  était fictif, et Supabase l'a refusé - refus que la fenêtre a affiché, ce qui
+  éprouve au passage FR-016.

@@ -16,12 +16,19 @@
 // a ete choisie plutot qu'une page distante. Sans cette ouverture, l'interface
 // ne pourrait rien dire des faits du poste - dossiers surveilles, lecteur
 // arrete -, que la base ne porte pas.
+//
+// L'autorisation GitHub, elle, sort de la fenetre et y revient (FR-071,
+// FR-072) : GitHub refuse les vues embarquees, et `on_navigation` refuserait
+// de toute facon d'emmener la fenetre ailleurs. C'est donc l'application qui
+// ouvre la page d'autorisation dans le navigateur du systeme, et qui reprend
+// le premier plan quand la session s'ouvre - la fenetre ne se deplace jamais.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use bureau::autorisation;
 use bureau::dossiers::{Ajout, Surveillance};
 use bureau::geometrie::{self, Geometrie, Position, HAUTEUR_MINIMALE, LARGEUR_MINIMALE};
 use bureau::lecteur::{EtatLecteur, LecteurEmbarque};
@@ -101,6 +108,8 @@ fn main() {
             relancer_le_lecteur,
             dossiers_surveilles,
             ajouter_un_dossier,
+            ouvrir_l_autorisation,
+            revenir_au_premier_plan,
             reessayer
         ])
         .setup(|app| {
@@ -465,6 +474,74 @@ async fn choisir_un_dossier(app: AppHandle) -> Option<PathBuf> {
         .ok()
         .flatten()
         .and_then(|choix| choix.into_path().ok())
+}
+
+/// Ce que « ouvrir l'autorisation » a donne.
+///
+/// Un refus est rendu a la fenetre plutot qu'avale : sans cela, l'ecran de
+/// connexion attendrait un retour qui ne viendra jamais, devant un bouton
+/// eteint et sans un mot (FR-016).
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(tag = "etat", rename_all = "snake_case")]
+enum OuvertureAutorisation {
+    Ouverte,
+    Refusee { raison: String },
+}
+
+/// « Ouvrir l'autorisation » : porte l'adresse d'autorisation dans le
+/// navigateur du systeme, jamais dans la fenetre (FR-071).
+///
+/// La SEULE commande du pont qui recoit quelque chose, et elle ne recoit pas
+/// n'importe quoi : `bureau::autorisation` dit a quoi ressemble une adresse
+/// d'autorisation, et refuse tout le reste. Sans cette borne, la fenetre
+/// disposerait d'un « ouvre ceci pour moi » sans limite.
+///
+/// Sur un fil dedie : l'ouverture passe par un programme du systeme, et
+/// attendre sa reponse sur le fil de la fenetre ferait cesser l'application de
+/// repondre.
+#[tauri::command]
+async fn ouvrir_l_autorisation(url: String) -> OuvertureAutorisation {
+    if let Err(refus) = bureau::autorisation::verifier_l_adresse(&url) {
+        // La fenetre dit deja ce qui cloche ; cette trace le repete la ou on
+        // lance l'application au terminal pour la mettre au point.
+        eprintln!("adresse d'autorisation refusee : {refus}");
+        return OuvertureAutorisation::Refusee {
+            raison: refus.to_string(),
+        };
+    }
+
+    let ouverture =
+        tauri::async_runtime::spawn_blocking(move || autorisation::ouvrir_dans_le_navigateur(&url))
+            .await;
+
+    match ouverture {
+        Ok(Ok(())) => OuvertureAutorisation::Ouverte,
+        Ok(Err(erreur)) => OuvertureAutorisation::Refusee {
+            raison: format!("le navigateur du systeme n'a pas pu etre ouvert : {erreur}"),
+        },
+        Err(erreur) => OuvertureAutorisation::Refusee {
+            raison: format!("l'ouverture du navigateur n'a pas abouti : {erreur}"),
+        },
+    }
+}
+
+/// « Revenir au premier plan » : l'application reprend la main dans sa propre
+/// fenetre (FR-072).
+///
+/// Appelee quand la session vient de s'ouvrir. A cet instant, c'est le
+/// navigateur du systeme qui est devant : sans ce geste, la carte s'afficherait
+/// derriere lui, et l'utilisateur devrait aller rechercher Vibe Map lui-meme -
+/// exactement ce que FR-072 refuse.
+#[tauri::command]
+fn revenir_au_premier_plan(app: AppHandle) {
+    let Some(fenetre) = app.get_webview_window(FENETRE) else {
+        return;
+    };
+    // Reduite, cachee ou simplement derriere : les trois se defont, et aucune
+    // ne doit empecher les autres si elle echoue.
+    let _ = fenetre.unminimize();
+    let _ = fenetre.show();
+    let _ = fenetre.set_focus();
 }
 
 /// « Relancer le lecteur » : le remet en marche sans quitter l'application

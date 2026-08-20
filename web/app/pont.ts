@@ -19,9 +19,19 @@ export type CommandeLocale =
   | "dossiers_surveilles"
   | "ajouter_un_dossier"
   | "etat_du_lecteur"
-  | "relancer_le_lecteur";
+  | "relancer_le_lecteur"
+  | "ouvrir_l_autorisation"
+  | "revenir_au_premier_plan";
 
-type Invoquer = (commande: CommandeLocale) => Promise<unknown>;
+/**
+ * Les commandes ne reçoivent presque jamais rien - ce sont des gestes nommés.
+ * La seule exception est `ouvrir_l_autorisation`, qui reçoit l'adresse
+ * d'autorisation à ouvrir dehors : la fenêtre est seule à savoir la demander à
+ * Supabase, et l'application est seule à pouvoir ouvrir le navigateur du
+ * système (FR-071). Elle n'accepte pas n'importe quelle adresse pour autant :
+ * `bureau/src/autorisation.rs` dit laquelle, et refuse le reste.
+ */
+type Invoquer = (commande: CommandeLocale, arguments_?: Record<string, unknown>) => Promise<unknown>;
 
 /**
  * La fonction d'appel du pont, ou `null` hors de l'application.

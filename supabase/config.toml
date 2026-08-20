@@ -163,9 +163,17 @@ site_url = "http://127.0.0.1:3000"
 # En local on sert en clair, et la redirection porte un chemin (/auth/callback).
 # Sans joker, Supabase ignore la redirection demandee et retombe sur site_url,
 # ce qui depose le code sur la racine ou personne ne l'echange.
+#
+# `127.0.0.1:51789` est l'origine locale FIXE de l'application de bureau
+# (FR-070) : c'est la que l'autorisation revient, et c'est l'une des trois
+# raisons pour lesquelles ce port ne bouge jamais (docs/VIGILANCE.md). Sans
+# cette ligne, la pile locale ignorerait le retour demande et deposerait le
+# code sur `site_url`, ou personne ne l'echange - la fenetre attendrait un
+# retour deja perdu.
 additional_redirect_urls = [
   "http://127.0.0.1:3000/**",
   "http://localhost:3000/**",
+  "http://127.0.0.1:51789/**",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
