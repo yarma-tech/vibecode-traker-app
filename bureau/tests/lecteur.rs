@@ -10,8 +10,10 @@
 //! poste de la machine, ni le prendre au lecteur de l'utilisateur pendant qu'il
 //! tourne.
 
-use bureau::lecteur::{EchecLecteur, EtatLecteur, TenantDuPoste};
+use bureau::lecteur::{CasEchec, EchecLecteur, EtatLecteur, TenantDuPoste};
 use std::path::PathBuf;
+use vibemap::lecteur::LecteurError;
+use vibemap::trousseau::TrousseauError;
 use vibemap::Verrou;
 
 fn chemin_temporaire(quoi: &str) -> PathBuf {
@@ -91,8 +93,9 @@ fn un_poste_deja_tenu_refuse_le_lecteur_de_l_application_en_nommant_le_tenant() 
         .err()
         .expect("l'application ne doit pas demarrer un second lecteur");
 
-    assert!(
-        echec.poste_tenu,
+    assert_eq!(
+        echec.cas,
+        CasEchec::PosteTenu,
         "le cas se distingue d'une panne : il n'y a rien a reparer, il y a un lecteur a \
          arreter. Obtenu : {echec:?}"
     );
@@ -127,7 +130,7 @@ fn une_panne_ordinaire_ne_se_donne_pas_pour_un_poste_tenu() {
         .err()
         .expect("sans configuration, le lecteur ne demarre pas");
 
-    assert!(!echec.poste_tenu, "obtenu : {echec:?}");
+    assert_eq!(echec.cas, CasEchec::Panne, "obtenu : {echec:?}");
     assert!(
         echec.tenant.is_none(),
         "personne ne tient le poste : la fenetre n'a personne a nommer"
@@ -140,12 +143,15 @@ fn une_panne_ordinaire_ne_se_donne_pas_pour_un_poste_tenu() {
     let _ = std::fs::remove_file(&verrou);
 }
 
-/// Les trois etats, tels que la fenetre les recoit.
+/// Les quatre etats, tels que la fenetre les recoit.
 ///
 /// La forme compte autant que le fond : c'est le contrat que lit la page, et un
 /// nom de champ qui bouge la laisserait muette sans que rien ne casse ici.
 #[test]
-fn les_trois_etats_du_lecteur_se_lisent_dans_la_fenetre() {
+fn les_etats_du_lecteur_se_lisent_dans_la_fenetre() {
+    let en_demarrage = serde_json::to_value(EtatLecteur::EnDemarrage).expect("etat serialisable");
+    assert_eq!(en_demarrage, serde_json::json!({ "etat": "en_demarrage" }));
+
     let en_marche = serde_json::to_value(EtatLecteur::EnMarche).expect("etat serialisable");
     assert_eq!(en_marche, serde_json::json!({ "etat": "en_marche" }));
 
@@ -153,8 +159,8 @@ fn les_trois_etats_du_lecteur_se_lisent_dans_la_fenetre() {
     assert_eq!(arrete, serde_json::json!({ "etat": "arrete" }));
 
     let en_echec = serde_json::to_value(EtatLecteur::EnEchec(EchecLecteur {
+        cas: CasEchec::PosteTenu,
         raison: "un lecteur tourne deja sur cette machine : « vibemap »".to_string(),
-        poste_tenu: true,
         tenant: Some(TenantDuPoste {
             vehicule: "vibemap".to_string(),
             pid: 4242,
@@ -166,8 +172,8 @@ fn les_trois_etats_du_lecteur_se_lisent_dans_la_fenetre() {
         en_echec,
         serde_json::json!({
             "etat": "en_echec",
+            "cas": "poste_tenu",
             "raison": "un lecteur tourne deja sur cette machine : « vibemap »",
-            "poste_tenu": true,
             "tenant": {
                 "vehicule": "vibemap",
                 "pid": 4242,
@@ -175,4 +181,121 @@ fn les_trois_etats_du_lecteur_se_lisent_dans_la_fenetre() {
             },
         })
     );
+}
+
+/// Chaque cause connue rend un cas distinct et une raison qui dit quoi faire.
+///
+/// C'est ce qui separe une phrase utile d'une carte muette : la fenetre ecrit
+/// la sienne a partir du `cas`, et n'a rien a deviner de la raison.
+#[test]
+fn chaque_cause_d_arret_se_nomme_et_dit_quoi_faire() {
+    let jeton = EchecLecteur::from(&LecteurError::from(TrousseauError::Absent(
+        "11111111-1111-1111-1111-111111111111".to_string(),
+    )));
+    assert_eq!(jeton.cas, CasEchec::JetonRefuse, "obtenu : {jeton:?}");
+    assert!(
+        jeton.raison.contains("autorisation"),
+        "le refus du trousseau dit comment le lever, obtenu : {}",
+        jeton.raison
+    );
+    assert!(
+        jeton.tenant.is_none(),
+        "personne ne tient le poste : la fenetre n'a personne a nommer"
+    );
+
+    let arret = EchecLecteur::arret_inattendu();
+    assert_eq!(arret.cas, CasEchec::ArretInattendu);
+    assert!(
+        arret.raison.contains("n'envoie plus"),
+        "un arret qui ne dit pas ce qu'on y perd ne dit rien, obtenu : {}",
+        arret.raison
+    );
+
+    // Les deux autres causes - poste tenu, panne ordinaire - s'eprouvent sur un
+    // vrai demarrage, plus haut dans ce fichier : c'est la seule facon de savoir
+    // que le lecteur les rend bien telles quelles.
+    assert_ne!(jeton.cas, arret.cas);
+}
+
+/// L'etat montre est celui du moment, et non celui du demarrage.
+///
+/// C'est le coeur de FR-010 : un lecteur qui cesse de tourner doit se voir a la
+/// lecture suivante, sans quoi la fenetre annoncerait une machine qui bat alors
+/// qu'elle s'est tue.
+#[test]
+fn l_etat_montre_suit_ce_que_le_lecteur_fait_a_l_instant() {
+    let en_marche = bureau::lecteur::etat_a_montrer(Some(true), &EtatLecteur::EnDemarrage);
+    assert_eq!(en_marche, EtatLecteur::EnMarche);
+
+    let arrete_tout_seul = bureau::lecteur::etat_a_montrer(Some(false), &EtatLecteur::EnMarche);
+    let EtatLecteur::EnEchec(echec) = arrete_tout_seul else {
+        panic!("une boucle qui ne tourne plus est un echec, pas un lecteur en marche");
+    };
+    assert_eq!(echec.cas, CasEchec::ArretInattendu);
+    assert!(
+        !echec.raison.is_empty(),
+        "un arret sans raison ne dit rien a l'utilisateur"
+    );
+
+    // Sans lecteur a regarder, c'est le dernier demarrage qui parle : lui seul
+    // sait s'il attend une autorisation ou s'il a deja renonce.
+    assert_eq!(
+        bureau::lecteur::etat_a_montrer(None, &EtatLecteur::EnDemarrage),
+        EtatLecteur::EnDemarrage
+    );
+    let refus = EtatLecteur::EnEchec(EchecLecteur {
+        cas: CasEchec::Panne,
+        raison: "aucune configuration".to_string(),
+        tenant: None,
+    });
+    assert_eq!(bureau::lecteur::etat_a_montrer(None, &refus), refus);
+}
+
+/// La relance : elle repose le verrou et remet un lecteur en marche, sans que
+/// l'application ait eu a se fermer (FR-010).
+///
+/// Et elle ne fait rien sur un lecteur qui tourne : couper le battement pour le
+/// reprendre aussitot ferait perdre le poste a la machine le temps du
+/// remplacement, pour rien.
+#[test]
+fn une_relance_apres_un_arret_rend_un_lecteur_en_marche() {
+    std::env::set_var("VIBEMAP_TOKEN", "jeton-de-test");
+
+    let config = config_temporaire("relance");
+    let verrou = chemin_temporaire("relance.lock");
+
+    let mut lecteur = None;
+    assert_eq!(
+        bureau::lecteur::relancer(&mut lecteur, &config, &verrou),
+        EtatLecteur::EnMarche,
+        "sans lecteur, la relance en demarre un"
+    );
+    Verrou::prendre(&verrou, "vibemap").expect_err("le lecteur relance tient le poste");
+
+    // Un second clic sur un lecteur qui tourne ne le remplace pas : c'est le
+    // meme, a la meme adresse, qui tient toujours le poste.
+    let avant = std::ptr::from_ref(lecteur.as_ref().expect("un lecteur en marche"));
+    assert_eq!(
+        bureau::lecteur::relancer(&mut lecteur, &config, &verrou),
+        EtatLecteur::EnMarche
+    );
+    let apres = std::ptr::from_ref(lecteur.as_ref().expect("un lecteur en marche"));
+    assert_eq!(avant, apres, "un lecteur qui tourne n'est pas relance");
+
+    // L'arret, tel que l'application le subit : la valeur disparait, et le poste
+    // redevient libre.
+    lecteur.take();
+    let repris = Verrou::prendre(&verrou, "vibemap").expect("le poste est rendu");
+    drop(repris);
+
+    assert_eq!(
+        bureau::lecteur::relancer(&mut lecteur, &config, &verrou),
+        EtatLecteur::EnMarche,
+        "apres un arret, la relance remet le lecteur en marche"
+    );
+    Verrou::prendre(&verrou, "vibemap").expect_err("le lecteur relance a repris le poste");
+
+    drop(lecteur);
+    let _ = std::fs::remove_file(&config);
+    let _ = std::fs::remove_file(&verrou);
 }

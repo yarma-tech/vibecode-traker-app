@@ -17,6 +17,13 @@
 //! par le module `verrou` du daemon, exactement comme le fait le binaire
 //! (FR-008, FR-054). L'application ne fait que rapporter son refus a la
 //! fenetre.
+//!
+//! Ce que ce module sait dire d'autre : ou en est le lecteur a l'instant ou on
+//! le demande, et comment le remettre en marche sans fermer l'application
+//! (FR-009, FR-010). L'etat n'est jamais fige au demarrage - une boucle peut
+//! cesser de tourner bien apres -, et la relance passe par la meme porte que le
+//! demarrage : elle laisse tomber le lecteur d'avant, verrou compris, avant d'en
+//! prendre un autre.
 
 use std::path::Path;
 use std::time::Duration;
@@ -49,27 +56,71 @@ pub struct TenantDuPoste {
     pub depuis: String,
 }
 
-/// Pourquoi le lecteur n'a pas demarre, tel que la fenetre le montre.
+/// Pourquoi le lecteur ne tourne pas, dans les termes ou l'utilisateur peut y
+/// faire quelque chose.
 ///
-/// `poste_tenu` n'est pas un detail de plus : c'est le seul cas ou il n'y a
-/// rien a reparer mais un lecteur a arreter, et la fenetre le dit autrement
-/// d'une panne. `raison` ne sert qu'au reste, que seule l'application sait
-/// dire.
+/// Les cas nommes ne sont pas des details de plus : chacun se corrige
+/// autrement, et la fenetre en ecrit la phrase elle-meme, en francais accentue.
+/// `Panne` est le fourre-tout de ce qui reste, ou seule `raison` parle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CasEchec {
+    /// Un autre lecteur tient le poste : il n'y a rien a reparer, il y a un
+    /// lecteur a arreter.
+    PosteTenu,
+    /// Le jeton de la machine n'a pas pu etre lu au trousseau - le plus
+    /// souvent, une autorisation refusee apres une recompilation.
+    JetonRefuse,
+    /// Le lecteur tournait, et sa boucle s'est arretee sans qu'on l'ait
+    /// demande. Rien ne part plus de cette machine, et rien ne le dirait.
+    ArretInattendu,
+    /// Tout le reste : configuration illisible, machinerie qui ne se monte pas.
+    Panne,
+}
+
+/// Pourquoi le lecteur ne tourne pas, tel que la fenetre le montre.
+///
+/// `raison` dit les faits que seule l'application connait ; `cas` dit lequel
+/// des chemins connus a echoue, pour que la fenetre sache quoi proposer.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct EchecLecteur {
+    pub cas: CasEchec,
     pub raison: String,
-    pub poste_tenu: bool,
     /// `None` quand le poste n'est pas en cause, ou quand celui qui le tient
     /// n'a pas laisse de marque lisible : le refus tient quand meme, mais la
     /// fenetre ne peut alors nommer personne.
     pub tenant: Option<TenantDuPoste>,
 }
 
+impl EchecLecteur {
+    /// Le lecteur tournait, et sa boucle ne tourne plus.
+    ///
+    /// Personne ne l'a demande : ni la fermeture de l'application, qui emporte
+    /// tout avec elle, ni une relance, qui remet aussitot un lecteur en place.
+    /// Reste ce qui casse - une panique dans la boucle, une machinerie tombee -
+    /// et cela ne se voit nulle part ailleurs : la carte continue de s'afficher,
+    /// alimentee par ce que la machine avait deja envoye.
+    pub fn arret_inattendu() -> Self {
+        EchecLecteur {
+            cas: CasEchec::ArretInattendu,
+            raison: "le lecteur s'est arrete de lui-meme : cette machine n'envoie plus rien."
+                .to_string(),
+            tenant: None,
+        }
+    }
+}
+
 impl From<&LecteurError> for EchecLecteur {
     fn from(erreur: &LecteurError) -> Self {
+        let cas = match erreur {
+            _ if erreur.poste_tenu() => CasEchec::PosteTenu,
+            LecteurError::Jeton { .. } => CasEchec::JetonRefuse,
+            _ => CasEchec::Panne,
+        };
+
         EchecLecteur {
+            cas,
             raison: erreur.to_string(),
-            poste_tenu: erreur.poste_tenu(),
             tenant: tenant_du_poste(erreur),
         }
     }
@@ -95,15 +146,41 @@ fn tenant_du_poste(erreur: &LecteurError) -> Option<TenantDuPoste> {
 
 /// Ou en est le lecteur, tel que la fenetre le lit.
 ///
-/// Trois etats, et pas un de plus : il tourne, il ne tourne pas, ou il n'a pas
-/// pu demarrer et on dit pourquoi. Rien de tout cela ne passe par la base : ce
-/// sont des faits du poste, que seule l'application connait.
+/// Quatre etats, et pas un de plus : il s'installe, il tourne, il ne tourne
+/// pas, ou il n'a pas pu tourner et on dit pourquoi. Rien de tout cela ne passe
+/// par la base : ce sont des faits du poste, que seule l'application connait.
+///
+/// `EnDemarrage` n'est pas une nuance de `Arrete` : le demarrage lit le jeton
+/// au trousseau, ce qui peut ouvrir une boite de dialogue du systeme et durer
+/// aussi longtemps qu'il faut a l'utilisateur pour y repondre. La fenetre a
+/// besoin de le distinguer d'un lecteur qui ne demarrera jamais.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(tag = "etat", rename_all = "snake_case")]
 pub enum EtatLecteur {
+    EnDemarrage,
     EnMarche,
     Arrete,
     EnEchec(EchecLecteur),
+}
+
+/// L'etat a montrer, selon ce qu'on vient d'observer du lecteur.
+///
+/// `tourne` vaut `None` quand l'application ne tient aucun lecteur - il n'a pas
+/// encore demarre, ou il n'a pas pu -, et sinon dit si sa boucle tourne
+/// toujours. Le dernier etat connu ne sert que dans ce premier cas : des qu'il
+/// y a un lecteur a regarder, c'est lui qui a raison, et non ce qu'on avait
+/// note de son demarrage.
+///
+/// POURQUOI decider ici, et a chaque fois qu'on demande : un lecteur peut
+/// cesser de tourner longtemps apres avoir demarre, et un etat fige au
+/// demarrage laisserait la fenetre annoncer une machine qui bat alors qu'elle
+/// s'est tue (FR-010).
+pub fn etat_a_montrer(tourne: Option<bool>, dernier: &EtatLecteur) -> EtatLecteur {
+    match tourne {
+        Some(true) => EtatLecteur::EnMarche,
+        Some(false) => EtatLecteur::EnEchec(EchecLecteur::arret_inattendu()),
+        None => dernier.clone(),
+    }
 }
 
 /// Le lecteur en marche. Il s'arrete avec cette valeur.
@@ -113,9 +190,24 @@ pub enum EtatLecteur {
 /// avec elle.
 pub struct LecteurEmbarque {
     arret: Arret,
+    /// La boucle du lecteur, telle que la machinerie la fait tourner. Elle
+    /// n'est jamais attendue : on ne la garde que pour savoir si elle tourne
+    /// encore.
+    boucle: tokio::task::JoinHandle<()>,
     /// `None` seulement pendant le destructeur, le temps de rendre la
     /// machinerie a la fonction qui l'arrete.
     machinerie: Option<tokio::runtime::Runtime>,
+}
+
+impl LecteurEmbarque {
+    /// Vrai tant que la boucle du lecteur n'a pas rendu la main.
+    ///
+    /// C'est la seule question que l'application sait poser sans rien
+    /// interrompre : la boucle vit dans ce processus, et il n'y a pas de
+    /// processus voisin a aller sonder.
+    pub fn tourne_encore(&self) -> bool {
+        !self.boucle.is_finished()
+    }
 }
 
 /// Demarre le lecteur du poste, ou dit ce qui l'en empeche.
@@ -149,22 +241,56 @@ pub fn demarrer(
         .thread_name("lecteur-vibemap")
         .build()
         .map_err(|erreur| EchecLecteur {
-            raison: format!(
-                "le lecteur n'a pas pu demarrer sur cette machine : {erreur}. \
-                 Relance l'application."
-            ),
-            poste_tenu: false,
+            cas: CasEchec::Panne,
+            raison: format!("le lecteur n'a pas pu demarrer sur cette machine : {erreur}."),
             tenant: None,
         })?;
 
     let arret = Arret::new();
     let sien = arret.clone();
-    machinerie.spawn(async move { lecteur.tourner(sien).await });
+    let boucle = machinerie.spawn(async move { lecteur.tourner(sien).await });
 
     Ok(LecteurEmbarque {
         arret,
+        boucle,
         machinerie: Some(machinerie),
     })
+}
+
+/// Remet le lecteur en marche sans quitter l'application (FR-010), et rend
+/// l'etat qui en resulte.
+///
+/// Sans effet sur un lecteur qui tourne encore : le clic de trop ne doit pas
+/// couper le battement pour le seul plaisir de le reprendre.
+pub fn relancer_le_lecteur(lecteur: &mut Option<LecteurEmbarque>) -> EtatLecteur {
+    relancer(
+        lecteur,
+        &Config::chemin_par_defaut(),
+        &Verrou::chemin_par_defaut(),
+    )
+}
+
+/// La meme relance, sur des emplacements donnes.
+pub fn relancer(
+    lecteur: &mut Option<LecteurEmbarque>,
+    chemin_config: &Path,
+    chemin_du_verrou: &Path,
+) -> EtatLecteur {
+    if lecteur.as_ref().is_some_and(LecteurEmbarque::tourne_encore) {
+        return EtatLecteur::EnMarche;
+    }
+
+    // Celui d'avant est laisse tomber d'abord, et jusqu'au bout : c'est lui qui
+    // tient le verrou du poste, et le suivant se le refuserait a lui-meme.
+    lecteur.take();
+
+    match demarrer(chemin_config, chemin_du_verrou) {
+        Ok(nouveau) => {
+            *lecteur = Some(nouveau);
+            EtatLecteur::EnMarche
+        }
+        Err(echec) => EtatLecteur::EnEchec(echec),
+    }
 }
 
 impl Drop for LecteurEmbarque {

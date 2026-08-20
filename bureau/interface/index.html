@@ -8,9 +8,9 @@
       La seule page que l'application sert elle-même. Elle occupe la fenêtre le
       temps que le service d'interface réponde, et reste dessus quand il ne
       répond pas : une fenêtre blanche ne dit rien à personne (FR-004).
-      C'est aussi elle qui signale un lecteur qui n'a pas démarré, avant de
-      céder la place à la carte : la carte vient de la base, qui ne sait rien
-      des faits de ce poste.
+      C'est aussi elle qui signale un lecteur qui ne tourne pas et propose de
+      le relancer, avant de céder la place à la carte : la carte vient de la
+      base, qui ne sait rien des faits de ce poste.
       Les phrases vivent ici plutôt que dans le programme : c'est du texte
       d'écran, et il se lit en français accentué comme le reste de l'interface.
     -->
@@ -97,6 +97,15 @@
         user-select: text;
       }
 
+      /* Les boutons sur une seule ligne : quand il y en a deux - relancer le
+         lecteur, afficher la carte quand meme -, ils se lisent comme un choix
+         et non comme une pile. */
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+      }
+
       button {
         display: block;
         margin-top: 1.25rem;
@@ -113,6 +122,15 @@
 
       button:hover {
         opacity: 0.88;
+      }
+
+      /* Le second choix, quand il y en a deux : le meme gabarit, sans le poids
+         du plein. Un liseré interne plutot qu'une bordure, pour que les deux
+         boutons gardent exactement la meme hauteur. */
+      button.secondaire {
+        color: var(--ink);
+        background: transparent;
+        box-shadow: inset 0 0 0 1px var(--rule);
       }
 
       /* Le `display: block` ci-dessus l'emporterait sur l'attribut `hidden` :
@@ -151,8 +169,11 @@
         lancement.
       </p>
       <p id="ligne-adresse"><span class="adresse" id="adresse"></span></p>
-      <button id="reessayer" type="button">Réessayer</button>
-      <button id="continuer" type="button" hidden>Afficher la carte</button>
+      <div class="actions">
+        <button id="reessayer" type="button">Réessayer</button>
+        <button id="relancer" type="button" hidden>Relancer le lecteur</button>
+        <button id="continuer" type="button" hidden>Afficher la carte</button>
+      </div>
     </main>
 
     <script>
@@ -177,6 +198,7 @@
       const explication = document.getElementById("explication");
       const adresse = document.getElementById("adresse");
       const bouton = document.getElementById("reessayer");
+      const relancer = document.getElementById("relancer");
       const continuer = document.getElementById("continuer");
       const ligneAdresse = document.getElementById("ligne-adresse");
 
@@ -212,9 +234,11 @@
         explication.textContent = dit.explication;
         adresse.textContent = `http://127.0.0.1:${ouverture.port}`;
         ligneAdresse.hidden = false;
+        relancer.hidden = true;
         continuer.hidden = true;
-        document.body.classList.remove("attente");
+        bouton.hidden = false;
         bouton.disabled = false;
+        document.body.classList.remove("attente");
       }
 
       // Le lecteur est ce qui alimente la carte depuis cette machine. Qu'il
@@ -238,22 +262,88 @@
         return `Le poste est tenu par ${tenant.vehicule} (processus ${tenant.pid})${quand}.`;
       }
 
-      function afficherEchecDuLecteur(lecteur) {
-        titre.textContent = lecteur.poste_tenu
-          ? "Un lecteur tourne déjà sur cette machine"
-          : "Le lecteur n'a pas démarré";
-        explication.textContent = lecteur.poste_tenu
-          ? `${quiTientLePoste(lecteur.tenant)} Vibe Map n'en démarre pas un second : la même ` +
-            "activité partirait en double. La carte s'affiche quand même, alimentée par ce " +
-            "lecteur-là."
-          : `${lecteur.raison} La carte s'affiche quand même, mais cette machine n'y enverra ` +
-            "rien tant que le lecteur ne tourne pas.";
+      // Ce que la fenêtre dit du lecteur, état par état, et si un bouton de
+      // relance sert à quelque chose. Une seule fonction décide : ailleurs, on
+      // ne fait qu'écrire ce qu'elle a dit.
+      const RIEN_NE_PART =
+        "Cette machine n'enverra rien tant qu'il ne tourne pas : la carte s'affiche " +
+        "quand même, mais elle ne dira plus ce qui se passe ici.";
+
+      function phrasesDuLecteur(lecteur) {
+        if (lecteur.etat === "en_demarrage") {
+          return {
+            titre: "Démarrage du lecteur…",
+            explication:
+              "Le lecteur lit le jeton de cette machine au trousseau. Si le système demande " +
+              "une autorisation, accordez-la : sans elle, il ne démarrera pas.",
+            relance: false,
+          };
+        }
+        if (lecteur.etat === "en_marche") {
+          return {
+            titre: "Le lecteur tourne",
+            explication: "Cette machine envoie de nouveau ce qui s'y passe.",
+            relance: false,
+          };
+        }
+        if (lecteur.etat === "arrete") {
+          return {
+            titre: "Le lecteur est arrêté",
+            explication: RIEN_NE_PART,
+            relance: true,
+          };
+        }
+        if (lecteur.cas === "poste_tenu") {
+          return {
+            titre: "Un lecteur tourne déjà sur cette machine",
+            explication:
+              `${quiTientLePoste(lecteur.tenant)} Vibe Map n'en démarre pas un second : la ` +
+              "même activité partirait en double. La carte s'affiche quand même, alimentée " +
+              "par ce lecteur-là. Pour que ce soit celui de l'application, arrêtez l'autre " +
+              "puis relancez.",
+            relance: true,
+          };
+        }
+        if (lecteur.cas === "arret_inattendu") {
+          return {
+            titre: "Le lecteur s'est arrêté tout seul",
+            explication: `Il tournait, et il ne tourne plus. ${RIEN_NE_PART}`,
+            relance: true,
+          };
+        }
+        if (lecteur.cas === "jeton_refuse") {
+          return {
+            titre: "Le jeton de cette machine n'a pas pu être lu",
+            explication:
+              `${lecteur.raison} C'est ce qui arrive après une mise à jour de l'application : ` +
+              "le système redemande l'autorisation, et un refus laisse le lecteur à l'arrêt.",
+            relance: true,
+          };
+        }
+        return {
+          titre: "Le lecteur n'a pas démarré",
+          explication: `${lecteur.raison} ${RIEN_NE_PART}`,
+          relance: true,
+        };
+      }
+
+      function afficherEtatDuLecteur(lecteur, port) {
+        const dit = phrasesDuLecteur(lecteur);
+        titre.textContent = dit.titre;
+        explication.textContent = dit.explication;
         // Pas d'adresse ici : ce n'est pas le port qui est en cause, et un cadre
         // vide se verrait.
         ligneAdresse.hidden = true;
+        // « Réessayer » ne vaut que pour l'interface : ici, ce qui se reprend,
+        // c'est le lecteur.
         bouton.hidden = true;
+        relancer.hidden = !dit.relance;
+        relancer.disabled = false;
         continuer.hidden = false;
         continuer.disabled = false;
+        // La carte passe au second plan tant qu'il y a quelque chose à réparer.
+        continuer.classList.toggle("secondaire", dit.relance);
+        continuer.onclick = () => allerALaCarte(port);
         document.body.classList.remove("attente");
       }
 
@@ -267,6 +357,13 @@
       // emmènerait la fenêtre sur la carte pendant que l'utilisateur lit ce
       // qu'on a à lui dire.
       let decide = false;
+
+      // Et ce que la page a dit du lecteur, elle ne le retire pas : une fois
+      // qu'elle en a parlé, elle suit son état - jusqu'à dire qu'il est
+      // reparti - mais n'emmène plus la fenêtre d'elle-même. Partir vers la
+      // carte redevient un geste de l'utilisateur, ici comme ailleurs : la page
+      // reste seule à décider de la navigation.
+      let annonce = false;
 
       // On demande où en est l'application plutôt que d'attendre un signal :
       // l'ouverture peut avoir abouti, ou échoué, avant que cette page ne soit
@@ -289,13 +386,20 @@
             return;
           }
 
-          decide = true;
-          if (lecteur.etat === "en_echec") {
-            afficherEchecDuLecteur(lecteur);
-            continuer.onclick = () => allerALaCarte(ouverture.port);
+          // Le lecteur ensuite : tant qu'il ne tourne pas, la fenêtre le dit
+          // plutôt que de céder la place à une carte que cette machine
+          // n'alimente plus.
+          if (!annonce && lecteur.etat === "en_marche") {
+            decide = true;
+            allerALaCarte(ouverture.port);
             return;
           }
-          allerALaCarte(ouverture.port);
+
+          afficherEtatDuLecteur(lecteur, ouverture.port);
+          // Un démarrage en cours n'engage à rien : il aboutit, et la fenêtre
+          // part alors d'elle-même vers la carte. Tout le reste s'annonce, et
+          // ce qui est annoncé ne se retire pas.
+          annonce = annonce || lecteur.etat !== "en_demarrage";
         } catch (erreur) {
           console.error(erreur);
         }
@@ -307,6 +411,15 @@
         titre.textContent = "Démarrage de l'interface…";
         explication.textContent = "Nouvel essai en cours.";
         await invoke("reessayer");
+      });
+
+      // Relancer, sans quitter l'application. La commande rend la main tout de
+      // suite - la lecture du jeton au trousseau peut attendre longtemps -, et
+      // c'est le suivi, quelques centièmes plus tard, qui dit où en est le
+      // nouveau départ.
+      relancer.addEventListener("click", async () => {
+        relancer.disabled = true;
+        await invoke("relancer_le_lecteur");
       });
 
       setInterval(suivre, 400);

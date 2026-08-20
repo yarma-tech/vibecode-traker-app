@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Ce que la page d'attente de l'application a le droit de faire. Rien de plus que le necessaire : elle demande ou en est l'ouverture de l'interface, ou en est le lecteur du poste, et redemande a essayer. Aucune de ces commandes ne recoit ni ne rend un chemin de fichier.",
+  "description": "Ce que la page d'attente de l'application a le droit de faire. Rien de plus que le necessaire : elle demande ou en est l'ouverture de l'interface, ou en est le lecteur du poste, redemande a essayer, et relance le lecteur. Aucune de ces commandes ne recoit ni ne rend un chemin de fichier.",
   "windows": ["principale"],
   "permissions": ["core:default"]
 }

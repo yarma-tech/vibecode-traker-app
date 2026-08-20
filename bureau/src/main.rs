@@ -48,6 +48,10 @@ struct EtatCourant {
     service: Mutex<Option<Service>>,
     ouverture: Mutex<Ouverture>,
     lecteur: Mutex<Option<LecteurEmbarque>>,
+    /// Ce que le dernier demarrage a donne. Il ne fait pas foi tant qu'il y a
+    /// un lecteur a regarder : celui-la dit lui-meme s'il tourne encore. Il ne
+    /// sert que quand l'application n'en tient aucun - pendant un demarrage, ou
+    /// apres un demarrage refuse.
     etat_lecteur: Mutex<EtatLecteur>,
     /// La geometrie est tenue en memoire au fil des deplacements, et non lue
     /// au moment de quitter : quand l'application s'arrete, la fenetre est
@@ -65,7 +69,7 @@ impl Default for EtatCourant {
             service: Mutex::new(None),
             ouverture: Mutex::new(Ouverture::EnCours),
             lecteur: Mutex::new(None),
-            etat_lecteur: Mutex::new(EtatLecteur::Arrete),
+            etat_lecteur: Mutex::new(EtatLecteur::EnDemarrage),
             geometrie: Mutex::new(None),
             etat_de_la_fenetre: Mutex::new(None),
         }
@@ -78,6 +82,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             etat_de_l_interface,
             etat_du_lecteur,
+            relancer_le_lecteur,
             reessayer
         ])
         .setup(|app| {
@@ -126,7 +131,7 @@ fn main() {
             // lecture de fichier et une prise de verrou, la ou le service met
             // plusieurs secondes a repondre. La page d'attente sait donc ou en
             // est le lecteur bien avant d'avoir une carte a afficher.
-            demarrer_le_lecteur_en_arriere_plan(app.handle().clone());
+            relancer_le_lecteur_en_arriere_plan(app.handle().clone());
 
             // La fenetre s'ouvre tout de suite, sur sa page d'attente : le
             // service met plusieurs secondes a repondre, et attendre ici
@@ -294,31 +299,34 @@ fn ouvrir_en_arriere_plan(app: AppHandle) {
     });
 }
 
-/// Demarre le lecteur du poste, et retient ce qu'il en est.
+/// Demarre le lecteur du poste, ou le remet en marche, et retient ce qu'il en
+/// est.
 ///
 /// En arriere-plan, pour la meme raison que le service : la lecture du jeton au
 /// trousseau peut ouvrir une boite de dialogue du systeme, et une application
 /// qui cesse de repondre pendant son demarrage se fait tuer.
-fn demarrer_le_lecteur_en_arriere_plan(app: AppHandle) {
+fn relancer_le_lecteur_en_arriere_plan(app: AppHandle) {
+    // Note avant de partir, et non depuis le fil : la fenetre doit voir le
+    // demarrage des le clic qui l'a demande, et non au passage d'apres.
+    *app.state::<EtatCourant>()
+        .etat_lecteur
+        .lock()
+        .expect("etat du lecteur") = EtatLecteur::EnDemarrage;
+
     std::thread::spawn(move || {
         let etat: State<EtatCourant> = app.state();
+        let mut lecteur = etat.lecteur.lock().expect("lecteur en cours");
 
-        // Un lecteur deja en marche est arrete d'abord : c'est lui qui tient le
-        // verrou du poste, et le suivant se le refuserait a lui-meme.
-        etat.lecteur.lock().expect("lecteur en cours").take();
-
-        match bureau::lecteur::demarrer_le_lecteur() {
-            Ok(lecteur) => {
-                *etat.lecteur.lock().expect("lecteur en cours") = Some(lecteur);
-                *etat.etat_lecteur.lock().expect("etat du lecteur") = EtatLecteur::EnMarche;
-            }
-            Err(echec) => {
-                // La fenetre dit deja ce qui cloche ; cette trace le repete la
-                // ou on lance l'application au terminal pour la mettre au point.
-                eprintln!("lecteur non demarre : {}", echec.raison);
-                *etat.etat_lecteur.lock().expect("etat du lecteur") = EtatLecteur::EnEchec(echec);
-            }
+        let resultat = bureau::lecteur::relancer_le_lecteur(&mut lecteur);
+        if let EtatLecteur::EnEchec(echec) = &resultat {
+            // La fenetre dit deja ce qui cloche ; cette trace le repete la ou
+            // on lance l'application au terminal pour la mettre au point.
+            eprintln!("lecteur non demarre : {}", echec.raison);
         }
+
+        // Tant que le lecteur est retenu : sans cela, la fenetre lirait un
+        // demarrage encore en cours alors qu'il vient d'aboutir.
+        *etat.etat_lecteur.lock().expect("etat du lecteur") = resultat;
     });
 }
 
@@ -330,15 +338,40 @@ fn etat_de_l_interface(etat: State<EtatCourant>) -> Ouverture {
     etat.ouverture.lock().expect("etat de l'ouverture").clone()
 }
 
-/// Ou en est le lecteur. Un fait du poste, que la base ne porte pas et ne
-/// portera pas : elle ne sait rien d'un verrou pris sur cette machine.
+/// Ou en est le lecteur, a l'instant ou on le demande. Un fait du poste, que la
+/// base ne porte pas et ne portera pas : elle ne sait rien d'un verrou pris sur
+/// cette machine.
 ///
 /// Cette commande ne recoit rien et ne lit aucun fichier : elle rend un fait
 /// que l'application tient deja, ce qui est la seule nature de commande que le
 /// pont accepte.
+///
+/// La fenetre la redemande sans cesse ; c'est ainsi qu'un lecteur qui cesse de
+/// tourner se voit en une fraction de seconde, la ou FR-010 accorde dix
+/// secondes.
 #[tauri::command]
 fn etat_du_lecteur(etat: State<EtatCourant>) -> EtatLecteur {
-    etat.etat_lecteur.lock().expect("etat du lecteur").clone()
+    let dernier = etat.etat_lecteur.lock().expect("etat du lecteur").clone();
+
+    // Le lecteur n'est retenu que le temps d'un demarrage, qui peut attendre
+    // une autorisation du trousseau. On rend alors le dernier etat connu - « en
+    // demarrage » - plutot que d'attendre : la fenetre ne doit pas se figer
+    // derriere une boite de dialogue du systeme.
+    let Ok(lecteur) = etat.lecteur.try_lock() else {
+        return dernier;
+    };
+
+    bureau::lecteur::etat_a_montrer(
+        lecteur.as_ref().map(LecteurEmbarque::tourne_encore),
+        &dernier,
+    )
+}
+
+/// « Relancer le lecteur » : le remet en marche sans quitter l'application
+/// (FR-010). Sans effet s'il tourne deja.
+#[tauri::command]
+fn relancer_le_lecteur(app: AppHandle) {
+    relancer_le_lecteur_en_arriere_plan(app);
 }
 
 /// « Reessayer » : reprend tout depuis le debut, sans quitter l'application.
