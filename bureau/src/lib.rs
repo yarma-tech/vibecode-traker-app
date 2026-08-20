@@ -13,6 +13,7 @@ pub mod geometrie;
 pub mod lecteur;
 pub mod service;
 pub mod sonde;
+pub mod version;
 
 use service::{ErreurService, Service};
 use sonde::{Indisponibilite, DELAI_DEMARRAGE, PORT_INTERFACE};

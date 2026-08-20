@@ -1,2 +1,4 @@
 /target
 /gen
+# Ce que l'etape d'archivage de la release depose quand on la rejoue en local.
+/dist

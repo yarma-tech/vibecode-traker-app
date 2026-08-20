@@ -32,20 +32,52 @@ la personnalité du produit dans [PRODUCT.md](PRODUCT.md).
 
 ## Installer
 
-Sur macOS, en une commande :
+Vibe Map ne vise qu'une plateforme : **macOS Apple Silicon**. Aucune version
+Intel, Windows ou Linux n'est produite (PRD-002, FR-079).
+
+### L'application de bureau
+
+Chaque [release GitHub](https://github.com/yarma-tech/vibecode-traker-app/releases)
+publie `VibeMap-<version>-aarch64-apple-darwin.app.zip` et sa somme de contrôle
+sha256. Décompresse l'archive, glisse `Vibe Map.app` dans `/Applications`,
+ouvre-la.
+
+**Au premier lancement, macOS refuse de l'ouvrir.** Le message dit que
+« *Vibe Map* ne peut pas être ouvert car son développeur n'a pas pu être
+vérifié », avec un seul bouton pour l'envoyer à la corbeille. Ce n'est pas un
+problème d'installation : l'application n'est ni signée ni notariée - cela
+demande un compte développeur Apple payant, et c'est un hors-scope assumé du
+PRD-002. Pour passer outre, **une seule fois** :
+
+1. Dans le Finder, **clic droit** (ou Contrôle-clic) sur `Vibe Map.app`, puis
+   **Ouvrir**.
+2. Jusqu'à macOS 14, le même message revient avec un bouton **Ouvrir** : clique
+   dessus, et c'est réglé.
+3. Depuis macOS 15, Apple a retiré ce bouton du message. Ferme-le, puis va dans
+   **Réglages Système › Confidentialité et sécurité** : tout en bas de la
+   section *Sécurité*, juste après la tentative, un bouton **Ouvrir quand
+   même** apparaît. Clique dessus et confirme.
+
+Les lancements suivants ne demandent plus rien.
+
+### Le binaire en ligne de commande
+
+Il accompagne l'application sur le même Mac (PRD-002, FR-079). En une
+commande :
 
 ```sh
 brew install yarma-tech/vibemap/vibemap
 ```
 
-Puis `vibemap --version` pour vérifier. Sur Linux x86_64, chaque
-[release GitHub](https://github.com/yarma-tech/vibecode-traker-app/releases)
-publie l'archive `vibemap-<version>-x86_64-unknown-linux-gnu.tar.gz` et sa somme
-de contrôle sha256 ; il suffit de la décompresser et de placer `vibemap` dans le
-`PATH`. La compilation croisée (macOS arm64, Linux x86_64), les sommes de
-contrôle et la publication de la release sont automatisées à chaque tag `v*`
-(voir [`.github/workflows/release.yml`](.github/workflows/release.yml) et
-[`Formula/vibemap.rb`](Formula/vibemap.rb)).
+Puis `vibemap --version` pour vérifier. La release publie aussi son archive
+`vibemap-<version>-aarch64-apple-darwin.tar.gz` et sa somme de contrôle sha256.
+
+La compilation, les sommes de contrôle et la publication de la release sont
+automatisées à chaque tag `v*` (voir
+[`.github/workflows/release.yml`](.github/workflows/release.yml) et
+[`Formula/vibemap.rb`](Formula/vibemap.rb)). L'étiquette et les numéros de
+version des manifestes doivent coïncider : la chaîne refuse de publier sinon,
+plutôt que de livrer un paquet qui ment sur son propre numéro.
 
 Il n'y a pas de démarrage automatique à l'ouverture de session : le lecteur vit
 et meurt avec l'application de bureau (PRD-002, FR-011). Le plist launchd qui

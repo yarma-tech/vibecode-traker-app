@@ -35,3 +35,12 @@ tokio = { version = "1", features = ["rt-multi-thread", "time", "net"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+# Les tests d'integration sont des programmes a part : ils ne voient pas les
+# dependances de la bibliotheque. `bureau/tests/publication.rs` lit les
+# manifestes du depot - celui du paquet, celui du lecteur, celui de l'interface -
+# pour verifier qu'ils annoncent tous la meme version, d'ou ces deux lecteurs de
+# format ici aussi.
+[dev-dependencies]
+serde_json = "1"
+toml_edit = "0.25"

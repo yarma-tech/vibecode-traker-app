@@ -5,7 +5,8 @@ vérifie sans un écran. Cette liste est ce que le PRD-002 impose de jouer **ava
 chaque fusion touchant `bureau/`**. Elle s'allonge avec les tranches ; #57 l'a
 commencée, #58 y ajoute la géométrie de la fenêtre, #61 le lecteur embarqué,
 #62 son état affiché et sa relance, #68 l'ouverture du pont à l'interface, #70
-l'ajout d'un dossier au sélecteur du système, #63 l'entrée avec GitHub.
+l'ajout d'un dossier au sélecteur du système, #63 l'entrée avec GitHub, #86
+l'application publiée et son premier lancement.
 
 Ce qui est déjà couvert par les tests automatiques - la sonde de disponibilité,
 l'URL fixe de la fenêtre, la lecture et l'écriture de la géométrie, la prise et
@@ -264,3 +265,55 @@ raisonné, et **non observé** - ne pas le cocher sur la foi de cette tranche :
   RÉPONSE de ce dernier appel n'a pas pu être une vraie session : le code joué
   était fictif, et Supabase l'a refusé - refus que la fenêtre a affiché, ce qui
   éprouve au passage FR-016.
+
+## L'application publiée (#86)
+
+Ces points ne se jouent pas depuis le dépôt : ils demandent le paquet
+`VibeMap-<version>-aarch64-apple-darwin.app.zip` d'une vraie publication, ou à
+défaut celui que produit `npx @tauri-apps/cli build --target
+aarch64-apple-darwin --bundles app` en local, recopié sur **un autre Mac** que
+celui qui l'a compilé.
+
+- [ ] **L'application s'installe.** L'archive décompressée donne
+      `Vibe Map.app` ; glissée dans `/Applications`, elle porte l'icône de Vibe
+      Map dans le Finder et dans le Dock, à toutes les tailles - pas l'icône
+      générique de macOS.
+- [ ] **Le premier lancement s'annonce comme le README le dit.** Un
+      double-clic sort « le développeur n'a pas pu être vérifié » ; un clic
+      droit puis **Ouvrir** l'ouvre, et les lancements suivants ne redemandent
+      rien. C'est le comportement d'une application non signée, assumé par le
+      PRD-002.
+- [ ] **Le numéro de version est celui de la publication.** `Vibe Map.app` →
+      Lire les informations, ou `mdls -name kMDItemVersion "/Applications/Vibe
+      Map.app"`, rend la version de l'étiquette téléchargée. Quand #85 l'aura
+      posé, l'écran Réglages doit annoncer le même numéro.
+- [ ] **Réseau coupé, l'application s'ouvre quand même.** Wi-Fi éteint juste
+      après l'installation, l'application démarre et ne se plaint que de la
+      base injoignable - jamais d'un morceau qui manquerait.
+
+## Ce qui n'a pas pu être vérifié, faute de publication réelle (#86)
+
+- **La release elle-même.** Aucune étiquette n'a été poussée : la chaîne de
+  `.github/workflows/release.yml` n'a jamais tourné. Ce qui a été éprouvé, c'est
+  la construction du paquet en local et la cohérence du workflow avec celui du
+  binaire. La première étiquette - une préproduction du genre `v0.0.0-essai` -
+  reste à jouer, et à vérifier : l'application et l'archive du binaire pour
+  macOS Apple Silicon présentes avec leurs sommes de contrôle, aucun artefact
+  Linux.
+
+## Point ouvert : l'interface n'est pas encore dans le paquet (FR-069)
+
+**À traiter avant toute publication annoncée à un utilisateur.** Le paquet
+embarque bien le lecteur - il est compilé dans le même binaire - mais pas le
+service d'interface. `bureau/src/service.rs` lance encore l'interface par le
+`npm` du système, dans le `web/` du dépôt, à un chemin fixé à la compilation :
+sur un Mac qui n'a ni le dépôt ni Node, l'application s'ouvre sur sa page
+d'indisponibilité au lieu de la carte.
+
+C'est le dernier morceau qui manque à FR-069 (« aucun morceau ne DOIT être
+téléchargé au premier lancement ») et aux deux critères d'acceptation de #86 qui
+parlent d'un Mac neuf. Il demande sa propre tranche : sortie `standalone` de
+Next.js, exécutable Node embarqué dans le paquet, et résolution du chemin par
+`resource_dir()` plutôt que par `CARGO_MANIFEST_DIR`. Le commentaire en tête de
+`service.rs` le prévoit déjà : tout est derrière la seule fonction `lancer`, et
+ni la sonde, ni la fenêtre, ni la page d'indisponibilité n'en sauront rien.

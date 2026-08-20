@@ -69,7 +69,7 @@ jobs:
       # locale : ces tests ne parlent a personne. La fenetre elle-meme, elle,
       # ne se verifie qu'a la main (voir bureau/VERIFICATIONS.md).
       - name: Tests hors reseau
-        run: cargo test --test sonde --test url --test geometrie --test lecteur --test pont --test ajout
+        run: cargo test --test sonde --test url --test geometrie --test lecteur --test pont --test ajout --test publication
 
   web:
     name: Web (Next)
