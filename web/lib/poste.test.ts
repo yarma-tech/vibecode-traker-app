@@ -4,12 +4,15 @@ import {
   bandeauDuLecteur,
   compteDepots,
   derniereCartographie,
+  echecDeLaRedemande,
   etatCartographie,
   ligneDossier,
   pontOuvert,
   sectionDossiers,
   silenceCartographie,
   suiteDeLAjout,
+  suiteDeLaReautorisation,
+  suiteDuRetrait,
   type DossierSurveille,
   type Surveillance,
 } from "./poste";
@@ -92,6 +95,7 @@ describe("ligneDossier - ce qu'une ligne dit (FR-028, FR-029)", () => {
       compte: "12 dépôts",
       explication: null,
       signal: null,
+      redemande: false,
     });
   });
 
@@ -118,7 +122,9 @@ describe("ligneDossier - ce qu'une ligne dit (FR-028, FR-029)", () => {
       "connue",
     );
     const disparu = ligneDossier(dossier({ lisibilite: "introuvable", depots: null }), "connue");
-    expect(refuse.signal).toBe("Accès refusé");
+    // FR-061 nomme la cause plutôt que le symptôme : ce n'est pas un accès qui a
+    // échoué, c'est une autorisation que le système n'a pas encore donnée.
+    expect(refuse.signal).toBe("Autorisation manquante");
     expect(refuse.signal).not.toBe(disparu.signal);
   });
 
@@ -352,6 +358,242 @@ describe("suiteDeLAjout - un dossier déjà surveillé est refusé, et le refus 
     });
     expect(suite.annonce?.ton).not.toBe("succes");
     expect(suite.annonce?.texte).not.toMatch(/d'ici une minute/);
+  });
+});
+
+// Retirer un dossier sans effacer ce qu'on a déjà observé (FR-032, FR-035,
+// FR-036, issue #72). Ce que le poste fait du fichier de configuration s'éprouve
+// dans `bureau/tests/retrait.rs` ; ce qui se joue ici, c'est ce que
+// l'utilisateur LIT du retrait - et notamment qu'il n'a rien perdu.
+
+describe("suiteDuRetrait - ce que l'écran fait d'un retrait", () => {
+  const liste: Surveillance = { etat: "lue", dossiers: [dossier()] };
+
+  it("un dossier retiré est nommé, et l'écran affiche la liste rendue", () => {
+    const suite = suiteDuRetrait({ issue: "retire", chemin: "~/Sites", surveillance: liste });
+    expect(suite.surveillance).toBe(liste);
+    expect(suite.annonce?.ton).toBe("succes");
+    expect(suite.annonce?.texte).toContain("~/Sites");
+  });
+
+  it("l'annonce dit ce que deviennent les dépôts : sinon retirer se lit comme effacer", () => {
+    // FR-035, et le titre même de la tranche. « Retiré » tout seul laisserait
+    // croire que des semaines de carte viennent de partir avec le dossier.
+    const texte =
+      suiteDuRetrait({ issue: "retire", chemin: "~/Sites", surveillance: liste }).annonce?.texte ??
+      "";
+    expect(texte).toMatch(/catalogue/);
+    expect(texte).toMatch(/figés/);
+    expect(texte).not.toMatch(/supprim|efface/i);
+  });
+
+  it("l'annonce dit comment revenir en arrière : le retrait n'a rien de définitif", () => {
+    const texte =
+      suiteDuRetrait({ issue: "retire", chemin: "~/Sites", surveillance: liste }).annonce?.texte ??
+      "";
+    expect(texte).toMatch(/rajoutez/i);
+  });
+
+  it("retirer un dossier absent ne se donne pas pour un succès, et le dit", () => {
+    const suite = suiteDuRetrait({ issue: "inconnu", chemin: "~/Sites", surveillance: liste });
+    expect(suite.annonce?.ton).toBe("echec");
+    expect(suite.annonce?.texte).toContain("~/Sites");
+    expect(suite.annonce?.texte).not.toMatch(/catalogue/);
+  });
+
+  it("un retrait sans objet remet quand même la liste d'aplomb : elle avait vieilli", () => {
+    // C'est la seule explication possible d'un dossier qu'on croyait surveillé
+    // et qui ne l'est plus. Garder la liste affichée laisserait le bouton
+    // proposer une seconde fois un geste sans objet.
+    expect(
+      suiteDuRetrait({ issue: "inconnu", chemin: "~/Sites", surveillance: liste }).surveillance,
+    ).toBe(liste);
+  });
+
+  it("un échec dit la raison, et ne remplace pas la liste : rien n'a bougé", () => {
+    const suite = suiteDuRetrait({ issue: "echoue", raison: "disque plein" });
+    expect(suite.annonce?.ton).toBe("echec");
+    expect(suite.annonce?.texte).toContain("disque plein");
+    expect(suite.surveillance).toBeNull();
+  });
+
+  it("sans pont, il n'y a rien à annoncer : la liste n'est pas là non plus (FR-060)", () => {
+    expect(suiteDuRetrait(null)).toEqual({ annonce: null, surveillance: null });
+  });
+
+  it("les trois issues ne se lisent pas pareil", () => {
+    const textes = [
+      suiteDuRetrait({ issue: "retire", chemin: "~/Sites", surveillance: liste }).annonce?.texte,
+      suiteDuRetrait({ issue: "inconnu", chemin: "~/Sites", surveillance: liste }).annonce?.texte,
+      suiteDuRetrait({ issue: "echoue", raison: "disque plein" }).annonce?.texte,
+    ];
+    expect(new Set(textes).size).toBe(textes.length);
+  });
+});
+
+// Signaler une autorisation manquante et la redemander (FR-061, issue #74).
+// macOS ferme `~/Documents`, `~/Desktop`, `~/Downloads` et les volumes externes
+// tant que l'autorisation n'est pas donnée, et peut reprendre un accès accordé.
+// Un dossier plein de dépôts se lirait alors comme un dossier vide.
+
+describe("ligneDossier - une autorisation manquante se dit sur la ligne (FR-061)", () => {
+  const manquante = () =>
+    ligneDossier(dossier({ lisibilite: "autorisation_refusee", depots: null }), "connue");
+
+  it("la ligne nomme ce qui manque, et non « 0 dépôt »", () => {
+    const ligne = manquante();
+    expect(ligne.signal).toBe("Autorisation manquante");
+    expect(ligne.compte).toBe(null);
+  });
+
+  it("la ligne dit quoi faire, pas seulement ce qui cloche", () => {
+    expect(manquante().explication).toMatch(/[Rr]edemandez/);
+  });
+
+  it("l'explication dit ce que le bouton va ouvrir : un sélecteur qui surgit sans prévenir se referme", () => {
+    expect(manquante().explication).toMatch(/sélecteur/);
+    expect(manquante().explication).toMatch(/même dossier/);
+  });
+
+  it("le bouton de redemande n'apparaît que sur l'autorisation manquante", () => {
+    expect(manquante().redemande).toBe(true);
+    expect(
+      ligneDossier(dossier({ lisibilite: "introuvable", depots: null }), "connue").redemande,
+    ).toBe(false);
+    expect(
+      ligneDossier(dossier({ lisibilite: "pas_un_dossier", depots: null }), "connue").redemande,
+    ).toBe(false);
+    expect(ligneDossier(dossier({ depots: 12 }), "connue").redemande).toBe(false);
+    expect(ligneDossier(dossier({ depots: 0 }), "connue").redemande).toBe(false);
+  });
+
+  it("un dossier renommé n'appelle ni la phrase ni le bouton de l'autorisation", () => {
+    // Ce n'est pas la même cause et ce n'est pas le même geste : le sélecteur du
+    // système ne fait pas réapparaître un dossier qui n'est plus là.
+    const disparu = ligneDossier(dossier({ lisibilite: "introuvable", depots: null }), "connue");
+    expect(disparu.signal).toBe("Dossier introuvable");
+    expect(disparu.explication).toBe(null);
+  });
+
+  it("l'autorisation manquante se dit même avant la première cartographie", () => {
+    // Le signal vaut avant l'attente : une cartographie de plus n'ouvrira pas un
+    // dossier que le système ferme.
+    const ligne = ligneDossier(
+      dossier({ lisibilite: "autorisation_refusee", depots: null }),
+      "jamais",
+    );
+    expect(ligne.signal).toBe("Autorisation manquante");
+    expect(ligne.redemande).toBe(true);
+  });
+});
+
+describe("suiteDeLaReautorisation - ce que l'écran fait d'une redemande", () => {
+  const liste: Surveillance = { etat: "lue", dossiers: [dossier()] };
+
+  it("un sélecteur refermé sans choix ne dit rien et ne change rien", () => {
+    expect(suiteDeLaReautorisation({ issue: "annulee" })).toEqual({
+      annonce: null,
+      surveillance: null,
+    });
+  });
+
+  it("sans pont, il n'y a rien à annoncer : le bouton n'existe pas là-bas (FR-060)", () => {
+    expect(suiteDeLaReautorisation(null)).toEqual({ annonce: null, surveillance: null });
+  });
+
+  it("accordée : la ligne reprend son affichage normal, et les dépôts arrivent", () => {
+    const suite = suiteDeLaReautorisation({
+      issue: "accordee",
+      chemin: "~/Documents",
+      surveillance: liste,
+    });
+    expect(suite.annonce?.ton).toBe("succes");
+    expect(suite.annonce?.texte).toContain("~/Documents");
+    expect(suite.annonce?.texte).toMatch(/minute/);
+    expect(suite.surveillance).toBe(liste);
+  });
+
+  it("toujours refusée : le détour par les réglages du système, nommé pas à pas", () => {
+    // Sans ce chemin-là, l'utilisateur recommencerait indéfiniment le même geste
+    // sans effet : le sélecteur ne peut plus rien quand c'est le système qui
+    // refuse.
+    const suite = suiteDeLaReautorisation({
+      issue: "refusee",
+      chemin: "~/Documents",
+      surveillance: liste,
+    });
+    expect(suite.annonce?.ton).toBe("echec");
+    expect(suite.annonce?.texte).toMatch(/Réglages Système/);
+    expect(suite.annonce?.texte).toMatch(/Confidentialité et sécurité/);
+  });
+
+  it("un refus ne se donne pas pour un succès", () => {
+    const suite = suiteDeLaReautorisation({
+      issue: "refusee",
+      chemin: "~/Documents",
+      surveillance: liste,
+    });
+    expect(suite.annonce?.ton).not.toBe("succes");
+    expect(suite.annonce?.texte).not.toMatch(/d'ici une minute/);
+  });
+
+  it("un autre dossier désigné : les deux sont nommés, et le geste est redit", () => {
+    const suite = suiteDeLaReautorisation({
+      issue: "autre_dossier",
+      attendu: "~/Documents",
+      choisi: "~/Bureau",
+    });
+    expect(suite.annonce?.ton).toBe("echec");
+    expect(suite.annonce?.texte).toContain("~/Documents");
+    expect(suite.annonce?.texte).toContain("~/Bureau");
+    expect(suite.annonce?.texte).toMatch(/[Rr]edemandez/);
+  });
+
+  it("un autre dossier désigné ne remplace pas la liste : rien n'a bougé sur le poste", () => {
+    expect(
+      suiteDeLaReautorisation({
+        issue: "autre_dossier",
+        attendu: "~/Documents",
+        choisi: "~/Bureau",
+      }).surveillance,
+    ).toBeNull();
+  });
+
+  it("un dossier qui n'est plus surveillé le dit, et remet la liste d'aplomb", () => {
+    const suite = suiteDeLaReautorisation({
+      issue: "inconnu",
+      chemin: "~/Documents",
+      surveillance: liste,
+    });
+    expect(suite.annonce?.ton).toBe("echec");
+    expect(suite.annonce?.texte).toContain("~/Documents");
+    expect(suite.surveillance).toBe(liste);
+  });
+
+  it("un appel qui n'aboutit pas ne se déguise pas en refus du système", () => {
+    // Les cinq issues sont ce que le POSTE répond ; ici, il n'a rien répondu.
+    // Annoncer « le système refuse » enverrait régler des autorisations qui n'y
+    // sont pour rien.
+    const suite = echecDeLaRedemande("~/Documents", "commande inconnue");
+    expect(suite.annonce?.ton).toBe("echec");
+    expect(suite.annonce?.texte).toContain("~/Documents");
+    expect(suite.annonce?.texte).toContain("commande inconnue");
+    expect(suite.annonce?.texte).not.toMatch(/Réglages Système/);
+    expect(suite.surveillance).toBeNull();
+  });
+
+  it("les quatre issues qui parlent ne se lisent pas pareil", () => {
+    const textes = [
+      suiteDeLaReautorisation({ issue: "accordee", chemin: "~/Documents", surveillance: liste })
+        .annonce?.texte,
+      suiteDeLaReautorisation({ issue: "refusee", chemin: "~/Documents", surveillance: liste })
+        .annonce?.texte,
+      suiteDeLaReautorisation({ issue: "autre_dossier", attendu: "~/Documents", choisi: "~/Bureau" })
+        .annonce?.texte,
+      suiteDeLaReautorisation({ issue: "inconnu", chemin: "~/Documents", surveillance: liste })
+        .annonce?.texte,
+    ];
+    expect(new Set(textes).size).toBe(textes.length);
   });
 });
 

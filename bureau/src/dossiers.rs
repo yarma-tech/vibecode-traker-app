@@ -26,10 +26,17 @@
 //! un dossier que l'utilisateur a designe lui-meme, jamais un chemin que la
 //! fenetre aurait choisi (FR-031).
 //!
-//! POURQUOI l'ajout passe par le fichier de configuration : c'est la meme
-//! liste que le lecteur lit, et il n'y en a pas deux. Le fichier reste donc le
-//! support de stockage - il cesse seulement d'etre une porte : personne n'a
-//! plus a l'ouvrir pour surveiller un dossier de plus (FR-036).
+//! POURQUOI l'ajout et le retrait passent par le fichier de configuration :
+//! c'est la meme liste que le lecteur lit, et il n'y en a pas deux. Le fichier
+//! reste donc le support de stockage - il cesse seulement d'etre une porte :
+//! personne n'a plus a l'ouvrir pour surveiller un dossier de plus, ni pour
+//! cesser d'en surveiller un (FR-036).
+//!
+//! Et ce que ce module ecrit, il ne l'ecrit QUE la. Un dossier retire quitte la
+//! liste et rien d'autre : ni le disque, ni le catalogue ne perdent quoi que ce
+//! soit (FR-035). Cesser de surveiller, ce n'est pas effacer ce qu'on a deja
+//! observe - les depots deja cartographies restent au catalogue, dates de leur
+//! derniere cartographie, et cessent seulement d'etre rafraichis.
 
 use std::path::{Path, PathBuf};
 
@@ -313,6 +320,254 @@ pub fn ajouter(chemin_config: &Path, choisi: &Path) -> Ajout {
             surveillance: dossiers_surveilles(chemin_config),
         },
         Err(raison) => Ajout::Echoue { raison },
+    }
+}
+
+/* ---------- retirer un dossier (FR-032, FR-035, FR-036) ---------- */
+
+/// Ce que le retrait d'un dossier a donne, tel que l'ecran le lit.
+///
+/// Trois issues. Le retrait d'un dossier qui n'est plus dans la liste n'est ni
+/// un succes ni une panne : rien n'a ete ecrit, et l'ecran affichait une liste
+/// qui avait vieilli - d'ou la liste rendue avec le refus, pour qu'il se remette
+/// d'aplomb au lieu de proposer une seconde fois un geste sans objet.
+///
+/// POURQUOI aucune variante ne parle du catalogue : le retrait n'y touche pas,
+/// et c'est tout le sens de FR-035. Ce module ecrit dans la configuration du
+/// lecteur, nulle part ailleurs ; les depots deja cartographies restent ou ils
+/// sont, avec leur derniere heure connue, et cessent seulement d'etre
+/// rafraichis.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "issue", rename_all = "snake_case")]
+pub enum Retrait {
+    /// Le dossier ne figure plus dans la liste que le lecteur lit.
+    Retire {
+        /// Le chemin tel qu'il etait ecrit dans la configuration.
+        chemin: String,
+        surveillance: Surveillance,
+    },
+    /// Aucune racine ne portait ce chemin. Rien n'a ete ecrit.
+    Inconnu {
+        chemin: String,
+        surveillance: Surveillance,
+    },
+    /// Rien n'a pu etre ecrit. `raison` nomme ce qui s'y oppose, dans les
+    /// termes de la configuration du lecteur.
+    Echoue { raison: String },
+}
+
+/// Retire un dossier de la surveillance du poste, a l'emplacement habituel de la
+/// configuration du lecteur.
+pub fn retirer_du_poste(ecrit: &str) -> Retrait {
+    retirer(&Config::chemin_par_defaut(), ecrit)
+}
+
+/// Le meme retrait, sur une configuration donnee.
+///
+/// `ecrit` est le chemin TEL QU'IL EST ECRIT dans la configuration - celui que
+/// la liste rendue par ce module porte deja, et celui que l'ecran affiche. La
+/// borne du pont tient donc au retrait comme a l'ajout : la fenetre ne designe
+/// pas un endroit du disque, elle designe une ligne de la liste que le poste lui
+/// a donnee. Un chemin qui n'y figure pas ne fait rien du tout - il n'ouvre
+/// rien, il ne supprime rien.
+///
+/// Rien n'est efface d'autre que cette ligne (FR-035) : ni le dossier sur le
+/// disque, ni les depots au catalogue. Le retrait est un arret de surveillance,
+/// pas un effacement, et le rajouter suffit a reprendre.
+pub fn retirer(chemin_config: &Path, ecrit: &str) -> Retrait {
+    match radier(chemin_config, ecrit) {
+        Ok(true) => Retrait::Retire {
+            chemin: ecrit.to_string(),
+            surveillance: dossiers_surveilles(chemin_config),
+        },
+        Ok(false) => Retrait::Inconnu {
+            chemin: ecrit.to_string(),
+            surveillance: dossiers_surveilles(chemin_config),
+        },
+        Err(raison) => Retrait::Echoue { raison },
+    }
+}
+
+/// Retire le dossier de la liste que le lecteur lit, sans toucher au reste.
+///
+/// Rend `true` quand la liste a bouge, `false` quand elle ne portait pas ce
+/// chemin - et dans ce dernier cas le fichier n'est pas meme reecrit : une
+/// reecriture a l'identique changerait sa date sans rien changer d'autre, et
+/// ferait douter de ce qui s'est passe.
+///
+/// Comme `inscrire`, le fichier est EDITE : l'adresse de la base, les cadences
+/// et les commentaires de l'utilisateur doivent se retrouver intacts apres le
+/// retrait.
+fn radier(chemin_config: &Path, ecrit: &str) -> Result<bool, String> {
+    // La meme porte que le lecteur, d'abord : une configuration qu'il refuserait
+    // ne s'edite pas, et c'est aussi la seule facon de connaitre les racines
+    // qu'il surveille par defaut.
+    let config = Config::load(chemin_config).map_err(|erreur| erreur.to_string())?;
+
+    let restantes: Vec<&String> = config
+        .roots
+        .iter()
+        .filter(|racine| *racine != ecrit)
+        .collect();
+    if restantes.len() == config.roots.len() {
+        return Ok(false);
+    }
+
+    let brut = std::fs::read_to_string(chemin_config).map_err(|erreur| {
+        format!(
+            "configuration illisible a {} : {erreur}",
+            chemin_config.display()
+        )
+    })?;
+    let mut document: DocumentMut = brut.parse().map_err(|erreur| {
+        format!(
+            "configuration invalide a {} : {erreur}",
+            chemin_config.display()
+        )
+    })?;
+
+    match document.get_mut("roots").and_then(Item::as_array_mut) {
+        // Toutes les occurrences, et pas seulement la premiere : une
+        // configuration ecrite a la main peut porter deux fois le meme chemin, et
+        // n'en retirer qu'une laisserait le dossier surveille apres un geste qui
+        // annonce le contraire.
+        Some(liste) => liste.retain(|valeur| valeur.as_str() != Some(ecrit)),
+        // La liste n'est pas ecrite, et le lecteur en surveille quand meme une
+        // par defaut. On l'ecrit noir sur blanc, privee du dossier retire : sans
+        // cela, le retrait n'aurait aucun effet sur ce que le lecteur lit.
+        None => {
+            let mut liste = Array::new();
+            for racine in &restantes {
+                liste.push(racine.as_str());
+            }
+            document["roots"] = Item::Value(Value::Array(liste));
+        }
+    }
+
+    ecrire_sans_perdre(chemin_config, &document.to_string())?;
+    Ok(true)
+}
+
+/* ---------- redemander une autorisation refusee (FR-061) ---------- */
+
+/// Ce que « redemander l'autorisation » a donne.
+///
+/// POURQUOI passer par le selecteur du systeme plutot que par une demande
+/// d'acces : sur macOS, un refus deja donne ne se redemande pas - le systeme ne
+/// repose plus la question. Ce que l'utilisateur designe lui-meme au selecteur,
+/// en revanche, lui est accorde. Redemander l'autorisation, c'est donc rouvrir
+/// le selecteur sur ce meme dossier, et c'est aussi ce qui garde la borne du
+/// pont : aucun chemin ne vient de la fenetre.
+///
+/// Les cinq issues appellent cinq gestes differents, et c'est la seule raison de
+/// les distinguer : un selecteur referme n'appelle rien, un autre dossier
+/// designe se recommence, un refus qui tient demande un detour par les reglages
+/// du systeme.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "issue", rename_all = "snake_case")]
+pub enum Reautorisation {
+    /// Le selecteur s'est ferme sans choix. L'autorisation n'a pas bouge.
+    Annulee,
+    /// Ce dossier n'est plus surveille : il n'y a plus d'autorisation a
+    /// redemander pour lui.
+    Inconnu {
+        chemin: String,
+        surveillance: Surveillance,
+    },
+    /// L'utilisateur a designe un AUTRE dossier. Le systeme n'a donc accorde
+    /// l'acces qu'a celui-la, et le dossier attendu reste illisible.
+    AutreDossier {
+        /// Le dossier dont on redemandait l'autorisation.
+        attendu: String,
+        /// Celui qui a ete designe a la place, ecrit comme l'utilisateur ecrit
+        /// les siens.
+        choisi: String,
+    },
+    /// Le dossier se lit de nouveau.
+    Accordee {
+        chemin: String,
+        surveillance: Surveillance,
+    },
+    /// Le bon dossier a ete designe, et il ne se lit toujours pas.
+    Refusee {
+        chemin: String,
+        surveillance: Surveillance,
+    },
+}
+
+/// Redemande l'autorisation d'un dossier surveille du poste.
+pub fn redemander_au_poste(attendu: &str, choisi: Option<&Path>) -> Reautorisation {
+    redemander(&Config::chemin_par_defaut(), attendu, choisi)
+}
+
+/// La meme redemande, sur une configuration donnee.
+///
+/// `choisi` est ce que le selecteur du systeme a rendu, `None` quand il s'est
+/// referme sans choix. Le selecteur est passe en parametre plutot qu'ouvert
+/// ici : c'est ce qui permet d'eprouver les cinq issues sur des dossiers
+/// temporaires, la ou personne ne peut cliquer dans une fenetre du systeme.
+///
+/// La lisibilite se releve APRES le choix, jamais avant : c'est precisement le
+/// choix qui accorde l'acces, et une lisibilite relevee trop tot dirait encore
+/// « refuse » d'un dossier qui vient de s'ouvrir.
+pub fn redemander(chemin_config: &Path, attendu: &str, choisi: Option<&Path>) -> Reautorisation {
+    // Un selecteur referme d'abord : rien n'a ete demande au systeme, et l'etat
+    // de la configuration n'y change rien.
+    let Some(choisi) = choisi else {
+        return Reautorisation::Annulee;
+    };
+
+    let config = match Config::load(chemin_config) {
+        Ok(config) => config,
+        // Sans configuration lisible, on ne sait pas quel dossier etait attendu.
+        // Le dire comme un dossier qu'on ne surveille plus est le plus proche de
+        // la verite : il n'y a pas d'autorisation a redemander ici.
+        Err(erreur) => {
+            return Reautorisation::Inconnu {
+                chemin: attendu.to_string(),
+                surveillance: Surveillance::SansConfiguration {
+                    raison: erreur.to_string(),
+                },
+            }
+        }
+    };
+
+    let Some(emplacement) = config
+        .roots
+        .iter()
+        .zip(config.racines())
+        .find(|(ecrit, _)| ecrit.as_str() == attendu)
+        .map(|(_, deplie)| deplie)
+    else {
+        return Reautorisation::Inconnu {
+            chemin: attendu.to_string(),
+            surveillance: dossiers_surveilles(chemin_config),
+        };
+    };
+
+    // Le meme jugement que le doublon (FR-075) : liens resolus, barre finale
+    // normalisee. Le selecteur rend un chemin deplie, la configuration porte
+    // souvent un `~`, et une comparaison de texte les dirait differents alors
+    // qu'ils designent le meme endroit.
+    if forme_comparable(choisi) != forme_comparable(&emplacement) {
+        return Reautorisation::AutreDossier {
+            attendu: attendu.to_string(),
+            choisi: abreger(choisi, &maison()),
+        };
+    }
+
+    let vu = regarder(attendu, &emplacement);
+    let surveillance = dossiers_surveilles(chemin_config);
+    if vu.lisibilite == Lisibilite::Lisible {
+        Reautorisation::Accordee {
+            chemin: attendu.to_string(),
+            surveillance,
+        }
+    } else {
+        Reautorisation::Refusee {
+            chemin: attendu.to_string(),
+            surveillance,
+        }
     }
 }
 

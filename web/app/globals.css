@@ -2510,6 +2510,58 @@ code {
   text-decoration-color: var(--rule-2);
 }
 
+/* Les gestes d'une ligne : retirer (issue #72), et redemander l'autorisation
+   quand elle manque (FR-061, issue #74). Sous le chemin plutot qu'a cote : la
+   ligne porte deja son compte ou son signal a droite, et trois choses aux deux
+   bords se disputeraient la place des le premier chemin un peu long. */
+.dossier-gestes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+/* Discrets : ce sont des gestes de reglage, pas l'action principale de l'ecran.
+   Le bouton plein est reserve a « Ajouter un dossier », qui est ce qu'on vient
+   faire ici. */
+.dossier-action {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: 5px;
+  padding: 0.2rem 0.55rem;
+}
+
+.dossier-action:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink-2);
+}
+
+/* Un seul geste a la fois : les trois ecrivent dans la meme liste. Les boutons
+   s'eteignent le temps de la reponse, et celui qu'on a presse dit ou il en est
+   plutot que de rester muet. */
+.dossier-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Le geste qui repare (FR-061). Il reprend l'ambre du signal auquel il repond,
+   pour qu'on lise la ligne d'un seul tenant - ce qui cloche, et quoi faire. Le
+   texte porte le sens a lui seul ; la couleur ne fait que le souligner. */
+.dossier-redemander {
+  color: var(--edit);
+  border-color: var(--edit);
+}
+
+.dossier-redemander:hover:not(:disabled) {
+  color: var(--edit);
+  border-color: var(--edit);
+  background: var(--edit-f);
+}
+
 /* Le temps de savoir s'il y a un pont. Une ligne discrete plutot qu'un vide :
    la section ne doit ni sauter, ni afficher une mention qu'elle retirerait. */
 .dossiers-attente {

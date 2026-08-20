@@ -20,29 +20,66 @@
  * l'application qui va poser la question à l'utilisateur. Un dossier déjà
  * surveillé est refusé, et le refus nomme lequel s'y oppose (FR-037, FR-075).
  *
- * Retirer un dossier appartient à une tranche suivante.
+ * Retirer un dossier (FR-032, FR-035, issue #72) est le geste inverse, et il
+ * n'efface rien : la ligne s'en va, le lecteur cesse de cartographier ce
+ * dossier, et ses dépôts restent au catalogue, figés à leur dernière heure de
+ * cartographie. L'annonce le dit, parce que « retiré » tout seul se lit comme un
+ * effacement.
+ *
+ * Redemander une autorisation (FR-061, issue #74) est le geste des dossiers que
+ * le système ferme - `~/Documents`, `~/Desktop`, `~/Downloads`, les volumes
+ * externes. Il ne paraît que sur la ligne qui en a besoin : un dossier renommé
+ * ne se répare pas au sélecteur du système, et le bouton y serait un faux
+ * espoir.
  */
 
 import { useEffect, useState } from "react";
 import {
   aDecouvrirDuPoste,
+  echecDeLaRedemande,
   ligneDossier,
   sectionDossiers,
   silenceCartographie,
   suiteDeLAjout,
+  suiteDeLaReautorisation,
+  suiteDuRetrait,
   type Annonce,
   type EtatLecteur,
   type ReponseAjout,
   type ReponseDuPont,
+  type ReponseReautorisation,
+  type ReponseRetrait,
+  type Suite,
 } from "@/lib/poste";
-import { pont } from "../pont";
+import { pont, type CommandeLocale } from "../pont";
 import { DerniereCartographie } from "./cartographie";
+
+/**
+ * Les deux commandes que ces tranches ajoutent au pont.
+ *
+ * Elles sont nommées ici le temps que `CommandeLocale` (`app/pont.ts`) les
+ * accueille avec les autres : ce fichier est en cours de modification pour la
+ * connexion GitHub, et deux tranches qui l'éditent en même temps se
+ * marcheraient dessus. À la fusion, ces deux noms rejoignent l'union du pont et
+ * la conversion de `demander` disparaît.
+ */
+type CommandeDesDossiers = "retirer_un_dossier" | "redemander_l_autorisation";
 
 /**
  * À quelle cadence redemander où en est le lecteur. La même que le bandeau :
  * c'est une lecture en mémoire dans l'application, pas un appel réseau.
  */
 const CADENCE_MS = 2000;
+
+/**
+ * Le geste en cours, et sur quelle ligne. Le chemin sert à éteindre le bouton de
+ * CETTE ligne-là, et non les autres : une liste dont tous les boutons
+ * s'éteindraient ensemble laisserait croire à un écran figé.
+ */
+type Geste =
+  | { quoi: "ajout" }
+  | { quoi: "retrait"; chemin: string }
+  | { quoi: "redemande"; chemin: string };
 
 export function DossiersSurveilles({
   heures,
@@ -63,9 +100,13 @@ export function DossiersSurveilles({
     reponse: null,
   });
 
-  // Le sélecteur du système est modal : tant qu'il est ouvert, le bouton ne
-  // doit pas en proposer un second, et il doit dire pourquoi il ne répond plus.
-  const [selecteurOuvert, setSelecteurOuvert] = useState(false);
+  // Un seul geste à la fois, et l'écran dit lequel. Deux raisons, et elles
+  // tiennent ensemble : le sélecteur du système est modal - en proposer un
+  // second pendant qu'il est ouvert ne mènerait nulle part -, et les trois
+  // gestes écrivent dans la MÊME liste. Deux écritures lancées ensemble se
+  // marcheraient dessus, et l'une des deux serait perdue sans que rien ne le
+  // dise.
+  const [geste, setGeste] = useState<Geste | null>(null);
   const [annonce, setAnnonce] = useState<Annonce | null>(null);
 
   // Le lecteur cartographie dès son départ, avant sa première boucle : tant
@@ -128,29 +169,75 @@ export function DossiersSurveilles({
     };
   }, []);
 
-  // Le geste : la fenêtre demande, l'application ouvre le sélecteur du système
-  // et écrit elle-même le dossier choisi. Aucun chemin ne part d'ici.
-  async function ajouter() {
+  /**
+   * Le fond commun des trois gestes : un appel au pont, une annonce, et la
+   * liste que le poste rend. Ce qui les distingue - la commande, la phrase de
+   * l'échec - est passé en paramètre ; le reste ne doit surtout pas diverger,
+   * sous peine qu'un geste laisse l'écran allumé en attente d'une réponse déjà
+   * arrivée.
+   */
+  async function demander(
+    ce_geste: Geste,
+    commande: CommandeLocale | CommandeDesDossiers,
+    arguments_: Record<string, unknown>,
+    lire: (rendu: unknown) => Suite,
+    echec: (raison: string) => Suite,
+  ) {
     const invoquer = pont();
-    if (!invoquer || selecteurOuvert) return;
+    if (!invoquer || geste) return;
 
-    setSelecteurOuvert(true);
+    setGeste(ce_geste);
     setAnnonce(null);
 
     try {
-      const rendu = await invoquer("ajouter_un_dossier");
-      const suite = suiteDeLAjout((rendu ?? null) as ReponseAjout);
+      const suite = lire((await invoquer(commande as CommandeLocale, arguments_)) ?? null);
       setAnnonce(suite.annonce);
       if (suite.surveillance) setVu({ su: true, reponse: suite.surveillance });
     } catch (erreur: unknown) {
       // Un appel qui n'aboutit pas se dit exactement comme un refus du poste :
-      // le dossier n'est pas surveillé, et la phrase le dit au même endroit.
+      // rien n'a changé, et la phrase le dit au même endroit.
       const raison = erreur instanceof Error ? erreur.message : String(erreur);
-      setAnnonce(suiteDeLAjout({ issue: "echoue", raison }).annonce);
+      setAnnonce(echec(raison).annonce);
     } finally {
-      setSelecteurOuvert(false);
+      setGeste(null);
     }
   }
+
+  // Le geste : la fenêtre demande, l'application ouvre le sélecteur du système
+  // et écrit elle-même le dossier choisi. Aucun chemin ne part d'ici.
+  const ajouter = () =>
+    demander(
+      { quoi: "ajout" },
+      "ajouter_un_dossier",
+      {},
+      (rendu) => suiteDeLAjout(rendu as ReponseAjout),
+      (raison) => suiteDeLAjout({ issue: "echoue", raison }),
+    );
+
+  // Retirer, lui, désigne une LIGNE de la liste que le poste vient de rendre -
+  // jamais un endroit du disque. La borne du pont tient donc ici comme à
+  // l'ajout : un chemin qui ne figure pas dans la liste n'ouvre rien et
+  // n'efface rien, le poste répond qu'il ne le connaît pas.
+  const retirer = (chemin: string) =>
+    demander(
+      { quoi: "retrait", chemin },
+      "retirer_un_dossier",
+      { chemin },
+      (rendu) => suiteDuRetrait(rendu as ReponseRetrait),
+      (raison) => suiteDuRetrait({ issue: "echoue", raison }),
+    );
+
+  // FR-061 : redemander l'autorisation rouvre le sélecteur du système sur ce
+  // même dossier. C'est le seul geste qui la rende - un refus déjà donné ne se
+  // redemande pas, le système ne repose plus la question.
+  const redemander = (chemin: string) =>
+    demander(
+      { quoi: "redemande", chemin },
+      "redemander_l_autorisation",
+      { chemin },
+      (rendu) => suiteDeLaReautorisation(rendu as ReponseReautorisation),
+      (raison) => echecDeLaRedemande(chemin, raison),
+    );
 
   const faits = {
     heures,
@@ -192,15 +279,10 @@ export function DossiersSurveilles({
   // cas où il y a un pont, y compris quand la liste n'a pas pu être lue - c'est
   // même là qu'ajouter un dossier a le plus de chances d'être ce qu'on cherche
   // à faire.
-  const geste = (
+  const bandeau = (
     <div className="dossiers-geste">
-      <button
-        type="button"
-        className="ajouter-dossier"
-        onClick={ajouter}
-        disabled={selecteurOuvert}
-      >
-        {selecteurOuvert ? "Sélecteur ouvert…" : "Ajouter un dossier"}
+      <button type="button" className="ajouter-dossier" onClick={ajouter} disabled={geste !== null}>
+        {geste?.quoi === "ajout" ? "Sélecteur ouvert…" : "Ajouter un dossier"}
       </button>
       {annonce ? (
         <p
@@ -217,7 +299,7 @@ export function DossiersSurveilles({
     return (
       <>
         {cartographie}
-        {geste}
+        {bandeau}
         <p className="echec" role="alert">
           Les dossiers surveillés n&apos;ont pas pu être lus&nbsp;: {section.raison}
         </p>
@@ -229,7 +311,7 @@ export function DossiersSurveilles({
     return (
       <>
         {cartographie}
-        {geste}
+        {bandeau}
         <p className="echec" role="alert">
           Impossible de savoir ce qui est surveillé&nbsp;: {section.raison}
         </p>
@@ -241,7 +323,7 @@ export function DossiersSurveilles({
     return (
       <>
         {cartographie}
-        {geste}
+        {bandeau}
         <div className="vide">
           <p className="vide-titre">Aucun dossier surveillé.</p>
           <p className="vide-suite">
@@ -256,7 +338,7 @@ export function DossiersSurveilles({
   return (
     <>
       {cartographie}
-      {geste}
+      {bandeau}
       <ul className="dossiers">
         {section.dossiers.map((dossier) => {
           const ligne = ligneDossier(dossier, silence);
@@ -286,10 +368,44 @@ export function DossiersSurveilles({
               </span>
               {/* FR-076 : un compte nul ne se laisse pas sans explication. Ce
                   qu'on a cherché, et le geste qui corrige le cas le plus
-                  fréquent - un dossier qui est lui-même un dépôt. */}
+                  fréquent - un dossier qui est lui-même un dépôt. FR-061 :
+                  l'autorisation manquante s'explique ici aussi, parce qu'elle
+                  est la seule dont la cause soit invisible. */}
               {ligne.explication ? (
                 <span className="dossier-explication">{ligne.explication}</span>
               ) : null}
+              <span className="dossier-gestes">
+                {/* FR-061 : la redemande ne paraît que sur la ligne qui en a
+                    besoin. Elle précède le retrait, parce que c'est le geste qui
+                    répare - retirer un dossier qu'on n'a pas pu lire serait
+                    renoncer avant d'avoir essayé. */}
+                {ligne.redemande ? (
+                  <button
+                    type="button"
+                    className="dossier-action dossier-redemander"
+                    onClick={() => redemander(dossier.chemin)}
+                    disabled={geste !== null}
+                  >
+                    {geste?.quoi === "redemande" && geste.chemin === dossier.chemin
+                      ? "Sélecteur ouvert…"
+                      : "Redemander l'autorisation"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="dossier-action"
+                  onClick={() => retirer(dossier.chemin)}
+                  disabled={geste !== null}
+                  // Le chemin dans le nom accessible : « Retirer » répété sur
+                  // chaque ligne ne dirait pas lequel, et une liste lue au
+                  // clavier ou à la voix serait une suite de boutons identiques.
+                  aria-label={`Retirer ${dossier.chemin} de la surveillance`}
+                >
+                  {geste?.quoi === "retrait" && geste.chemin === dossier.chemin
+                    ? "Retrait…"
+                    : "Retirer"}
+                </button>
+              </span>
             </li>
           );
         })}

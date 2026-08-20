@@ -168,13 +168,44 @@ export type LigneDossier = {
   compte: string | null;
   explication: string | null;
   signal: string | null;
+  /**
+   * FR-061 : cette ligne porte-t-elle un bouton pour redemander l'autorisation ?
+   *
+   * Sur elle seule. Un dossier renommé ou un chemin qui n'est pas un dossier ne
+   * se réparent pas au sélecteur du système : le bouton y serait un faux espoir,
+   * et il ferait douter du vrai geste - retirer la ligne, ou remettre le dossier
+   * à sa place.
+   */
+  redemande: boolean;
 };
 
 const SIGNAUX: Record<Exclude<Lisibilite, "lisible">, string> = {
   introuvable: "Dossier introuvable",
-  autorisation_refusee: "Accès refusé",
+  // FR-061 nomme la cause, et non le symptôme : ce n'est pas un accès qui a
+  // échoué, c'est une autorisation que le système n'a pas encore donnée. Le mot
+  // dit du même coup quel bouton est juste à côté.
+  autorisation_refusee: "Autorisation manquante",
   pas_un_dossier: "Pas un dossier",
 };
+
+/**
+ * FR-061 : ce qui manque, et le geste qui le rend.
+ *
+ * POURQUOI cette phrase-là : « Autorisation manquante » nomme l'état, pas la
+ * cause. Sur macOS, `~/Documents`, `~/Desktop`, `~/Downloads` et les volumes
+ * externes sont fermés tant que l'utilisateur n'a pas accordé l'accès, et un
+ * accès accordé peut être repris plus tard. Sans cette phrase, un dossier plein
+ * de dépôts se lirait comme un dossier vide, et l'utilisateur irait chercher la
+ * panne dans ses dépôts.
+ *
+ * Elle dit aussi ce que le bouton va faire - rouvrir le sélecteur sur ce même
+ * dossier -, parce qu'un sélecteur qui s'ouvre sans prévenir se referme sans
+ * qu'on ait compris ce qu'il attendait.
+ */
+const AUTORISATION_MANQUANTE =
+  "Le système ne laisse pas Vibe Map ouvrir ce dossier, et ses dépôts ne peuvent donc pas être " +
+  "cartographiés. Redemandez l'autorisation : le sélecteur du système s'ouvre, et désigner ce " +
+  "même dossier l'accorde.";
 
 /**
  * FR-076 : ce qui a été cherché, en clair.
@@ -208,21 +239,28 @@ export function ligneDossier(dossier: DossierSurveille, silence: Silence): Ligne
     // enverrait chercher des dépôts absents d'un dossier qui, lui, est absent.
     // Le signal vaut avant tout le reste, y compris avant l'attente : un dossier
     // introuvable le restera, cartographie ou pas.
+    const cause = signalable(dossier.lisibilite);
+    const manque = cause === "autorisation_refusee";
     return {
       compte: null,
-      explication: null,
-      signal: SIGNAUX[signalable(dossier.lisibilite)],
+      // FR-061 : le seul des trois signaux qui appelle une explication, parce
+      // qu'il est le seul dont la cause est invisible - le dossier est là, plein,
+      // et rien à l'écran ne dirait pourquoi il ne rend rien.
+      explication: manque ? AUTORISATION_MANQUANTE : null,
+      signal: SIGNAUX[cause],
+      redemande: manque,
     };
   }
 
   if (silence === "jamais") {
-    return { compte: ATTENTE, explication: null, signal: null };
+    return { compte: ATTENTE, explication: null, signal: null, redemande: false };
   }
 
   return {
     compte: compteDepots(dossier.depots),
     explication: dossier.depots === 0 ? RIEN_TROUVE : null,
     signal: null,
+    redemande: false,
   };
 }
 
@@ -284,7 +322,9 @@ export type Annonce = { ton: "succes" | "echec"; texte: string };
  * remplacer par une liste vide dirait « plus rien n'est surveillé », ce qui
  * serait faux.
  */
-export type SuiteAjout = { annonce: Annonce | null; surveillance: Surveillance | null };
+export type Suite = { annonce: Annonce | null; surveillance: Surveillance | null };
+
+export type SuiteAjout = Suite;
 
 export function suiteDeLAjout(reponse: ReponseAjout): SuiteAjout {
   // Pas de pont, ou un sélecteur refermé sans choix : il ne s'est rien passé,
@@ -355,6 +395,183 @@ export function refusDAjout(refus: {
     `« ${refus.chemin} » contient « ${refus.deja} », déjà surveillé : les mêmes dépôts seraient ` +
     `cartographiés deux fois. Retirez d'abord « ${refus.deja} » de la surveillance.`
   );
+}
+
+/* ---------- retirer un dossier (FR-032, FR-035, FR-036) ---------- */
+
+/**
+ * Ce que le pont rend après « retirer un dossier » (`bureau/src/dossiers.rs`).
+ *
+ * `null` dit qu'il n'y avait pas de pont à qui demander - hors de
+ * l'application, la liste elle-même n'est pas là.
+ */
+export type ReponseRetrait =
+  | { issue: "retire"; chemin: string; surveillance: Surveillance }
+  | { issue: "inconnu"; chemin: string; surveillance: Surveillance }
+  | { issue: "echoue"; raison: string }
+  | null;
+
+/**
+ * FR-035, et c'est tout le sujet de cette tranche : retirer un dossier n'efface
+ * rien de ce qui a déjà été observé.
+ *
+ * POURQUOI l'annonce doit le dire noir sur blanc : « retiré » tout seul se lit
+ * comme un effacement, et personne ne retire un dossier de bon coeur s'il croit
+ * emporter avec lui des semaines de carte. La phrase nomme donc le sort exact de
+ * ses dépôts - au catalogue, figés à leur dernière heure connue, ce que la
+ * fraîcheur (`fraicheur.ts`) rend déjà lisible sur l'accueil - et le geste qui
+ * revient en arrière.
+ */
+const RIEN_N_EST_EFFACE =
+  "Ses dépôts restent au catalogue, figés à leur dernière heure de cartographie ; rajoutez ce " +
+  "dossier pour qu'ils reprennent.";
+
+/**
+ * Ce que l'écran fait de la réponse. Même forme que pour l'ajout : ce qu'il
+ * annonce, et la liste qu'il affiche désormais.
+ *
+ * `surveillance` accompagne les deux issues où le poste a relu sa liste - le
+ * retrait fait, et le retrait sans objet. Ce second cas la rend justement parce
+ * que la liste affichée avait vieilli : c'est la seule explication possible d'un
+ * dossier qu'on croyait surveillé et qui ne l'est plus.
+ */
+export function suiteDuRetrait(reponse: ReponseRetrait): Suite {
+  if (reponse === null) return { annonce: null, surveillance: null };
+
+  if (reponse.issue === "echoue") {
+    return {
+      annonce: {
+        ton: "echec",
+        texte: `Le dossier n'a pas pu être retiré : ${reponse.raison}`,
+      },
+      // Rien n'a été écrit : la liste affichée est encore la bonne, et la
+      // remplacer ferait clignoter une section qui n'a pas bougé.
+      surveillance: null,
+    };
+  }
+
+  if (reponse.issue === "inconnu") {
+    return {
+      annonce: {
+        ton: "echec",
+        texte:
+          `« ${reponse.chemin} » n'était plus dans la liste des dossiers surveillés : rien n'a ` +
+          "été retiré. La liste ci-dessous est celle du poste.",
+      },
+      surveillance: reponse.surveillance,
+    };
+  }
+
+  return {
+    annonce: {
+      ton: "succes",
+      texte: `« ${reponse.chemin} » n'est plus surveillé. ${RIEN_N_EST_EFFACE}`,
+    },
+    surveillance: reponse.surveillance,
+  };
+}
+
+/* ---------- redemander une autorisation manquante (FR-061) ---------- */
+
+/**
+ * Ce que le pont rend après « redemander l'autorisation »
+ * (`bureau/src/dossiers.rs`).
+ *
+ * Cinq issues, cinq gestes différents. Le chemin ne part toujours pas d'ici :
+ * l'écran nomme la LIGNE dont il redemande l'autorisation, et c'est
+ * l'application qui rouvre le sélecteur du système sur ce dossier.
+ */
+export type ReponseReautorisation =
+  | { issue: "annulee" }
+  | { issue: "inconnu"; chemin: string; surveillance: Surveillance }
+  | { issue: "autre_dossier"; attendu: string; choisi: string }
+  | { issue: "accordee"; chemin: string; surveillance: Surveillance }
+  | { issue: "refusee"; chemin: string; surveillance: Surveillance }
+  | null;
+
+/**
+ * Le détour par les réglages du système, nommé pas à pas.
+ *
+ * POURQUOI il faut le donner : quand le sélecteur lui-même ne suffit plus -
+ * l'autorisation est refusée au niveau du système, et non du dossier -, il n'y a
+ * plus rien à faire depuis l'application. Sans ce chemin-là, l'utilisateur
+ * recommencerait indéfiniment le même geste sans effet.
+ */
+const REGLAGES_DU_SYSTEME =
+  "Ouvrez Réglages Système, puis Confidentialité et sécurité, et autorisez Vibe Map à accéder " +
+  "aux fichiers et dossiers.";
+
+export function suiteDeLaReautorisation(reponse: ReponseReautorisation): Suite {
+  // Pas de pont, ou un sélecteur refermé sans choix : l'autorisation n'a pas
+  // bougé, et un écran qui annoncerait quelque chose ferait passer un geste
+  // repris pour un incident.
+  if (reponse === null || reponse.issue === "annulee") {
+    return { annonce: null, surveillance: null };
+  }
+
+  if (reponse.issue === "autre_dossier") {
+    return {
+      annonce: {
+        ton: "echec",
+        texte:
+          `Le sélecteur a rendu « ${reponse.choisi} », et non « ${reponse.attendu} » : le système ` +
+          `n'accorde l'accès qu'au dossier désigné. Redemandez, et désignez « ${reponse.attendu} ».`,
+      },
+      surveillance: null,
+    };
+  }
+
+  if (reponse.issue === "inconnu") {
+    return {
+      annonce: {
+        ton: "echec",
+        texte:
+          `« ${reponse.chemin} » n'est plus dans la liste des dossiers surveillés : il n'y a plus ` +
+          "d'autorisation à lui redemander. La liste ci-dessous est celle du poste.",
+      },
+      surveillance: reponse.surveillance,
+    };
+  }
+
+  if (reponse.issue === "refusee") {
+    return {
+      annonce: {
+        ton: "echec",
+        texte: `« ${reponse.chemin} » ne s'ouvre toujours pas. ${REGLAGES_DU_SYSTEME}`,
+      },
+      surveillance: reponse.surveillance,
+    };
+  }
+
+  // FR-034 : le dossier repart en cartographie sans attendre le tour suivant,
+  // comme après un ajout. Le dire évite de recommencer parce que les dépôts ne
+  // sont pas déjà là.
+  return {
+    annonce: {
+      ton: "succes",
+      texte: `« ${reponse.chemin} » est de nouveau lisible. Ses dépôts apparaissent d'ici une minute.`,
+    },
+    surveillance: reponse.surveillance,
+  };
+}
+
+/**
+ * L'appel lui-même n'a pas abouti : le pont a levé une erreur au lieu de rendre
+ * une issue.
+ *
+ * POURQUOI une phrase à part plutôt qu'une issue de plus : les cinq issues sont
+ * ce que le POSTE répond, et le poste n'a rien répondu. Les confondre ferait
+ * annoncer « le système refuse » là où c'est la commande qui n'est pas passée -
+ * et enverrait l'utilisateur régler des autorisations qui n'y sont pour rien.
+ */
+export function echecDeLaRedemande(chemin: string, raison: string): Suite {
+  return {
+    annonce: {
+      ton: "echec",
+      texte: `L'autorisation de « ${chemin} » n'a pas pu être redemandée : ${raison}`,
+    },
+    surveillance: null,
+  };
 }
 
 /* ---------- l'heure de la dernière cartographie (FR-030, FR-086) ---------- */
