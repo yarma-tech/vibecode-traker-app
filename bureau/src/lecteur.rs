@@ -283,6 +283,21 @@ pub fn relancer(
     reprendre(lecteur, chemin_config, chemin_du_verrou)
 }
 
+/// Arrete le lecteur, et rend l'etat qui en resulte (FR-015).
+///
+/// C'est ce que la deconnexion declenche : plus aucune session ouverte ne
+/// justifie qu'une machine continue d'emettre. Laisser tomber la valeur suffit :
+/// c'est elle qui tient la machinerie d'execution, et le verrou du poste tombe
+/// avec elle. Aucun processus de lecture ne reste derriere, et il n'y a rien a
+/// nettoyer soi-meme.
+///
+/// Sans effet quand aucun lecteur ne tourne : se deconnecter d'une application
+/// dont le lecteur n'avait pas demarre n'est pas un echec.
+pub fn arreter(lecteur: &mut Option<LecteurEmbarque>) -> EtatLecteur {
+    lecteur.take();
+    EtatLecteur::Arrete
+}
+
 /// Fait repartir le lecteur de zero pour qu'il relise sa configuration, meme
 /// s'il tourne encore (FR-033, FR-034).
 ///

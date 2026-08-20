@@ -20,16 +20,25 @@ export type CommandeLocale =
   | "ajouter_un_dossier"
   | "etat_du_lecteur"
   | "relancer_le_lecteur"
+  | "arreter_le_lecteur"
   | "ouvrir_l_autorisation"
+  | "declarer_la_machine"
   | "revenir_au_premier_plan";
 
 /**
  * Les commandes ne reçoivent presque jamais rien - ce sont des gestes nommés.
- * La seule exception est `ouvrir_l_autorisation`, qui reçoit l'adresse
- * d'autorisation à ouvrir dehors : la fenêtre est seule à savoir la demander à
- * Supabase, et l'application est seule à pouvoir ouvrir le navigateur du
- * système (FR-071). Elle n'accepte pas n'importe quelle adresse pour autant :
- * `bureau/src/autorisation.rs` dit laquelle, et refuse le reste.
+ * Deux font exception, et pour la même raison : la fenêtre détient quelque
+ * chose que l'application ne peut pas obtenir autrement.
+ *
+ * - `ouvrir_l_autorisation` reçoit l'adresse d'autorisation à ouvrir dehors :
+ *   la fenêtre est seule à savoir la demander à Supabase, et l'application est
+ *   seule à pouvoir ouvrir le navigateur du système (FR-071). Elle n'accepte
+ *   pas n'importe quelle adresse pour autant : `bureau/src/autorisation.rs` dit
+ *   laquelle, et refuse le reste.
+ * - `declarer_la_machine` reçoit la session de l'utilisateur, qui vit dans les
+ *   cookies de cette fenêtre et nulle part ailleurs (FR-017). Rien ne remonte
+ *   en sens inverse : le jeton de la machine va du réseau au trousseau du
+ *   système sans jamais passer par ici.
  */
 type Invoquer = (commande: CommandeLocale, arguments_?: Record<string, unknown>) => Promise<unknown>;
 

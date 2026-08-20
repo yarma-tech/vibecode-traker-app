@@ -5,10 +5,14 @@
 //! origine qui n'est pas la sienne. C'est donc l'application qui l'ouvre
 //! dehors, dans le navigateur habituel de l'utilisateur.
 //!
-//! ## La seule commande du pont qui recoit quelque chose
+//! ## Une des deux commandes du pont qui recoivent quelque chose
 //!
-//! Toutes les autres sont des gestes nommes, sans argument. Celle-ci recoit une
-//! adresse, parce que la fenetre est seule a savoir la demander a Supabase -
+//! Les autres sont des gestes nommes, sans argument. Deux font exception, et
+//! pour la meme raison : la fenetre detient quelque chose que l'application ne
+//! peut pas obtenir autrement. Ici c'est l'adresse d'autorisation ; dans
+//! `machine.rs`, c'est la session de l'utilisateur, qui vit dans les cookies de
+//! la fenetre. Celle-ci recoit une adresse, parce que la fenetre est seule a
+//! savoir la demander a Supabase -
 //! elle porte le defi PKCE que la fenetre vient de tirer, et l'application n'a
 //! aucun moyen de le fabriquer a sa place.
 //!

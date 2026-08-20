@@ -6,6 +6,7 @@
 mod appairage;
 pub mod commits;
 mod config;
+pub mod declaration;
 pub mod depouillement;
 pub mod journal;
 pub mod lecteur;
@@ -19,6 +20,7 @@ mod worktree;
 pub use appairage::{appairer, AppairageError, Identite};
 pub use commits::{branche_courante, commits_depuis, head, CommitLocal};
 pub use config::{Config, ConfigError};
+pub use declaration::{declarer, DansLaBase, DeclarationError};
 pub use plan::{empreinte, identite, normaliser_distant, scanner, Module, Plan, ScanError};
 pub use verrou::{Marque, Tenant, Verrou, VerrouError};
 pub use worktree::{worktrees, Worktree};

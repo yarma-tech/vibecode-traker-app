@@ -5,6 +5,7 @@ import { Machines, type Machine } from "./machines";
 import { Accueil, type Apercu } from "./accueil";
 import { Deconnexion } from "./deconnexion";
 import { Appairage } from "./appairage";
+import { DeclarationDeLaMachine } from "./declaration";
 import { PremierLancement } from "./premier-lancement";
 import { BaseInjoignable } from "./base-injoignable";
 import {
@@ -106,6 +107,12 @@ export default async function Page({
           <Deconnexion />
         </header>
 
+        {/* La machine se presente a chaque ouverture (FR-055) : c'est ici, et
+            non a la connexion, parce qu'un lancement ordinaire ne repasse
+            jamais par l'ecran de connexion (FR-014). Sur un Mac neuf, c'est
+            elle qui fait apparaitre la premiere machine sous cet ecran. */}
+        <DeclarationDeLaMachine />
+
         <PremierLancement demo={demoEcran === "onboarding"} />
       </main>
     );
@@ -121,6 +128,8 @@ export default async function Page({
         <span className="compte">{user.email}</span>
         <Deconnexion />
       </header>
+
+      <DeclarationDeLaMachine />
 
       <h2 className="titre">Repos</h2>
 

@@ -35,6 +35,7 @@ import {
   repriseDeLaFenetre,
   type PhaseConnexion,
 } from "@/lib/autorisation";
+import { suiteDeLaConnexion } from "@/lib/session";
 
 /** Le rythme auquel la fenêtre va voir si le retour est arrivé. */
 const CADENCE_DU_GUET_MS = 700;
@@ -157,10 +158,19 @@ export function Connexion({ erreur }: { erreur?: string }) {
         return;
       }
 
+      const appel = pont();
+      const suite = suiteDeLaConnexion(appel !== null);
+
+      // Le lecteur repart (issue #64). Après une déconnexion il est arrêté et
+      // le poste rendu : sans cette relance, la carte reviendrait au-dessus
+      // d'une machine muette, et il faudrait quitter l'application pour la
+      // faire battre à nouveau. Sans effet s'il tourne déjà.
+      if (suite.relancerLeLecteur) await appel?.("relancer_le_lecteur");
+
       // FR-072 : l'application reprend la main dans sa propre fenêtre. Le
       // navigateur du système est au premier plan à cet instant, et personne
       // ne doit avoir à revenir chercher Vibe Map dans le Dock.
-      await pont()?.("revenir_au_premier_plan");
+      if (suite.revenirAuPremierPlan) await appel?.("revenir_au_premier_plan");
 
       // La session est posée dans les cookies : l'accueil, relu côté serveur,
       // rend la carte. Pas d'étape de plus (FR-013).

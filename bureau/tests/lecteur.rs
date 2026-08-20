@@ -251,6 +251,78 @@ fn l_etat_montre_suit_ce_que_le_lecteur_fait_a_l_instant() {
     assert_eq!(bureau::lecteur::etat_a_montrer(None, &refus), refus);
 }
 
+/// La deconnexion arrete le lecteur, rend le poste, et le dit (FR-015).
+///
+/// C'est la moitie de FR-015 que « l'ecran de connexion revient » ne couvre
+/// pas : une machine qui continuerait d'emettre apres la deconnexion tiendrait
+/// encore le poste et enverrait de l'activite au nom d'une session fermee. Le
+/// verrou repris ici est la preuve qu'aucun processus de lecture ne subsiste -
+/// c'est ce que le Moniteur d'activite montre a l'utilisateur.
+#[test]
+fn la_deconnexion_arrete_le_lecteur_et_rend_le_poste() {
+    std::env::set_var("VIBEMAP_TOKEN", "jeton-de-test");
+
+    let config = config_temporaire("deconnexion");
+    let verrou = chemin_temporaire("deconnexion.lock");
+
+    let mut lecteur = None;
+    assert_eq!(
+        bureau::lecteur::relancer(&mut lecteur, &config, &verrou),
+        EtatLecteur::EnMarche,
+        "une session ouverte fait tourner le lecteur"
+    );
+    Verrou::prendre(&verrou, "vibemap").expect_err("le lecteur en marche tient le poste");
+
+    assert_eq!(
+        bureau::lecteur::arreter(&mut lecteur),
+        EtatLecteur::Arrete,
+        "la deconnexion arrete le lecteur, et la fenetre doit le lire"
+    );
+    assert!(
+        lecteur.is_none(),
+        "l'application ne doit plus tenir de lecteur apres la deconnexion"
+    );
+
+    // Le poste est rendu : c'est ce qui rend l'arret verifiable de l'exterieur,
+    // et ce qu'un lecteur laisse en marche derriere la deconnexion trahirait.
+    let repris = Verrou::prendre(&verrou, "vibemap")
+        .expect("le poste doit etre libre des que la deconnexion a arrete le lecteur");
+    drop(repris);
+
+    // Et l'etat vu par la fenetre suit : plus de lecteur a regarder, c'est le
+    // dernier etat connu qui parle, et il dit « arrete ».
+    assert_eq!(
+        bureau::lecteur::etat_a_montrer(
+            lecteur
+                .as_ref()
+                .map(bureau::lecteur::LecteurEmbarque::tourne_encore),
+            &EtatLecteur::Arrete
+        ),
+        EtatLecteur::Arrete
+    );
+
+    // Se reconnecter le remet en marche sans que l'application ait ferme
+    // (dernier critere de l'issue #64).
+    assert_eq!(
+        bureau::lecteur::relancer(&mut lecteur, &config, &verrou),
+        EtatLecteur::EnMarche,
+        "la reconnexion fait repartir le lecteur sans quitter l'application"
+    );
+    Verrou::prendre(&verrou, "vibemap").expect_err("le lecteur repris a repris le poste");
+
+    drop(lecteur);
+    let _ = std::fs::remove_file(&config);
+    let _ = std::fs::remove_file(&verrou);
+}
+
+/// Arreter un lecteur qui ne tourne pas n'est pas un echec : se deconnecter
+/// d'une application dont le lecteur n'avait pas demarre doit aboutir.
+#[test]
+fn arreter_sans_lecteur_ne_casse_rien() {
+    let mut lecteur = None;
+    assert_eq!(bureau::lecteur::arreter(&mut lecteur), EtatLecteur::Arrete);
+}
+
 /// La relance : elle repose le verrou et remet un lecteur en marche, sans que
 /// l'application ait eu a se fermer (FR-010).
 ///

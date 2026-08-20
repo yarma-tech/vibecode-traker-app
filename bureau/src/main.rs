@@ -31,7 +31,8 @@ use std::sync::Mutex;
 use bureau::autorisation;
 use bureau::dossiers::{Ajout, Surveillance};
 use bureau::geometrie::{self, Geometrie, Position, HAUTEUR_MINIMALE, LARGEUR_MINIMALE};
-use bureau::lecteur::{EtatLecteur, LecteurEmbarque};
+use bureau::lecteur::{CasEchec, EchecLecteur, EtatLecteur, LecteurEmbarque};
+use bureau::machine::{self, EtatMachine};
 use bureau::service::Service;
 use bureau::sonde::{url_de_la_fenetre, PORT_INTERFACE};
 use bureau::Echec;
@@ -106,9 +107,11 @@ fn main() {
             etat_de_l_interface,
             etat_du_lecteur,
             relancer_le_lecteur,
+            arreter_le_lecteur,
             dossiers_surveilles,
             ajouter_un_dossier,
             ouvrir_l_autorisation,
+            declarer_la_machine,
             revenir_au_premier_plan,
             reessayer
         ])
@@ -525,6 +528,44 @@ async fn ouvrir_l_autorisation(url: String) -> OuvertureAutorisation {
     }
 }
 
+/// « Declarer la machine » : ce Mac s'inscrit sur le compte de la session
+/// ouverte, sans qu'aucun code n'ait ete demande (FR-017 a FR-022, FR-055).
+///
+/// La SECONDE commande du pont qui recoit quelque chose, et il faut dire
+/// pourquoi. La fenetre est seule a detenir la session de l'utilisateur : elle
+/// vit dans ses cookies, et l'application n'a aucun moyen de la lire. Elle la
+/// presente donc ici, le temps d'un appel.
+///
+/// Ce qui NE remonte jamais en sens inverse, c'est le jeton de la machine :
+/// `EtatMachine` n'a pas de champ ou le loger. Il va du reseau au trousseau du
+/// systeme sans passer par la fenetre, et c'est ce qui fait que les deux
+/// identites ne se melangent pas.
+///
+/// Elle est appelee a chaque affichage de l'accueil, et pas seulement apres une
+/// connexion : c'est ainsi que l'identifiant conserve se represente a chaque
+/// lancement (FR-055). Elle ne cree une machine que lorsque le poste n'en
+/// conserve aucune.
+///
+/// Sur un fil dedie : elle parle a la base, et elle ouvre le trousseau - ce qui
+/// peut faire apparaitre une boite de dialogue du systeme et durer aussi
+/// longtemps qu'il faut a l'utilisateur pour y repondre.
+#[tauri::command]
+async fn declarer_la_machine(jeton: String) -> EtatMachine {
+    let chemin = vibemap::Config::chemin_par_defaut();
+    let nom = tauri::async_runtime::spawn_blocking(machine::nom_de_la_machine)
+        .await
+        .unwrap_or_else(|_| "machine sans nom".to_string());
+
+    machine::assurer(
+        &chemin,
+        machine::adresse_de_la_base(),
+        &jeton,
+        &nom,
+        machine::plateforme(),
+    )
+    .await
+}
+
 /// « Revenir au premier plan » : l'application reprend la main dans sa propre
 /// fenetre (FR-072).
 ///
@@ -549,6 +590,37 @@ fn revenir_au_premier_plan(app: AppHandle) {
 #[tauri::command]
 fn relancer_le_lecteur(app: AppHandle) {
     relancer_le_lecteur_en_arriere_plan(app);
+}
+
+/// « Arreter le lecteur » : la deconnexion coupe le battement de cette machine
+/// (FR-015).
+///
+/// POURQUOI la fenetre doit l'attendre : elle ferme la session juste apres, et
+/// c'est cet appel qui rend le verrou du poste. Rendre l'etat plutot que rien
+/// est ce qui lui permet de le montrer sans redemander.
+///
+/// Sur un fil dedie : laisser tomber le lecteur attend qu'il finisse son envoi
+/// en cours, et le fil de la fenetre ne doit pas s'y suspendre.
+#[tauri::command]
+async fn arreter_le_lecteur(app: AppHandle) -> EtatLecteur {
+    let arret = tauri::async_runtime::spawn_blocking(move || {
+        let etat = app.state::<EtatCourant>();
+        let resultat =
+            bureau::lecteur::arreter(&mut etat.lecteur.lock().expect("lecteur en cours"));
+        *etat.etat_lecteur.lock().expect("etat du lecteur") = resultat.clone();
+        resultat
+    })
+    .await;
+
+    // Un fil qui n'aboutit pas laisse un lecteur dont on ne sait plus rien :
+    // l'annoncer vaut mieux que rendre « arrete » sans l'avoir constate.
+    arret.unwrap_or_else(|erreur| {
+        EtatLecteur::EnEchec(EchecLecteur {
+            cas: CasEchec::Panne,
+            raison: format!("l'arret du lecteur n'a pas abouti : {erreur}."),
+            tenant: None,
+        })
+    })
 }
 
 /// « Reessayer » : reprend tout depuis le debut, sans quitter l'application.

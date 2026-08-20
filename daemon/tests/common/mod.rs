@@ -1128,6 +1128,75 @@ impl TestContext {
             .to_string()
     }
 
+    /// Les machines que la SESSION de l'utilisateur voit, exactement comme la
+    /// liste de l'accueil web.
+    ///
+    /// Avec le jeton de l'utilisateur, jamais la cle de service : celle-ci
+    /// verrait les machines de tous les comptes de la base de test, et un test
+    /// de doublon n'y verrait plus rien.
+    pub async fn machines_visibles(&self) -> Vec<Value> {
+        self.http
+            .get(format!(
+                "{}/rest/v1/machines?select=id,label,platform,revoked_at&order=label",
+                self.url
+            ))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(&self.user_token)
+            .send()
+            .await
+            .expect("lecture des machines de l'utilisateur")
+            .json::<Value>()
+            .await
+            .expect("reponse JSON de lecture des machines")
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Tente de creer une machine par une insertion BRUTE, avec le jeton
+    /// choisi par l'appelant - jamais par `declarer_machine`.
+    ///
+    /// C'est la seule facon d'eprouver la policy d'INSERTION seule : passer par
+    /// la fonction laisserait le doute qu'un autre garde-fou ait refuse a sa
+    /// place, et le test resterait vert le jour ou la policy s'affaiblirait.
+    ///
+    /// POURQUOI sans `return=representation`, contrairement aux autres aides de
+    /// ce fichier : la representation force un `returning`, et un `returning`
+    /// fait passer la ligne par la policy de LECTURE. Celle-ci refuse d'office
+    /// une machine qu'un jeton de machine viendrait de creer - elle ne voit que
+    /// la sienne -, et la ligne serait annulee par ce refus-la, pas par la
+    /// policy d'insertion. Le test aurait alors l'air de tenir alors que
+    /// l'insertion, elle, ne serait plus gardee du tout. Sans representation,
+    /// ce qui refuse ne peut etre que la policy d'insertion.
+    pub async fn tenter_inserer_machine_avec_jeton(
+        &self,
+        jeton: &str,
+        label: &str,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/machines", self.url))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .json(&json!([{ "user_id": self.user_id, "label": label }]))
+            .send()
+            .await
+            .expect("tentative d'insertion brute de machine");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        Ok(())
+    }
+
+    /// Efface une machine, comme le ferait une base remise a zero.
+    pub async fn effacer_machine(&self, machine_id: &str) {
+        self.supprimer(&format!("machines?id=eq.{machine_id}"))
+            .await;
+    }
+
     /// Pose la date du dernier battement d'une machine, sans attendre le daemon.
     ///
     /// Permet d'éprouver la bascule en état gelé : un battement vieux de plus de

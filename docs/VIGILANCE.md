@@ -73,3 +73,34 @@ port**. Trois choses en dependent : l'adresse de retour de l'autorisation
 GitHub, que le fournisseur exige de connaitre a l'avance ; le cookie de session,
 lie a l'origine et donc au port ; et le pont de commandes locales, ouvert a
 cette seule origine.
+
+## Eprouver une policy d'INSERTION en RLS (`supabase`, `daemon/tests`)
+
+Une insertion faite avec `Prefer: return=representation` passe par un
+`returning`, et un `returning` fait relire la ligne a travers la policy de
+**lecture**. Sur `machines`, celle-ci ne montre a un jeton de machine que SA
+ligne : une machine que ce jeton viendrait de creer est donc annulee par le
+refus de lecture, avant meme qu'on sache ce que la policy d'insertion en aurait
+fait.
+
+**Le piege :** un test ecrit ainsi reste vert alors que la policy d'insertion a
+ete videe de sa garde. Il a ete constate en sabotant `machines_insert_own` :
+le test passait, et la ligne n'apparaissait pas. Pour eprouver l'insertion
+seule, poster **sans** representation et compter les lignes ensuite - c'est ce
+que fait `TestContext::tenter_inserer_machine_avec_jeton`.
+
+## Les deux identites du poste (`bureau/src/machine.rs`)
+
+La **session** de l'utilisateur vit dans les cookies de la fenetre. Le **jeton
+de machine** vit au trousseau du systeme, sous `fr.yarma.vibemap` et sous
+l'identifiant de la machine - la meme entree, exactement, que celle du binaire
+en ligne de commande. La fenetre presente sa session au pont ; le pont ne lui
+rend jamais le jeton de la machine, et `EtatMachine` n'a aucun champ ou le
+loger. Ajouter un champ qui le porterait ferait sortir un secret de machine dans
+une page web.
+
+**Et ce qui ne doit jamais arriver :** un acces au trousseau REFUSE n'est pas un
+jeton ABSENT. Le premier s'annonce avec un bouton pour reessayer (FR-080) ; le
+second redemande un jeton pour LA MEME machine. Les confondre redeclare la
+machine d'un utilisateur qui a simplement clique « Refuser », et fait apparaitre
+un doublon dans sa liste.

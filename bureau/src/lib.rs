@@ -11,6 +11,7 @@ pub mod autorisation;
 pub mod dossiers;
 pub mod geometrie;
 pub mod lecteur;
+pub mod machine;
 pub mod service;
 pub mod sonde;
 pub mod version;
