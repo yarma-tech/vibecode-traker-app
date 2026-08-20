@@ -205,7 +205,11 @@ impl Lecteur {
         let mut tampon = Tampon::new(config.file_plafond);
 
         // Le passe se depouille dans sa propre tache, une fois par vie du
-        // lecteur. Canal distinct du direct : il n'alimente que les deux dates,
+        // lecteur, et reprend a sa marque : ce qui a deja ete depouille ne l'est
+        // pas deux fois, ce qu'un agent au terminal a ecrit pendant la fermeture
+        // est rattrape (FR-078).
+        //
+        // Canal distinct du direct : il n'alimente que les deux dates,
         // et n'allume donc aucune couleur (FR-046, FR-047). Le mener dans la
         // boucle la figerait le temps d'un gigaoctet de journaux, alors que le
         // battement et la lecture vivante doivent continuer (FR-048).
@@ -254,16 +258,19 @@ impl Lecteur {
     }
 }
 
-/// Depouille les trente derniers jours de journaux, puis pose la marque.
+/// Reprend le depouillement du passe la ou il s'etait arrete, puis pose la
+/// marque.
 ///
 /// Ecrite a part de la boucle parce qu'elle tourne a part : elle ne partage
 /// avec elle qu'une copie de la carte, prise apres la premiere cartographie.
 /// Un depot cartographie plus tard ne recevra ses dates qu'a la prochaine
-/// ouverture - c'est la reprise incrementale, qui viendra avec FR-078.
+/// ouverture.
 ///
-/// Un arret en cours de route ne pose aucune marque : rien n'a ete mene a son
-/// terme, et une marque posee a tort tiendrait pour depouille ce qui ne l'est
-/// pas.
+/// La marque se relit avant le passage et s'ecrit au fil de celui-ci : seuls
+/// les journaux ecrits depuis la derniere fois sont lus (FR-078), et un arret
+/// en cours de route ne fait perdre que le journal en cours (FR-049). Seul
+/// `termine_a` demande d'etre alle au bout : un passage interrompu ne pretend
+/// pas s'etre termine.
 async fn depouiller_le_passe(
     client: Supabase,
     racine_journaux: PathBuf,
@@ -272,23 +279,36 @@ async fn depouiller_le_passe(
     arret: Arret,
 ) {
     let horizon = depouillement::horizon(chrono::Utc::now());
+    let mut marque = Marque::charger(&chemin_de_la_marque);
 
     let resume = tokio::select! {
-        resume = depouillement::depouiller(&client, &racine_journaux, &carte, horizon) => resume,
+        resume = depouillement::depouiller(
+            &client,
+            &racine_journaux,
+            &carte,
+            horizon,
+            &mut marque,
+        ) => resume,
         _ = arret.attendre() => return,
     };
 
     println!(
-        "{} depouillement du passe : {}/{} journal(aux), {} zone(s) datee(s), {} en defaut",
+        "{} depouillement du passe : {} journal(aux) a reprendre, avancement {}/{} \
+         (depuis {}), {} zone(s) datee(s), {} en defaut",
         chrono::Utc::now().format("%H:%M:%S"),
+        resume.journaux_a_depouiller,
         resume.journaux_depouilles,
         resume.journaux_total,
+        resume.depart(),
         resume.zones_notees,
         resume.en_defaut
     );
 
-    let mut marque = Marque::charger(&chemin_de_la_marque);
-    marque.poser(chrono::Utc::now(), resume.journaux_depouilles);
+    marque.poser(
+        chrono::Utc::now(),
+        resume.journaux_depouilles,
+        resume.journaux_total,
+    );
     if let Err(erreur) = marque.enregistrer() {
         eprintln!("marque du depouillement non ecrite : {erreur}");
     }

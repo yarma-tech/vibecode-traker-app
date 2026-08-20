@@ -16,6 +16,14 @@
 //! La monotonie est tenue cote base (`noter_dernieres_touches`) : une date ne
 //! recule jamais, et ce module peut donc parcourir le passe dans le desordre
 //! sans faire reculer une date fraiche (FR-088).
+//!
+//! Le depouillement n'est ni reserve au premier lancement, ni une relecture
+//! complete a chaque fois : a chaque ouverture il reprend ou il s'etait arrete
+//! (FR-049, FR-078). Un seul mecanisme sert les deux cas - la marque de
+//! progression -, parce que c'est la meme question dans les deux : qu'est-ce qui
+//! a ete ecrit depuis la derniere fois ? Un depouillement interrompu et une
+//! application restee fermee une semaine ne se distinguent pas de ce point de
+//! vue.
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -52,16 +60,37 @@ pub struct LotTouches {
 }
 
 /// Ce qu'un depouillement a fait, tel que les reglages le liront.
+///
+/// Les deux nombres de FR-050 sont `journaux_depouilles` sur `journaux_total`.
+/// POURQUOI le denominateur est le total sous la racine, et non le seul reliquat
+/// de ce passage : l'avancement doit se lire d'une ouverture a l'autre. Un
+/// passage interrompu a 120 sur 400 doit repartir de 120 sur 400, pas de 0 sur
+/// 280.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Resume {
     /// Journaux trouves sous la racine.
     pub journaux_total: usize,
-    /// Journaux traites, y compris ceux que la borne des trente jours ecarte.
+    /// Journaux que ce passage a retenus, la marque et la borne des trente
+    /// jours ayant ecarte les autres.
+    pub journaux_a_depouiller: usize,
+    /// Journaux depouilles, ce passage compris : l'avancement sur le total.
     pub journaux_depouilles: usize,
     /// Zones auxquelles une date a ete proposee.
     pub zones_notees: usize,
     /// Envois qui n'ont pas abouti. Ils n'arretent pas le depouillement.
     pub en_defaut: usize,
+}
+
+impl Resume {
+    /// L'avancement d'ou ce passage est parti : ce qu'il n'a pas eu a relire.
+    ///
+    /// C'est le nombre que les reglages affichent tant que le passage n'a pas
+    /// avance d'un journal, et donc ce qui rend visible qu'il reprend au lieu de
+    /// recommencer (FR-049, FR-050).
+    pub fn depart(&self) -> usize {
+        self.journaux_total
+            .saturating_sub(self.journaux_a_depouiller)
+    }
 }
 
 /// Ramene des appels d'outils du passe a deux dates par zone, depot par depot.
@@ -138,7 +167,64 @@ pub fn touches_du_journal(
     touches(&journal::lire(contenu), repos, horizon)
 }
 
-/// Depouille tous les journaux sous la racine et pose leurs dates.
+/// A partir d'ou reprendre : la marque, jamais plus loin que l'horizon.
+///
+/// Une marque absente rend les trente derniers jours, et rien de plus. Une
+/// marque plus vieille que l'horizon - l'application est restee fermee six
+/// semaines - ne fait pas remonter au-dela : il n'y a rien a tirer d'un journal
+/// dont aucune ligne ne tient dans la fenetre.
+pub fn seuil(marque: Option<DateTime<Utc>>, horizon: DateTime<Utc>) -> DateTime<Utc> {
+    marque.map_or(horizon, |marque| marque.max(horizon))
+}
+
+/// Les journaux qui restent a depouiller, du plus ancien ecrit au plus recent.
+///
+/// Chaque journal est donne avec la date de sa derniere ecriture. Un journal
+/// ecrit avant le seuil a deja ete depouille par un passage precedent : il ne
+/// revient pas. Un journal ecrit depuis revient, meme s'il a deja ete lu -
+/// c'est ce qui rattrape ce qu'un agent au terminal y a ajoute pendant que
+/// l'application etait fermee (FR-078).
+///
+/// POURQUOI cet ordre : la marque avance au fil du passage, et elle ne peut le
+/// faire que si ce qui reste est toujours plus recent que ce qui est fait.
+/// Trier par date d'ecriture est ce qui rend la reprise exacte.
+pub fn a_depouiller(
+    journaux: &[(PathBuf, DateTime<Utc>)],
+    marque: Option<DateTime<Utc>>,
+    horizon: DateTime<Utc>,
+) -> Vec<(PathBuf, DateTime<Utc>)> {
+    let seuil = seuil(marque, horizon);
+
+    let mut restants: Vec<(PathBuf, DateTime<Utc>)> = journaux
+        .iter()
+        .filter(|(_, ecrit_a)| *ecrit_a >= seuil)
+        .cloned()
+        .collect();
+
+    // Le chemin departage deux journaux ecrits au meme instant : sans lui,
+    // l'ordre dependrait du systeme de fichiers.
+    restants.sort_by(|(chemin_a, a), (chemin_b, b)| a.cmp(b).then_with(|| chemin_a.cmp(chemin_b)));
+    restants
+}
+
+/// Tous les journaux sous la racine, avec la date de leur derniere ecriture.
+///
+/// Un journal dont on ne sait rien passe pour ecrit a l'instant : dans le doute
+/// on le lit, rater un journal serait pire que le lire pour rien.
+fn journaux_dates(racine: &Path, dans_le_doute: DateTime<Utc>) -> Vec<(PathBuf, DateTime<Utc>)> {
+    journal::journaux(racine)
+        .into_iter()
+        .map(|chemin| {
+            let ecrit_a = std::fs::metadata(&chemin)
+                .and_then(|infos| infos.modified())
+                .map(DateTime::<Utc>::from)
+                .unwrap_or(dans_le_doute);
+            (chemin, ecrit_a)
+        })
+        .collect()
+}
+
+/// Depouille les journaux ecrits depuis la marque et pose leurs dates.
 ///
 /// Rien d'autre n'est ecrit : ni evenement d'activite, ni session, ni jeton.
 /// Un journal illisible, un depot inconnu, un envoi refuse - rien de tout cela
@@ -147,29 +233,38 @@ pub fn touches_du_journal(
 ///
 /// Sans journal sous la racine, le resume est vide et la fonction rend la main
 /// aussitot (FR-065).
+///
+/// La marque avance journal par journal, et non a la fin : s'arreter en cours de
+/// route ne coute alors que le journal en cours, jamais le passage entier
+/// (FR-049). Une marque sans chemin ne garde rien entre deux vies, ce qui donne
+/// a chaque appel un depouillement complet - c'est ce dont les tests purs ont
+/// besoin.
 pub async fn depouiller(
     client: &Supabase,
     racine_journaux: &Path,
     repos: &BTreeMap<PathBuf, String>,
     horizon: DateTime<Utc>,
+    marque: &mut Marque,
 ) -> Resume {
-    let journaux = journal::journaux(racine_journaux);
+    // Releve avant de lire quoi que ce soit : c'est jusqu'ici, et pas jusqu'a la
+    // fin du passage, que le depouillement pourra se dire complet. Un journal
+    // grossi pendant qu'on lisait ses voisins doit revenir au passage suivant.
+    let debut = Utc::now();
+    let journaux = journaux_dates(racine_journaux, debut);
+    let restants = a_depouiller(&journaux, marque.depouille_jusqu_a, horizon);
+
     let mut resume = Resume {
         journaux_total: journaux.len(),
+        journaux_a_depouiller: restants.len(),
+        // Ce que ce passage ne relit pas est deja depouille : un passage
+        // precedent l'a lu, ou il dort au-dela des trente jours et ne peut rien
+        // porter dans la fenetre. Sur un poste dont les journaux pesent un
+        // gigaoctet, c'est ce qui evite de tout relire a chaque ouverture.
+        journaux_depouilles: journaux.len() - restants.len(),
         ..Resume::default()
     };
 
-    for chemin in journaux {
-        resume.journaux_depouilles += 1;
-
-        // La date de modification borne le travail avant meme d'ouvrir le
-        // fichier : un journal auquel personne n'a touche depuis plus de trente
-        // jours ne peut porter aucune ligne dans la fenetre. Sur un poste dont
-        // les journaux pesent un gigaoctet, c'est ce qui evite de tout lire.
-        if !touche_depuis(&chemin, horizon) {
-            continue;
-        }
-
+    for (rang, (chemin, _)) in restants.iter().enumerate() {
         // Lire depuis la boucle d'evenements la figerait : le battement et la
         // lecture vivante s'arreteraient le temps du depouillement (FR-048).
         // Chaque fichier se lit donc sur un fil a part, et l'attente rend la
@@ -177,38 +272,40 @@ pub async fn depouiller(
         let a_lire = chemin.clone();
         let lu = tokio::task::spawn_blocking(move || std::fs::read_to_string(&a_lire)).await;
 
-        let Ok(Ok(contenu)) = lu else {
-            // Un journal illisible - efface entre le parcours et la lecture,
-            // ou pas en UTF-8 - n'est pas une panne du depouillement.
-            resume.en_defaut += 1;
-            continue;
-        };
-
-        for lot in touches_du_journal(&contenu, repos, horizon) {
-            match client
-                .pousser_dernieres_touches(&lot.repo_id, &lot.touches)
-                .await
-            {
-                Ok(_) => resume.zones_notees += lot.touches.len(),
-                Err(erreur) => {
-                    resume.en_defaut += 1;
-                    eprintln!("dates du passe non posees : {erreur}");
+        match lu {
+            Ok(Ok(contenu)) => {
+                for lot in touches_du_journal(&contenu, repos, horizon) {
+                    match client
+                        .pousser_dernieres_touches(&lot.repo_id, &lot.touches)
+                        .await
+                    {
+                        Ok(_) => resume.zones_notees += lot.touches.len(),
+                        Err(erreur) => {
+                            resume.en_defaut += 1;
+                            eprintln!("dates du passe non posees : {erreur}");
+                        }
+                    }
                 }
             }
+            // Un journal illisible - efface entre le parcours et la lecture, ou
+            // pas en UTF-8 - n'est pas une panne du depouillement. Il est tenu
+            // pour depouille : le relire a chaque ouverture n'en tirerait pas
+            // davantage.
+            _ => resume.en_defaut += 1,
         }
+
+        resume.journaux_depouilles += 1;
+
+        // La marque avance jusqu'a la date du prochain journal a lire : tout ce
+        // qui a ete ecrit avant lui est desormais depouille. Apres le dernier,
+        // c'est le debut du passage qui fait foi.
+        let atteint = restants
+            .get(rang + 1)
+            .map_or(debut, |(_, ecrit_a)| *ecrit_a);
+        marque.avancer(atteint);
     }
 
     resume
-}
-
-/// Vrai quand le fichier a ete touche depuis l'horizon, ou qu'on ne sait pas.
-///
-/// Dans le doute on lit : rater un journal serait pire que le lire pour rien.
-fn touche_depuis(chemin: &Path, horizon: DateTime<Utc>) -> bool {
-    std::fs::metadata(chemin)
-        .and_then(|infos| infos.modified())
-        .map(|instant| DateTime::<Utc>::from(instant) >= horizon)
-        .unwrap_or(true)
 }
 
 /// La marque de progression du depouillement en arriere.
@@ -220,16 +317,26 @@ fn touche_depuis(chemin: &Path, horizon: DateTime<Utc>) -> bool {
 /// passe ne seraient jamais rattrapees. Les deux marques avancent a leur rythme
 /// et aucune n'ecrit dans l'autre.
 ///
-/// Elle ne se pose qu'une fois le passage mene a son terme : un depouillement
-/// interrompu ne laisse rien, plutot qu'une marque qui mentirait sur ce qui a
-/// deja ete lu.
+/// Elle porte deux choses de nature differente. `depouille_jusqu_a` est ce qui
+/// commande la reprise : tout journal ecrit avant cette date a ete depouille, et
+/// ne sera pas relu. Les deux autres champs ne servent qu'a dire aux reglages ou
+/// en est le depouillement et quand il s'est termine (FR-050).
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Marque {
     /// Fin du dernier depouillement mene a son terme.
     pub termine_a: Option<DateTime<Utc>>,
-    /// Nombre de journaux depouilles lors de ce passage.
+    /// Jusqu'ou les journaux ont ete depouilles, par leur date d'ecriture.
+    ///
+    /// Absente, le depouillement rend les trente derniers jours et rien de plus.
+    #[serde(default)]
+    pub depouille_jusqu_a: Option<DateTime<Utc>>,
+    /// Nombre de journaux depouilles au dernier passage mene a son terme.
     #[serde(default)]
     pub journaux: usize,
+    /// Nombre de journaux sous la racine a ce moment-la : le denominateur de
+    /// l'avancement.
+    #[serde(default)]
+    pub total: usize,
     /// Ou ecrire. `None` : une marque ephemere, sans memoire entre deux vies.
     #[serde(skip)]
     chemin: Option<PathBuf>,
@@ -250,10 +357,30 @@ impl Marque {
         marque
     }
 
-    /// Note qu'un depouillement vient d'aboutir.
-    pub fn poser(&mut self, quand: DateTime<Utc>, journaux: usize) {
+    /// Note qu'un depouillement vient d'aboutir, et avec quel avancement.
+    pub fn poser(&mut self, quand: DateTime<Utc>, journaux: usize, total: usize) {
         self.termine_a = Some(quand);
         self.journaux = journaux;
+        self.total = total;
+    }
+
+    /// Fait avancer la marque jusqu'a cette date, et l'ecrit aussitot.
+    ///
+    /// POURQUOI ecrire a chaque journal plutot qu'a la fin du passage : c'est la
+    /// seule chose qui rende un depouillement interrompu reprenable la ou il en
+    /// etait (FR-049). Une ecriture qui echoue ne dit rien et n'arrete rien -
+    /// elle coute au pire de relire ces journaux a la prochaine ouverture, et
+    /// l'ecriture de fin de passage, elle, signale le defaut.
+    ///
+    /// Une marque ne recule jamais : rien de ce qui a ete depouille ne redevient
+    /// a depouiller.
+    pub fn avancer(&mut self, jusqu_a: DateTime<Utc>) {
+        if self.depouille_jusqu_a.is_some_and(|deja| deja >= jusqu_a) {
+            return;
+        }
+
+        self.depouille_jusqu_a = Some(jusqu_a);
+        let _ = self.enregistrer();
     }
 
     /// Ecrit la marque, sans jamais laisser un fichier a moitie ecrit.

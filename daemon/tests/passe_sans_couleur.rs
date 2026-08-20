@@ -11,7 +11,7 @@ mod common;
 use chrono::{DateTime, Duration, Utc};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use vibemap::depouillement::{depouiller, horizon};
+use vibemap::depouillement::{depouiller, horizon, Marque};
 
 /// Appaire une machine et rend son jeton.
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
@@ -140,6 +140,7 @@ async fn un_depouillement_n_allume_aucune_couleur() {
         &bac.journaux,
         &bac.carte(&repo_id),
         horizon(maintenant),
+        &mut Marque::default(),
     )
     .await;
 
@@ -204,6 +205,7 @@ async fn un_journal_de_quarante_cinq_jours_ne_pose_rien() {
         &bac.journaux,
         &bac.carte(&repo_id),
         horizon(maintenant),
+        &mut Marque::default(),
     )
     .await;
 
@@ -249,6 +251,7 @@ async fn un_depot_inconnu_n_arrete_pas_le_depouillement() {
         &bac.journaux,
         &bac.carte(&repo_id),
         horizon(maintenant),
+        &mut Marque::default(),
     )
     .await;
 
@@ -275,6 +278,7 @@ async fn sans_journal_le_depouillement_se_termine_aussitot() {
         &bac.journaux,
         &bac.carte(&repo_id),
         horizon(Utc::now()),
+        &mut Marque::default(),
     )
     .await;
 
@@ -328,6 +332,7 @@ async fn le_passe_ne_fait_pas_reculer_une_date_fraiche() {
         &bac.journaux,
         &bac.carte(&repo_id),
         horizon(maintenant),
+        &mut Marque::default(),
     )
     .await;
 
