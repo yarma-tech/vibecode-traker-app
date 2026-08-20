@@ -560,12 +560,14 @@ code {
 }
 
 /* Une parcelle sans enfant n'est pas cliquable : elle ne doit pas le laisser
-   croire. */
-.parcelle:disabled {
+   croire. Le refus passe par aria-disabled et non par l'attribut disabled, qui
+   sortirait la parcelle du parcours de tabulation - ses deux dates ne se
+   joindraient plus au clavier (FR-083). */
+.parcelle[aria-disabled="true"] {
   cursor: default;
 }
 
-.parcelle:not(:disabled):hover {
+.parcelle:not([aria-disabled="true"]):hover {
   background: var(--paper);
   border-color: var(--ink-3);
 }
@@ -639,6 +641,44 @@ code {
   .parcelle-dates {
     display: none;
   }
+}
+
+/* L'infobulle de la parcelle (FR-063, FR-083). Elle remplace l'attribut `title`
+   du navigateur, qui ne paraissait qu'au survol : une parcelle trop petite pour
+   porter ses dates restait alors muette pour qui n'a pas de souris.
+   Elle est SOEUR de sa parcelle, jamais son enfant : la parcelle coupe ce qui
+   deborde (`overflow: hidden`, impose par la requete de conteneur des dates), et
+   une bulle posee dedans serait rognee a rien. Le bord auquel elle s'accroche est
+   calcule par `ancrerInfobulle` et pose en style en ligne, pour qu'une parcelle
+   du bord droit ou du bas ne l'ouvre pas hors du plan. */
+.parcelle-bulle {
+  display: none;
+  position: absolute;
+  z-index: 3;
+  /* Elle passe par-dessus les parcelles voisines : elle ne doit jamais leur
+     voler le survol, sans quoi elle clignoterait sous le curseur. */
+  pointer-events: none;
+  max-width: min(100%, 24rem);
+  padding: 0.3rem 0.5rem;
+  background: var(--paper);
+  border: 1px solid var(--ink-2);
+  border-radius: 3px;
+  box-shadow: 0 2px 10px oklch(0 0 0 / 0.18);
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--ink);
+  /* La bulle est etroite : le repli tombe entre les mots, jamais au milieu du
+     chemin, qu'on doit pouvoir relire d'un bloc. */
+  overflow-wrap: break-word;
+}
+
+/* Au survol ET au focus clavier : c'est exactement ce que `title` ne savait pas
+   faire. `:focus-visible` et non `:focus` - un clic de souris a deja le survol,
+   et n'a pas besoin qu'on lui repete la bulle. */
+.parcelle:hover + .parcelle-bulle,
+.parcelle:focus-visible + .parcelle-bulle {
+  display: block;
 }
 
 /* Les etats du plan. La couleur ne dit qu'un etat : le rouge est la seule
