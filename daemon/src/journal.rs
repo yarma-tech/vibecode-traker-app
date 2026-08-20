@@ -515,7 +515,11 @@ fn cle_idempotence(ids: &[String]) -> String {
 ///
 /// Compare segment par segment : « atelier-bis » ne descend pas de « atelier »,
 /// meme si la chaine commence pareil.
-fn repo_de<'a>(
+///
+/// Ouverte au crate parce que le depouillement du passe (`depouillement.rs`)
+/// doit rattacher ses evenements exactement comme le direct : deux barrieres
+/// differentes finiraient par diverger.
+pub(crate) fn repo_de<'a>(
     cwd: &str,
     repos: &'a std::collections::BTreeMap<PathBuf, String>,
 ) -> Option<(&'a Path, &'a String)> {
@@ -525,6 +529,13 @@ fn repo_de<'a>(
         .max_by_key(|(racine, _)| racine.components().count())
         .map(|(racine, id)| (racine.as_path(), id))
 }
+
+/// Le nom du fichier ou vit la position de lecture du direct.
+///
+/// La marque du depouillement en arriere vit dans un fichier different
+/// (`depouillement::NOM_DE_LA_MARQUE`) : les deux avancent a leur rythme et
+/// aucune n'ecrit dans l'autre (FR-084).
+pub const NOM_DES_OFFSETS: &str = "offsets.json";
 
 /// Ou en est la lecture de chaque journal.
 ///
@@ -687,7 +698,10 @@ fn morceau(chemin: &Path, depart: u64) -> Option<(String, u64)> {
 }
 
 /// Tous les `.jsonl` sous la racine, quelle que soit leur profondeur.
-fn journaux(racine: &Path) -> Vec<PathBuf> {
+///
+/// Ouverte au crate pour la meme raison que `repo_de` : le depouillement du
+/// passe parcourt les memes fichiers que le direct.
+pub(crate) fn journaux(racine: &Path) -> Vec<PathBuf> {
     let mut trouves = Vec::new();
     let mut a_visiter = vec![racine.to_path_buf()];
 

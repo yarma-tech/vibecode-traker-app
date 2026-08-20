@@ -223,6 +223,18 @@ impl TestContext {
         .unwrap_or_default()
     }
 
+    /// Relit toutes les sessions d'un repo en contournant la RLS.
+    ///
+    /// Sert a eprouver une absence : le depouillement du passe ne doit faire
+    /// apparaitre aucune session (issue #79, FR-047).
+    pub async fn lire_sessions(&self, repo_id: &str) -> Vec<Value> {
+        self.lire(&format!("sessions?repo_id=eq.{repo_id}&select=*"))
+            .await
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
     /// Relit une session en contournant la RLS.
     pub async fn lire_session(&self, session_id: &str) -> Value {
         self.lire(&format!("sessions?id=eq.{session_id}&select=*"))

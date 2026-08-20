@@ -24,6 +24,7 @@ use std::time::{Duration, Instant};
 
 use tokio::sync::watch;
 
+use crate::depouillement::{self, Marque};
 use crate::journal::{self, Suivi};
 use crate::reprise::{Backoff, Debordement, FileAttente};
 use crate::{Activite, ApiError, Config, ConfigError, SessionCout, Supabase, Verrou, VerrouError};
@@ -199,9 +200,22 @@ impl Lecteur {
         // La position de lecture se recharge depuis le disque : un redemarrage
         // reprend exactement ou il s'etait arrete, sans recompter la fenetre de
         // rattrapage. Elle vit a cote de la configuration.
-        let chemin_offsets = self.chemin.with_file_name("offsets.json");
+        let chemin_offsets = self.chemin.with_file_name(journal::NOM_DES_OFFSETS);
         let mut suivi = Suivi::charger(&chemin_offsets);
         let mut tampon = Tampon::new(config.file_plafond);
+
+        // Le passe se depouille dans sa propre tache, une fois par vie du
+        // lecteur. Canal distinct du direct : il n'alimente que les deux dates,
+        // et n'allume donc aucune couleur (FR-046, FR-047). Le mener dans la
+        // boucle la figerait le temps d'un gigaoctet de journaux, alors que le
+        // battement et la lecture vivante doivent continuer (FR-048).
+        let passe = tokio::spawn(depouiller_le_passe(
+            Supabase::new(&config.supabase_url, &self.token),
+            config.journaux(),
+            carte.clone(),
+            depouillement::chemin_de_la_marque(&self.chemin),
+            arret.clone(),
+        ));
 
         loop {
             tokio::select! {
@@ -228,10 +242,55 @@ impl Lecteur {
                     ingerer_commits(&client, &carte).await;
                 }
                 _ = arret.attendre() => {
-                    return;
+                    break;
                 }
             }
         }
+
+        // Le depouillement s'arrete avec la boucle. Il s'interrompt de lui-meme
+        // sur l'arret, mais un vehicule peut aussi quitter sans le demander :
+        // rien ne doit survivre au lecteur.
+        passe.abort();
+    }
+}
+
+/// Depouille les trente derniers jours de journaux, puis pose la marque.
+///
+/// Ecrite a part de la boucle parce qu'elle tourne a part : elle ne partage
+/// avec elle qu'une copie de la carte, prise apres la premiere cartographie.
+/// Un depot cartographie plus tard ne recevra ses dates qu'a la prochaine
+/// ouverture - c'est la reprise incrementale, qui viendra avec FR-078.
+///
+/// Un arret en cours de route ne pose aucune marque : rien n'a ete mene a son
+/// terme, et une marque posee a tort tiendrait pour depouille ce qui ne l'est
+/// pas.
+async fn depouiller_le_passe(
+    client: Supabase,
+    racine_journaux: PathBuf,
+    carte: BTreeMap<PathBuf, String>,
+    chemin_de_la_marque: PathBuf,
+    arret: Arret,
+) {
+    let horizon = depouillement::horizon(chrono::Utc::now());
+
+    let resume = tokio::select! {
+        resume = depouillement::depouiller(&client, &racine_journaux, &carte, horizon) => resume,
+        _ = arret.attendre() => return,
+    };
+
+    println!(
+        "{} depouillement du passe : {}/{} journal(aux), {} zone(s) datee(s), {} en defaut",
+        chrono::Utc::now().format("%H:%M:%S"),
+        resume.journaux_depouilles,
+        resume.journaux_total,
+        resume.zones_notees,
+        resume.en_defaut
+    );
+
+    let mut marque = Marque::charger(&chemin_de_la_marque);
+    marque.poser(chrono::Utc::now(), resume.journaux_depouilles);
+    if let Err(erreur) = marque.enregistrer() {
+        eprintln!("marque du depouillement non ecrite : {erreur}");
     }
 }
 
