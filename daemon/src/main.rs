@@ -12,7 +12,7 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 use vibemap::journal::{self, Suivi};
 use vibemap::reprise::{Backoff, Debordement, FileAttente};
-use vibemap::{Activite, ApiError, Config, SessionCout, Supabase};
+use vibemap::{Activite, ApiError, Config, SessionCout, Supabase, Verrou};
 
 const URL_PAR_DEFAUT: &str = "http://127.0.0.1:54321";
 
@@ -219,6 +219,19 @@ async fn battre(chemin: Option<PathBuf>) -> ExitCode {
 
     let config = match Config::load(&chemin) {
         Ok(config) => config,
+        Err(erreur) => {
+            eprintln!("{erreur}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    // Un seul lecteur par machine (FR-008, FR-054). Le verrou se prend avant
+    // le trousseau : sa demande d'autorisation ouvre une boite de dialogue du
+    // systeme, et un second lecteur n'a pas a la faire surgir pour ensuite
+    // refuser de demarrer. Il tient jusqu'au retour de cette fonction, ou
+    // jusqu'a la disparition du processus - le noyau le relache alors seul.
+    let _verrou = match Verrou::prendre(&Verrou::chemin_par_defaut(), "vibemap") {
+        Ok(verrou) => verrou,
         Err(erreur) => {
             eprintln!("{erreur}");
             return ExitCode::FAILURE;

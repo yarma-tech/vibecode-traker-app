@@ -11,12 +11,14 @@ mod plan;
 pub mod prd;
 pub mod reprise;
 pub mod trousseau;
+pub mod verrou;
 mod worktree;
 
 pub use appairage::{appairer, AppairageError, Identite};
 pub use commits::{branche_courante, commits_depuis, head, CommitLocal};
 pub use config::{Config, ConfigError};
 pub use plan::{empreinte, identite, normaliser_distant, scanner, Module, Plan, ScanError};
+pub use verrou::{Marque, Tenant, Verrou, VerrouError};
 pub use worktree::{worktrees, Worktree};
 
 use chrono::{DateTime, Utc};

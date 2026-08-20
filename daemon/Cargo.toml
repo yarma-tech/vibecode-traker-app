@@ -15,6 +15,7 @@ thiserror = "2"
 toml = "0.8"
 sha2 = "0.10"
 keyring = { version = "3", features = ["apple-native", "linux-native"] }
+libc = "0.2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "test-util"] }
