@@ -345,3 +345,112 @@ async fn le_passe_ne_fait_pas_reculer_une_date_fraiche() {
         "le depouillement a fait reculer une date fraiche d'un mois"
     );
 }
+
+/// Rouvrir apres une semaine n'allume rien, et la zone garde ses dates (FR-089).
+///
+/// Le scenario de l'issue #82, joue de bout en bout : la position de lecture du
+/// direct date d'avant la fermeture, un agent a travaille au terminal pendant
+/// ce temps, et les deux canaux passent - le direct d'abord, le depouillement
+/// ensuite. Ce qui se lit dans la base est ce que l'utilisateur verra.
+#[tokio::test]
+async fn une_reprise_apres_une_longue_fermeture_n_allume_rien() {
+    let ctx = common::TestContext::new().await;
+    let machine = machine_reliee(&ctx).await;
+    let repo_id = ctx
+        .creer_repo(&machine.machine_id, &["src", "src/core"])
+        .await;
+    let client = vibemap::Supabase::new(&ctx.url, &machine.token);
+
+    let bac = Bac::new();
+    let maintenant = Utc::now();
+    let avant_fermeture = maintenant - Duration::days(8);
+    let pendant_la_fermeture = maintenant - Duration::days(5);
+
+    bac.journal(
+        "session.jsonl",
+        &[ligne(
+            &bac.depot,
+            "Read",
+            "src/core/auth.rs",
+            "toolu_avant",
+            avant_fermeture,
+        )],
+    );
+    let journal_lu = bac.journaux.join("session.jsonl");
+    // La position ou le lecteur s'etait arrete avant que tout se ferme.
+    let position = std::fs::metadata(&journal_lu).unwrap().len();
+
+    // Application fermee, aucun lecteur en ligne : l'agent travaille au terminal
+    // et le journal grandit sans que personne ne le lise.
+    let mut fichier = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&journal_lu)
+        .unwrap();
+    std::io::Write::write_all(
+        &mut fichier,
+        format!(
+            "{}\n",
+            ligne(
+                &bac.depot,
+                "Write",
+                "src/core/auth.rs",
+                "toolu_pendant",
+                pendant_la_fermeture,
+            )
+        )
+        .as_bytes(),
+    )
+    .unwrap();
+
+    // Reouverture. La position vit a cote des journaux, jamais dedans.
+    let offsets = bac.racine.join(vibemap::journal::NOM_DES_OFFSETS);
+    std::fs::write(
+        &offsets,
+        serde_json::json!({ journal_lu.to_string_lossy(): position }).to_string(),
+    )
+    .unwrap();
+
+    let lecture = vibemap::journal::Suivi::charger(&offsets)
+        .nouveaux(&bac.journaux, maintenant - Duration::seconds(600));
+    for lot in vibemap::journal::rattacher(&lecture.evenements, &bac.carte(&repo_id)) {
+        client
+            .pousser_activite(
+                &machine.machine_id,
+                &lot.repo_id,
+                lot.branche.as_deref(),
+                &lot.activites,
+            )
+            .await
+            .expect("l'envoi d'activite doit aboutir");
+    }
+
+    // Le depouillement, lui, a le droit de remonter loin : il n'ecrit que des dates.
+    depouiller(
+        &client,
+        &bac.journaux,
+        &bac.carte(&repo_id),
+        horizon(maintenant),
+        &mut Marque::default(),
+    )
+    .await;
+
+    assert!(
+        ctx.etat_modules(&repo_id, 600).await.is_empty(),
+        "la reprise a allume la carte avec du travail vieux de cinq jours"
+    );
+    assert!(
+        ctx.lire_evenements(&repo_id).await.is_empty(),
+        "le journal direct montre du travail d'il y a cinq jours"
+    );
+    assert!(
+        ctx.lire_sessions(&repo_id).await.is_empty(),
+        "une session d'avant la fermeture a reapparu"
+    );
+
+    // Et la zone porte bien ses deux dates, rendues par le depouillement.
+    let (ecriture, lue) = dates(&ctx, &repo_id, "src/core")
+        .await
+        .expect("la zone doit porter ses deux dates");
+    assert_eq!(ecriture, Some(pendant_la_fermeture));
+    assert_eq!(lue, Some(avant_fermeture));
+}

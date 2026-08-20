@@ -540,9 +540,11 @@ pub const NOM_DES_OFFSETS: &str = "offsets.json";
 /// Ou en est la lecture de chaque journal.
 ///
 /// Les journaux ne font que grandir : retenir un decalage par fichier evite de
-/// relire des megaoctets a chaque tour. Un fichier vu pour la premiere fois
-/// n'apporte que ce qui est plus recent que l'horizon, sans quoi le premier
-/// demarrage rejouerait des semaines d'activite.
+/// relire des megaoctets a chaque tour. Quel que soit le journal - jamais vu ou
+/// deja connu -, un tour n'apporte que ce qui est plus recent que l'horizon,
+/// sans quoi le premier demarrage rejouerait des semaines d'activite, et une
+/// reprise apres une longue fermeture rejouerait tout le passe accumule depuis
+/// la position enregistree (FR-089).
 ///
 /// Ces decalages se persistent sur disque (`enregistrer`) : sans cela, un
 /// redemarrage repartait a zero et recomptait la fenetre de rattrapage — les
@@ -624,6 +626,21 @@ impl Suivi {
         std::fs::rename(&temporaire, chemin)
     }
 
+    /// Ce que les journaux ont a dire depuis le dernier tour, borne a l'horizon.
+    ///
+    /// POURQUOI la borne vaut pour tous les journaux et pas seulement pour ceux
+    /// qu'on decouvre : la position enregistree survit a la fermeture de
+    /// l'application. Reprendre a une position vieille d'une semaine ferait
+    /// partir en direct une semaine de travail - journal direct et sessions
+    /// ressuscitees - alors que le direct ne dit que le maintenant (FR-089).
+    /// Ce passe n'est pas perdu pour autant : le depouillement en arriere
+    /// (`depouillement.rs`) en tire les deux dates de chaque zone, sans jamais
+    /// ecrire d'activite. Les deux canaux ont des regles opposees, et c'est
+    /// voulu.
+    ///
+    /// La reprise courte, elle, ne perd rien : l'horizon se compte en minutes,
+    /// et tout ce qu'un lecteur arrete quelques instants n'avait pas encore lu
+    /// est plus recent que lui.
     pub fn nouveaux(&mut self, racine: &Path, horizon: DateTime<Utc>) -> Lecture {
         let mut lecture = Lecture::default();
 
@@ -633,9 +650,11 @@ impl Suivi {
             };
             let taille = infos.len();
 
-            let premiere_vue = !self.decalages.contains_key(&chemin);
-            if premiere_vue && !touche_depuis(&infos, horizon) {
-                // Journal dormant : rien a en tirer, on se place a sa fin.
+            if !touche_depuis(&infos, horizon) {
+                // Journal dormant : rien de ce qu'il porte n'est plus recent que
+                // l'horizon, donc rien n'en sortirait de toute facon. On se place
+                // a sa fin sans le lire - ce qui evite aussi de relire des
+                // megaoctets de journaux endormis a la reouverture.
                 self.decalages.insert(chemin, taille);
                 continue;
             }
@@ -655,15 +674,13 @@ impl Suivi {
             };
             self.decalages.insert(chemin, depart + avance);
 
-            lecture.evenements.extend(
-                lire(&texte)
-                    .into_iter()
-                    .filter(|e| !premiere_vue || e.instant >= horizon),
-            );
+            lecture
+                .evenements
+                .extend(lire(&texte).into_iter().filter(|e| e.instant >= horizon));
             lecture.usages.extend(
                 lire_usage(&texte)
                     .into_iter()
-                    .filter(|u| !premiere_vue || u.instant >= horizon),
+                    .filter(|u| u.instant >= horizon),
             );
         }
 

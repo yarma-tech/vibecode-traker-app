@@ -3,11 +3,12 @@
 //! Rien ici ne parle au reseau : la lecture des journaux est une fonction pure
 //! sur du texte, et c'est exactement ce qui la rend verifiable.
 
-use chrono::{TimeZone, Utc};
+use chrono::{Duration, TimeZone, Utc};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use vibemap::journal::{
-    depuis_hook, lire, lire_usage, localiser, racine_git, rattacher, rattacher_usage, Nature, Suivi,
+    depuis_hook, lire, lire_usage, localiser, racine_git, rattacher, rattacher_usage, Nature,
+    Suivi, NOM_DES_OFFSETS,
 };
 
 /// Une ligne d'assistant telle qu'elle apparait dans un vrai journal.
@@ -785,4 +786,191 @@ fn le_passe_lointain_ne_remonte_pas_au_premier_tour() {
 
     assert_eq!(evenements.len(), 1);
     assert_eq!(evenements[0].tool_use_id, "toolu_recent");
+}
+
+// ------------------------------------------- borne du direct apres fermeture
+
+/// Un instant date par rapport a maintenant, au format des journaux.
+///
+/// L'horizon se compte depuis l'heure courante : dater les lignes en dur les
+/// ferait vieillir avec le calendrier, et le test finirait par mesurer autre
+/// chose que ce qu'il annonce.
+fn il_y_a(duree: Duration) -> String {
+    (Utc::now() - duree).to_rfc3339()
+}
+
+/// Ajoute une ligne a un journal deja pose, comme un agent qui travaille.
+fn ajouter(chemin: &Path, ligne: &str) {
+    let mut fichier = std::fs::OpenOptions::new()
+        .append(true)
+        .open(chemin)
+        .expect("ouverture en ajout");
+    std::io::Write::write_all(&mut fichier, format!("{ligne}\n").as_bytes())
+        .expect("ajout au journal");
+}
+
+/// Une position de lecture sur disque, telle qu'une vie precedente l'a laissee.
+///
+/// Le fichier vit a cote des journaux et non dedans : il n'est pas un `.jsonl`,
+/// donc le parcours l'ignore, mais autant que le montage dise la verite.
+fn poser_offsets(dossier: &Path, positions: &[(&Path, u64)]) -> PathBuf {
+    let chemin = dossier.join(NOM_DES_OFFSETS);
+    let table: BTreeMap<String, u64> = positions
+        .iter()
+        .map(|(journal, position)| (journal.to_string_lossy().to_string(), *position))
+        .collect();
+    std::fs::write(
+        &chemin,
+        serde_json::to_vec(&table).expect("serialisation des positions"),
+    )
+    .expect("ecriture des positions");
+    chemin
+}
+
+/// La taille d'un journal, qui est aussi la position de sa fin.
+fn taille(chemin: &Path) -> u64 {
+    std::fs::metadata(chemin).expect("le journal existe").len()
+}
+
+/// Un evenement de lecture ordinaire, date comme on le demande.
+fn travail(id: &str, quand: Duration) -> String {
+    ligne(
+        "Edit",
+        serde_json::json!({ "file_path": "/Users/moi/Developer/atelier/src/a.ts" }),
+        id,
+        &il_y_a(quand),
+    )
+}
+
+/// FR-089 : rouvrir apres une longue fermeture ne deverse pas le passe.
+///
+/// Le journal etait deja connu de la position enregistree, et il a grandi
+/// pendant que l'application dormait. Ce travail-la appartient au depouillement
+/// en arriere, pas au direct.
+#[test]
+fn un_journal_deja_connu_ne_rejoue_pas_son_passe() {
+    let dossier = dossier_neuf("fermeture-longue");
+    let journal = poser_journal(
+        &dossier,
+        "session.jsonl",
+        &format!("{}\n", travail("toolu_avant", Duration::days(8))),
+    );
+    // La ou le lecteur d'avant la fermeture s'etait arrete.
+    let position = taille(&journal);
+
+    // Puis l'application se ferme, et un agent travaille au terminal il y a
+    // cinq jours : le journal grandit sans que personne ne le lise.
+    ajouter(&journal, &travail("toolu_pendant", Duration::days(5)));
+
+    let offsets = poser_offsets(&dossier, &[(&journal, position)]);
+    let mut suivi = Suivi::charger(&offsets);
+
+    let lecture = suivi.nouveaux(&dossier, Utc::now() - Duration::minutes(10));
+
+    assert!(
+        lecture.evenements.is_empty(),
+        "le direct a recu du travail vieux de cinq jours : {:?}",
+        lecture
+            .evenements
+            .iter()
+            .map(|e| e.tool_use_id.clone())
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        lecture.usages.is_empty(),
+        "une session vieille de cinq jours reapparait par ses jetons"
+    );
+
+    // Et la position a bien franchi ce qui a ete ecarte : sans cela, chaque tour
+    // relirait le meme passe pour le jeter a nouveau.
+    suivi.enregistrer().expect("ecriture des positions");
+    let table: BTreeMap<String, u64> =
+        serde_json::from_slice(&std::fs::read(&offsets).expect("relecture des positions"))
+            .expect("positions lisibles");
+    assert_eq!(
+        table.get(&journal.to_string_lossy().to_string()),
+        Some(&taille(&journal)),
+        "la position n'a pas avance au-dela du passe ecarte"
+    );
+}
+
+/// La borne mord sur le vieux, et sur lui seul (non-regression du cas courant).
+///
+/// Meme journal, meme position d'avant la fermeture : la ligne de cinq jours
+/// reste dehors, celle de maintenant part en direct comme avant.
+#[test]
+fn un_journal_deja_connu_rend_bien_ses_lignes_recentes() {
+    let dossier = dossier_neuf("reprise-melangee");
+    let journal = poser_journal(
+        &dossier,
+        "session.jsonl",
+        &format!("{}\n", travail("toolu_avant", Duration::days(8))),
+    );
+    let position = taille(&journal);
+
+    ajouter(&journal, &travail("toolu_pendant", Duration::days(5)));
+    ajouter(
+        &journal,
+        &travail("toolu_maintenant", Duration::seconds(20)),
+    );
+
+    let offsets = poser_offsets(&dossier, &[(&journal, position)]);
+    let lecture = Suivi::charger(&offsets).nouveaux(&dossier, Utc::now() - Duration::minutes(10));
+
+    let vus: Vec<&str> = lecture
+        .evenements
+        .iter()
+        .map(|e| e.tool_use_id.as_str())
+        .collect();
+    assert_eq!(
+        vus,
+        vec!["toolu_maintenant"],
+        "le direct doit rendre le travail de maintenant, et lui seul"
+    );
+    assert_eq!(
+        lecture.usages.len(),
+        1,
+        "la consommation suit les memes bornes que l'activite"
+    );
+}
+
+/// Un lecteur arrete trente secondes reprend sans trou (garde-fou de #83).
+///
+/// C'est tout l'objet de la position persistee : la borne ne doit pas la vider
+/// de son sens.
+#[test]
+fn une_reprise_courte_ne_perd_aucune_ligne() {
+    let dossier = dossier_neuf("reprise-courte");
+    let journal = poser_journal(
+        &dossier,
+        "session.jsonl",
+        &format!("{}\n", travail("toolu_1", Duration::seconds(120))),
+    );
+
+    let offsets = dossier.join(NOM_DES_OFFSETS);
+    let mut premiere_vie = Suivi::charger(&offsets);
+    let horizon = || Utc::now() - Duration::minutes(10);
+    assert_eq!(
+        premiere_vie.nouveaux(&dossier, horizon()).evenements.len(),
+        1
+    );
+    premiere_vie.enregistrer().expect("ecriture des positions");
+
+    // Le lecteur s'arrete. Pendant ces trente secondes, l'agent continue.
+    for (id, age) in [("toolu_2", 25), ("toolu_3", 15), ("toolu_4", 5)] {
+        ajouter(&journal, &travail(id, Duration::seconds(age)));
+    }
+
+    let seconde_vie = Suivi::charger(&offsets).nouveaux(&dossier, horizon());
+
+    let vus: Vec<&str> = seconde_vie
+        .evenements
+        .iter()
+        .map(|e| e.tool_use_id.as_str())
+        .collect();
+    assert_eq!(
+        vus,
+        vec!["toolu_2", "toolu_3", "toolu_4"],
+        "une reprise courte doit rendre tout ce qui a ete ecrit pendant l'arret, et rien deux fois"
+    );
 }
