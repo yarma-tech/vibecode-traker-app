@@ -12,7 +12,8 @@ import {
 } from "@/lib/machine";
 
 /**
- * La machine se présente (issue #65, FR-017, FR-019, FR-055, FR-080).
+ * La machine se présente (issues #65, #66, #67 - FR-017, FR-019, FR-055 à
+ * FR-057, FR-080).
  *
  * POURQUOI ici, sur l'accueil, et non dans l'écran de connexion : FR-055 dit
  * « à chaque lancement suivant », pas « à chaque connexion ». Un lancement
@@ -22,7 +23,8 @@ import {
  *
  * Ce que fait ce composant tient en un appel : présenter la session de
  * l'utilisateur au poste, qui présente à son tour l'identifiant qu'il conserve.
- * Le poste ne déclare une machine QUE s'il n'en conserve aucune - c'est ce qui
+ * Le poste ne déclare une machine QUE s'il n'en conserve aucune, ou si celui
+ * qu'il conserve ne désigne plus rien sur ce compte (FR-056) - c'est ce qui
  * fait que rouvrir l'application trois fois ne crée pas trois machines.
  *
  * Le jeton de la machine ne remonte jamais jusqu'ici : `EtatMachine` n'a pas de
@@ -91,8 +93,10 @@ export function DeclarationDeLaMachine() {
   // objet à l'écran - un fait du poste qui ne se voit nulle part ailleurs, qui
   // ne parle que quand ça cloche, et qui porte le geste qui le corrige. Deux
   // apparences pour la même chose se liraient comme deux choses.
+  // Le rôle suit le ton : un lecteur d'écran interrompt sur « alert », et
+  // interrompre pour une redéclaration réussie apprendrait à ignorer le bandeau.
   return (
-    <div className="bandeau-lecteur" role="alert">
+    <div className="bandeau-lecteur" role={annonce.ton === "alerte" ? "alert" : "status"}>
       <div className="bandeau-lecteur-corps">
         <div className="bandeau-lecteur-dit">
           <b className="bandeau-lecteur-titre">{annonce.titre}</b>{" "}

@@ -7,10 +7,11 @@ import {
   type EtatMachine,
 } from "./machine";
 
-// La machine se déclare elle-même (issue #65). Ce qui se joue en base est
-// éprouvé dans `daemon/tests/declaration.rs`, et la décision du poste dans
-// `bureau/tests/machine.rs`. Ce qui se vérifie ici, c'est ce que la fenêtre en
-// montre - et ce qu'elle ne montre jamais.
+// La machine se déclare elle-même (issues #65, #66, #67). Ce qui se joue en
+// base est éprouvé dans `daemon/tests/declaration.rs`, et la décision du poste
+// dans `bureau/tests/machine.rs` et `bureau/tests/identite.rs`. Ce qui se
+// vérifie ici, c'est ce que la fenêtre en montre - et ce qu'elle ne montre
+// jamais.
 
 const REPRISE: EtatMachine = {
   etat: "reprise",
@@ -36,7 +37,7 @@ describe("ce que la fenêtre lit du poste", () => {
       "reprise",
       "declaree",
       "revoquee",
-      "inconnue",
+      "redeclaree",
       "trousseau_refuse",
       "echec",
     ]) {
@@ -46,9 +47,12 @@ describe("ce que la fenêtre lit du poste", () => {
 });
 
 describe("le lecteur ne repart que sur une machine prête", () => {
-  it("une machine reprise ou déclarée porte son jeton", () => {
+  it("une machine reprise, déclarée ou redéclarée porte son jeton", () => {
     expect(laMachineEstPrete(REPRISE)).toBe(true);
     expect(laMachineEstPrete({ ...REPRISE, etat: "declaree" })).toBe(true);
+    // FR-056 : c'est ce qui fait que « la carte se repeuple ». Sans cela, la
+    // machine serait bien réinscrite et rien n'en sortirait jamais.
+    expect(laMachineEstPrete({ ...REPRISE, etat: "redeclaree" })).toBe(true);
   });
 
   it("aucun autre cas ne fait repartir le lecteur", () => {
@@ -56,7 +60,6 @@ describe("le lecteur ne repart que sur une machine prête", () => {
     // ferait qu'ouvrir des boîtes de dialogue du système en boucle.
     expect(laMachineEstPrete(null)).toBe(false);
     expect(laMachineEstPrete({ ...REPRISE, etat: "revoquee" })).toBe(false);
-    expect(laMachineEstPrete({ etat: "inconnue", machine_id: REPRISE.machine_id })).toBe(false);
     expect(
       laMachineEstPrete({
         etat: "trousseau_refuse",
@@ -107,20 +110,45 @@ describe("ce que la fenêtre annonce (FR-021, FR-080)", () => {
     expect(annonce.reessayer).toBe(true);
   });
 
-  it("une identité qui ne répond plus se dit, sans redéclaration silencieuse", () => {
-    const annonce = annonceDeLaMachine({ etat: "inconnue", machine_id: REPRISE.machine_id });
+  it("une machine redéclarée l'annonce, et n'a rien à faire réessayer", () => {
+    const annonce = annonceDeLaMachine({ ...REPRISE, etat: "redeclaree" });
 
     expect(annonce.visible).toBe(true);
     if (!annonce.visible) return;
 
-    expect(annonce.explication).toContain("Rien n'a été redéclaré en silence");
-    expect(annonce.reessayer).toBe(true);
+    // FR-056 : « elle annonce que la machine a été redéclarée ». Se taire
+    // laisserait l'utilisateur devant une carte vide sans raison.
+    expect(annonce.titre).toContain("redéclarée");
+    expect(annonce.explication).toContain("dossiers surveillés sont inchangés");
+    // Rien à reprendre : la machine bat déjà. Un bouton « Réessayer » ferait
+    // croire qu'il reste quelque chose à corriger.
+    expect(annonce.reessayer).toBe(false);
+    expect(annonce.ton).toBe("information");
   });
 
-  it("chaque annonce visible nomme ce qui cloche et dit quoi faire", () => {
+  it("révocation et redéclaration ne se disent jamais pareil", () => {
+    // Le critère de l'issue #66, pris tel quel : ce sont deux situations
+    // opposées - l'une est une décision de l'utilisateur, l'autre ne l'est
+    // pas - et les confondre lui ferait lire « remplacée » là où il a coupé.
+    const revoquee = annonceDeLaMachine({ ...REPRISE, etat: "revoquee" });
+    const redeclaree = annonceDeLaMachine({ ...REPRISE, etat: "redeclaree" });
+    if (!revoquee.visible || !redeclaree.visible) throw new Error("les deux cas s'annoncent");
+
+    expect(revoquee.titre).not.toBe(redeclaree.titre);
+    expect(revoquee.explication).not.toBe(redeclaree.explication);
+    expect(revoquee.ton).toBe("alerte");
+    expect(redeclaree.ton).toBe("information");
+
+    // Et le fond, pas seulement la forme : la révocation promet qu'aucune
+    // machine ne la remplace, la redéclaration annonce l'inverse.
+    expect(revoquee.explication).toContain("ne la remplace pas");
+    expect(redeclaree.explication).toContain("réinscrite");
+    expect(redeclaree.explication).not.toContain("ne la remplace pas");
+  });
+
+  it("chaque annonce qui appelle un geste nomme ce qui cloche et dit quoi faire", () => {
     const cas: EtatMachine[] = [
       { etat: "revoquee", machine_id: REPRISE.machine_id, label: "MacBook de Yarma" },
-      { etat: "inconnue", machine_id: REPRISE.machine_id },
       { etat: "trousseau_refuse", machine_id: REPRISE.machine_id, raison: "accès refusé." },
       { etat: "echec", raison: "la base ne répond pas." },
     ];
@@ -136,6 +164,7 @@ describe("ce que la fenêtre annonce (FR-021, FR-080)", () => {
         `${etat.etat} : une explication vide ne dit rien`,
       ).toBeGreaterThan(0);
       expect(annonce.reessayer, `${etat.etat} : un cul-de-sac n'est pas une réponse`).toBe(true);
+      expect(annonce.ton, `${etat.etat} : ce qui cloche s'annonce comme tel`).toBe("alerte");
     }
   });
 });

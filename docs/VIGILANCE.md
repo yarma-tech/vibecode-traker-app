@@ -113,3 +113,38 @@ jeton ABSENT. Le premier s'annonce avec un bouton pour reessayer (FR-080) ; le
 second redemande un jeton pour LA MEME machine. Les confondre redeclare la
 machine d'un utilisateur qui a simplement clique « Refuser », et fait apparaitre
 un doublon dans sa liste.
+
+## Revoquee n'est pas disparue (`bureau/src/machine.rs`, `geste_de_reprise`)
+
+Depuis l'issue #66, une seule reponse de la base fait CREER une machine :
+`DansLaBase::Inconnue`, c'est-a-dire un identifiant conserve qui ne designe plus
+aucune ligne. Tout ce qui se lirait « inconnue » a tort fabrique donc une machine
+de plus a chaque lancement.
+
+**Les deux pieges, et ils sont opposes :**
+
+- **redeclarer une machine REVOQUEE** la ferait revenir sous une autre identite,
+  jeton neuf compris : la revocation serait defaite par le seul fait de rouvrir
+  l'application. La base rend la difference elle-meme - une machine revoquee
+  reste VISIBLE a la session de son proprietaire, `machines_select_own` ne la
+  cache pas -, et c'est `representer` qui la traduit. Ne jamais ajouter de filtre
+  `revoked_at is null` a cette lecture : la ligne deviendrait invisible, donc
+  « inconnue », donc redeclaree ;
+- **lire un refus comme une identite perdue.** Session expiree, jeton illisible,
+  pile qui repond de travers : tout cela doit remonter en `Err`, jamais en
+  `Ok(Inconnue)`. `daemon/tests/declaration.rs` le fige
+  (`une_session_qui_ne_vaut_rien_ne_se_lit_pas_comme_une_identite_perdue`).
+
+## L'adresse de la base, cote poste (`bureau/src/machine.rs`, FR-073)
+
+La fenetre tient son adresse de la compilation ; le lecteur embarque, lui, ne
+connait que `supabase_url` dans `~/.config/vibemap/config.toml`. Les deux
+partagent ce fichier, et une configuration heritee du binaire en ligne de
+commande y designe une pile locale de developpement.
+
+**Le piege :** si l'alignement (`aligner_l_adresse_de_la_base`) disparait du
+chemin de reprise, rien ne casse visiblement - la machine apparait bien dans la
+liste, puisque c'est la fenetre qui l'y met - mais le lecteur pousse ses cartes
+dans une autre base, et l'utilisateur voit sa machine sans jamais voir sa carte.
+Un test qui ne regarde que la liste des machines ne peut pas voir ce
+probleme.

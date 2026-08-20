@@ -7,7 +7,8 @@ commencée, #58 y ajoute la géométrie de la fenêtre, #61 le lecteur embarqué
 #62 son état affiché et sa relance, #68 l'ouverture du pont à l'interface, #70
 l'ajout d'un dossier au sélecteur du système, #63 l'entrée avec GitHub, #86
 l'application publiée et son premier lancement, #87 l'interface embarquée dans
-le paquet.
+le paquet, #66 et #67 la reprise d'un poste déjà appairé et la redéclaration
+d'une identité perdue.
 
 Ce qui est déjà couvert par les tests automatiques - la sonde de disponibilité,
 l'URL fixe de la fenêtre, la lecture et l'écriture de la géométrie, la prise et
@@ -349,3 +350,46 @@ Node - et 53 Mo une fois archivé, c'est-à-dire à télécharger.
 C'est le prix de « aucun morceau téléchargé au premier lancement » (FR-069) :
 l'interface est un serveur, pas un dossier de fichiers, et il lui faut de quoi
 tourner.
+
+## Reprendre, redéclarer, ou se taire (#66, #67)
+
+La boîte de dialogue du trousseau est le seul écran de ces deux tranches qu'aucun
+test ne peut jouer : macOS la fait apparaître parce que l'application est un
+**exécutable différent** du binaire en ligne de commande, et un test qui
+l'ouvrirait resterait suspendu devant elle. Le reste - ce qui est déclaré, ce qui
+ne l'est pas, ce que le fichier de configuration devient - est couvert par
+`cargo test --test identite` dans `bureau/`, contre la pile locale.
+
+Ces vérifications demandent un poste où `vibemap` était **déjà appairé** :
+`~/.config/vibemap/config.toml` porte un `machine_id`, deux dossiers surveillés
+et une `supabase_url`. Garde une copie du fichier avant de commencer.
+
+- [ ] **L'autorisation est demandée, et c'est normal.** Au premier lancement de
+      l'application sur ce poste, macOS demande l'accès au trousseau pour
+      `fr.yarma.vibemap`. Accorder : la fenêtre ne dit rien de particulier, la
+      liste des machines **n'en gagne aucune**, et la machine d'origine reprend
+      son battement (« à jour, il y a N s »).
+- [ ] **Les dossiers sont là, sans doublon.** L'écran Réglages montre les deux
+      dossiers du fichier, chacun une fois.
+- [ ] **Le fichier n'a été ni effacé ni vidé.** `cat ~/.config/vibemap/config.toml` :
+      les deux dossiers, les cadences et les commentaires sont intacts. Seule
+      `supabase_url` a changé - elle pointe maintenant la base de l'application,
+      et c'est voulu (FR-073) : le lecteur embarqué ne lit que ce champ.
+- [ ] **Un refus s'annonce, et ne déclare rien.** Refuser l'accès au trousseau
+      (relancer après `security delete-generic-password -s fr.yarma.vibemap` puis
+      « Refuser », ou révoquer l'autorisation dans Trousseaux d'accès) : la
+      fenêtre porte un bandeau qui dit que macOS demande cette autorisation à
+      chaque nouvelle version, que **rien n'a été déclaré à la place**, et un
+      bouton « Réessayer ». La liste des machines n'a gagné personne.
+- [ ] **Réessayer en acceptant suffit.** Le clic sur « Réessayer », autorisation
+      accordée : la machine d'origine reprend son battement, toujours sans
+      doublon.
+- [ ] **Une machine révoquée le dit, et rien ne la remplace.** Révoquer cette
+      machine depuis la liste, puis rouvrir l'application : le bandeau annonce la
+      révocation, invite à la lever, et la liste ne porte **aucune** machine de
+      plus. Attendre une minute : toujours aucune.
+- [ ] **Une identité perdue se redéclare, et se voit.** `supabase db reset` (ou
+      supprimer la machine depuis la liste), puis rouvrir : le bandeau annonce
+      que la machine **a été redéclarée**, avec un texte visiblement différent de
+      celui de la révocation et **sans** bouton « Réessayer ». La liste n'en
+      porte qu'une, et la carte se repeuple en quelques minutes.

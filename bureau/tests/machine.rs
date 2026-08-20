@@ -1,16 +1,20 @@
-//! Comportement : la machine se declare une fois, et une seule (issue #65).
+//! Comportement : la machine se declare une fois, et une seule (issues #65,
+//! #66, #67).
 //!
 //! Ce qui se joue en base - la fonction de declaration, la RLS, la signature du
 //! jeton - est eprouve dans `daemon/tests/declaration.rs`, contre la vraie pile
-//! Supabase. Ce qui se verifie ici, c'est la DECISION du poste : que faire de
-//! l'identifiant conserve, et surtout ce qu'on ne fait jamais - redeclarer.
+//! Supabase, et le parcours complet dans `bureau/tests/identite.rs`. Ce qui
+//! se verifie ici, c'est la DECISION du poste : que faire de l'identifiant
+//! conserve, ce qu'on reprend d'une configuration deja presente, et surtout ce
+//! qu'on ne fait jamais - redeclarer une machine que la base reconnait.
 //!
 //! Toujours sur des fichiers temporaires : un test ne doit ni ecrire dans la
 //! configuration de la machine, ni ouvrir son trousseau.
 
 use bureau::machine::{
-    au_trousseau, geste_de_reprise, identite_conservee, nom_de_la_machine, poser_l_identite,
-    AuTrousseau, EtatMachine, Geste,
+    aligner_l_adresse_de_la_base, au_trousseau, geste_de_reprise, identite_conservee,
+    nom_de_la_machine, poser_l_identite, reprise_de_la_configuration, AuTrousseau, EtatMachine,
+    Geste, Reprise,
 };
 use std::path::PathBuf;
 use vibemap::declaration::{charge_de_declaration, DansLaBase};
@@ -128,8 +132,8 @@ fn un_trousseau_refuse_s_annonce_et_ne_redeclare_jamais() {
     );
 
     // Et la preuve par la forme : aucun des gestes possibles n'est une
-    // declaration. Le seul chemin qui cree une machine est celui d'un poste
-    // SANS identite conservee, et il ne passe pas par ici.
+    // inscription. Une machine que la base RECONNAIT ne se redeclare pas, quoi
+    // que le trousseau reponde.
     for trousseau in [
         AuTrousseau::Present,
         AuTrousseau::Absent,
@@ -137,36 +141,37 @@ fn un_trousseau_refuse_s_annonce_et_ne_redeclare_jamais() {
     ] {
         let geste = geste_de_reprise(MACHINE, presente(), || trousseau.clone());
         assert!(
-            !matches!(geste, Geste::Annoncer(EtatMachine::Declaree { .. })),
-            "un identifiant conserve ne mene jamais a une declaration, obtenu : {geste:?}"
+            !matches!(geste, Geste::Redeclarer),
+            "un identifiant que la base reconnait ne mene jamais a une inscription, \
+             obtenu : {geste:?}"
         );
     }
 }
 
-/// Une base remise a zero : l'identifiant ne designe plus rien. On le dit, et on
-/// ne touche pas au trousseau.
+/// FR-056 : une base remise a zero. L'identifiant ne designe plus rien, la
+/// machine se redeclare - et le trousseau reste ferme jusque-la.
 ///
-/// La redeclaration annoncee est la tranche suivante (#66, FR-056). Ce que ce
-/// test fige, c'est l'absence de redeclaration SILENCIEUSE - et le fait que la
-/// porte reste ouverte : `Inconnue` porte l'identifiant perdu, que #66 aura a
-/// remplacer.
+/// Rien a proteger ici : aucune ligne ne correspond a cet identifiant, donc
+/// aucune revocation ne peut etre contournee. Et le trousseau n'a rien a dire
+/// d'une machine que le compte ne connait plus - la fermeture qui panique le
+/// prouve.
 #[test]
-fn un_identifiant_perdu_se_dit_sans_ouvrir_le_trousseau() {
+fn un_identifiant_perdu_se_redeclare_sans_ouvrir_le_trousseau() {
     let geste = geste_de_reprise(MACHINE, DansLaBase::Inconnue, || {
         panic!("le trousseau ne doit pas s'ouvrir pour une machine que le compte ne connait plus")
     });
 
-    assert_eq!(
-        geste,
-        Geste::Annoncer(EtatMachine::Inconnue {
-            machine_id: MACHINE.to_string()
-        })
-    );
+    assert_eq!(geste, Geste::Redeclarer);
 }
 
 /// FR-021 : une machine revoquee s'annonce, et ne se redeclare pas sous une
 /// autre identite. Le trousseau reste ferme : rien a y chercher pour une
 /// machine dont les ecritures viennent d'etre coupees.
+///
+/// C'est la distinction qui porte le plus de consequences de cette tranche : la
+/// revocation est une decision de l'utilisateur, et la redeclarer la defairait -
+/// machine neuve, jeton neuf, battement repris - par le seul fait de rouvrir
+/// l'application.
 #[test]
 fn une_machine_revoquee_s_annonce_sans_ouvrir_le_trousseau() {
     let geste = geste_de_reprise(
@@ -184,6 +189,49 @@ fn une_machine_revoquee_s_annonce_sans_ouvrir_le_trousseau() {
             label: "MacBook de Yarma".to_string(),
         })
     );
+}
+
+/// La regle de #66, prise par tous les bouts a la fois : de tout ce que la base
+/// peut repondre, croise a tout ce que le trousseau peut rendre, un seul couple
+/// mene a une inscription - l'identifiant que la base ne reconnait plus.
+///
+/// POURQUOI cette table plutot que les cas un a un : un variant ajoute a
+/// `DansLaBase` - « suspendue », « expiree » - traverserait les tests
+/// precedents sans les faire tomber. Ici, il faudra decider ce qu'on en fait,
+/// et l'ecrire.
+#[test]
+fn seule_une_machine_que_la_base_ne_connait_plus_se_redeclare() {
+    let trousseaux = [
+        AuTrousseau::Present,
+        AuTrousseau::Absent,
+        AuTrousseau::Refuse("acces refuse par l'utilisateur".to_string()),
+    ];
+    let vues = [
+        (DansLaBase::Inconnue, true),
+        (
+            DansLaBase::Presente {
+                label: "MacBook de Yarma".to_string(),
+            },
+            false,
+        ),
+        (
+            DansLaBase::Revoquee {
+                label: "MacBook de Yarma".to_string(),
+            },
+            false,
+        ),
+    ];
+
+    for (vue, attendu) in vues {
+        for trousseau in &trousseaux {
+            let geste = geste_de_reprise(MACHINE, vue.clone(), || trousseau.clone());
+            assert_eq!(
+                matches!(geste, Geste::Redeclarer),
+                attendu,
+                "pour {vue:?} avec {trousseau:?}, obtenu : {geste:?}"
+            );
+        }
+    }
 }
 
 /// Le jeton de la machine ne transite JAMAIS par la fenetre.
@@ -205,8 +253,9 @@ fn ce_que_la_fenetre_recoit_ne_porte_aucun_jeton() {
             machine_id: MACHINE.to_string(),
             label: "MacBook de Yarma".to_string(),
         },
-        EtatMachine::Inconnue {
+        EtatMachine::Redeclaree {
             machine_id: MACHINE.to_string(),
+            label: "MacBook de Yarma".to_string(),
         },
         EtatMachine::TrousseauRefuse {
             machine_id: MACHINE.to_string(),
@@ -243,6 +292,21 @@ fn ce_que_la_fenetre_recoit_ne_porte_aucun_jeton() {
         .expect("etat serialisable"),
         serde_json::json!({
             "etat": "reprise",
+            "machine_id": MACHINE,
+            "label": "MacBook de Yarma",
+        })
+    );
+
+    // Et celle de la redeclaration, que la fenetre doit annoncer autrement que
+    // la revocation (#66) : c'est sur ce nom d'etat qu'elle fait la difference.
+    assert_eq!(
+        serde_json::to_value(EtatMachine::Redeclaree {
+            machine_id: MACHINE.to_string(),
+            label: "MacBook de Yarma".to_string(),
+        })
+        .expect("etat serialisable"),
+        serde_json::json!({
+            "etat": "redeclaree",
             "machine_id": MACHINE,
             "label": "MacBook de Yarma",
         })
@@ -354,6 +418,185 @@ fn une_configuration_incomplete_rend_quand_meme_son_identifiant() {
     // pas, et il vaut mieux declarer que representer du vide.
     std::fs::write(&chemin, "machine_id = \"\"\n").expect("configuration");
     assert_eq!(identite_conservee(&chemin), None);
+
+    let _ = std::fs::remove_file(&chemin);
+    let _ = std::fs::remove_dir_all(chemin.parent().expect("dossier de test"));
+}
+
+/* ---------- reprendre une machine deja appairee en ligne de commande (#67) --- */
+
+/// FR-057 : ce qu'une configuration de ligne de commande donne a l'application -
+/// l'identifiant de machine et les dossiers surveilles.
+///
+/// C'est le chemin de migration, et il n'en existe pas d'autre : sans lui,
+/// l'application declarerait une seconde machine a cote de celle qui bat deja.
+#[test]
+fn une_configuration_de_ligne_de_commande_rend_sa_machine_et_ses_dossiers() {
+    let chemin = chemin_temporaire("reprise");
+    std::fs::create_dir_all(chemin.parent().expect("dossier de test")).expect("dossier de test");
+    std::fs::write(
+        &chemin,
+        format!(
+            "# la configuration qu'a ecrite `vibemap pair`\n\
+             supabase_url = \"http://base-heritee.invalid\"\n\
+             machine_id = \"{MACHINE}\"\n\
+             label = \"ancien nom\"\n\
+             roots = [\"~/Developer\", \"~/Sites\"]\n"
+        ),
+    )
+    .expect("configuration heritee");
+
+    assert_eq!(
+        reprise_de_la_configuration(&chemin),
+        Some(Reprise {
+            machine_id: MACHINE.to_string(),
+            dossiers: vec!["~/Developer".to_string(), "~/Sites".to_string()],
+        })
+    );
+
+    let _ = std::fs::remove_file(&chemin);
+    let _ = std::fs::remove_dir_all(chemin.parent().expect("dossier de test"));
+}
+
+/// FR-073 : l'adresse de la base ne se reprend JAMAIS.
+///
+/// Ce champ est obligatoire dans la configuration du binaire, et il pointe
+/// aujourd'hui sur la pile locale de developpement : le reprendre ferait parler
+/// l'application publiee a une base de mise au point, sur le poste de chaque
+/// utilisateur qui migre.
+///
+/// La garantie tient par la forme - `Reprise` n'a aucun champ ou loger cette
+/// adresse, et l'y ajouter ferait tomber la construction ci-dessus. Ce test
+/// ajoute la garantie par la VALEUR : rien de ce qui sort de cette lecture ne
+/// porte l'adresse heritee, sous aucun nom.
+#[test]
+fn la_reprise_ne_rend_jamais_l_adresse_de_la_base() {
+    let chemin = chemin_temporaire("reprise-sans-base");
+    std::fs::create_dir_all(chemin.parent().expect("dossier de test")).expect("dossier de test");
+    std::fs::write(
+        &chemin,
+        format!(
+            "supabase_url = \"http://base-heritee.invalid\"\n\
+             machine_id = \"{MACHINE}\"\n\
+             roots = [\"~/Developer\"]\n"
+        ),
+    )
+    .expect("configuration heritee");
+
+    let reprise = reprise_de_la_configuration(&chemin).expect("la configuration doit se reprendre");
+    let vu = format!("{reprise:?}");
+
+    assert!(
+        !vu.contains("base-heritee") && !vu.contains("supabase"),
+        "l'adresse de la base ne doit sortir d'ici sous aucun nom, obtenu : {vu}"
+    );
+    assert!(
+        !reprise.dossiers.iter().any(|d| d.contains("://")),
+        "les dossiers surveilles ne sont pas des adresses, obtenu : {:?}",
+        reprise.dossiers
+    );
+
+    let _ = std::fs::remove_file(&chemin);
+    let _ = std::fs::remove_dir_all(chemin.parent().expect("dossier de test"));
+}
+
+/// FR-073 : l'adresse heritee s'efface devant celle de l'application, et rien
+/// d'autre ne bouge dans le fichier.
+///
+/// Ce n'est pas une coquetterie : le lecteur embarque lit `supabase_url`, la
+/// fenetre non. Sans cet alignement, le poste ecrirait ses cartes dans la pile
+/// locale de developpement pendant que la fenetre lirait la base de production,
+/// et l'utilisateur verrait sa machine sans jamais voir sa carte.
+#[test]
+fn l_adresse_heritee_s_aligne_sur_celle_de_l_application() {
+    let chemin = chemin_temporaire("alignement");
+    std::fs::create_dir_all(chemin.parent().expect("dossier de test")).expect("dossier de test");
+    std::fs::write(
+        &chemin,
+        format!(
+            "# ma configuration a moi\n\
+             supabase_url = \"http://base-heritee.invalid\"\n\
+             machine_id = \"{MACHINE}\"\n\
+             roots = [\"~/Developer\", \"~/Sites\"]\n\
+             scan_seconds = 42\n"
+        ),
+    )
+    .expect("configuration heritee");
+
+    assert_eq!(
+        aligner_l_adresse_de_la_base(&chemin, "https://base-de-l-application.invalid"),
+        Ok(true),
+        "une adresse qui differe doit etre reecrite"
+    );
+
+    let ecrit = std::fs::read_to_string(&chemin).expect("configuration relisible");
+    assert!(
+        ecrit.contains("https://base-de-l-application.invalid"),
+        "obtenu :\n{ecrit}"
+    );
+    assert!(
+        !ecrit.contains("base-heritee.invalid"),
+        "l'adresse heritee ne doit plus etre lisible par le lecteur, obtenu :\n{ecrit}"
+    );
+    assert!(
+        ecrit.contains("# ma configuration a moi")
+            && ecrit.contains("~/Sites")
+            && ecrit.contains("scan_seconds = 42")
+            && ecrit.contains(MACHINE),
+        "rien d'autre ne doit bouger, obtenu :\n{ecrit}"
+    );
+
+    // Et le lancement suivant ne touche plus au disque : la meme adresse ne se
+    // reecrit pas mille fois pour une seule migration.
+    assert_eq!(
+        aligner_l_adresse_de_la_base(&chemin, "https://base-de-l-application.invalid"),
+        Ok(false)
+    );
+
+    let _ = std::fs::remove_file(&chemin);
+    let _ = std::fs::remove_dir_all(chemin.parent().expect("dossier de test"));
+}
+
+/// Sans configuration, il n'y a rien a reprendre : on part sur une declaration
+/// neuve. C'est le poste que personne n'a jamais appaire.
+#[test]
+fn sans_configuration_il_n_y_a_rien_a_reprendre() {
+    let chemin = chemin_temporaire("jamais-appaire");
+    let _ = std::fs::remove_file(&chemin);
+    let _ = std::fs::remove_dir_all(chemin.parent().expect("dossier de test"));
+
+    assert_eq!(reprise_de_la_configuration(&chemin), None);
+    assert_eq!(identite_conservee(&chemin), None);
+}
+
+/// Une configuration qui n'a pas d'identifiant de machine ne se reprend pas non
+/// plus : ce poste ne sait pas a quelle machine il appartient, et le seul chemin
+/// honnete est la declaration. Ses dossiers, eux, ne bougent pas.
+#[test]
+fn une_configuration_sans_machine_ne_se_reprend_pas_et_garde_ses_dossiers() {
+    let chemin = chemin_temporaire("sans-machine");
+    std::fs::create_dir_all(chemin.parent().expect("dossier de test")).expect("dossier de test");
+    std::fs::write(&chemin, "roots = [\"~/Developer\", \"~/Sites\"]\n").expect("configuration");
+
+    assert_eq!(reprise_de_la_configuration(&chemin), None);
+
+    // Et la declaration qui suit ecrit l'identite sans emporter les dossiers.
+    poser_l_identite(
+        &chemin,
+        "http://127.0.0.1:54321",
+        MACHINE,
+        "MacBook de Yarma",
+    )
+    .expect("l'identite doit s'ecrire");
+
+    assert_eq!(
+        reprise_de_la_configuration(&chemin),
+        Some(Reprise {
+            machine_id: MACHINE.to_string(),
+            dossiers: vec!["~/Developer".to_string(), "~/Sites".to_string()],
+        }),
+        "les dossiers surveilles ne doivent etre ni effaces ni dupliques (FR-057)"
+    );
 
     let _ = std::fs::remove_file(&chemin);
     let _ = std::fs::remove_dir_all(chemin.parent().expect("dossier de test"));

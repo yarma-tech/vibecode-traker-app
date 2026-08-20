@@ -1,6 +1,6 @@
 /**
- * La machine, telle que la fenêtre la voit (issue #65, FR-017 à FR-022,
- * FR-055, FR-080).
+ * La machine, telle que la fenêtre la voit (issues #65, #66, #67 - FR-017 à
+ * FR-022, FR-055 à FR-057, FR-073, FR-080).
  *
  * L'application déclare ce Mac elle-même, une session ouverte suffit, et il n'y
  * a plus de code d'appairage nulle part. Ce module ne fait pas la déclaration -
@@ -19,8 +19,19 @@
  * Même règle que `bandeauDuLecteur` : une machine reprise ou déclarée n'appelle
  * aucun geste, et l'annoncer par-dessus chaque écran serait du bruit. La
  * déclaration se voit là où elle compte - dans la liste des machines. Ce qui se
- * dit ici, ce sont les trois silences qu'aucun autre écran ne rattraperait : un
- * trousseau refusé, une machine révoquée, une identité qui ne répond plus.
+ * dit ici, ce sont les silences qu'aucun autre écran ne rattraperait : un
+ * trousseau refusé, une machine révoquée, une machine qui vient d'être
+ * redéclarée.
+ *
+ * ## Révoquée et redéclarée ne se ressemblent pas
+ *
+ * Ce sont les deux façons dont l'identité conservée cesse de correspondre, et
+ * elles appellent des réponses opposées (issue #66). La révocation est une
+ * décision de l'utilisateur : la machine s'arrête, et rien ne la remplace. La
+ * disparition n'est la décision de personne - base remise à zéro, machine
+ * supprimée, compte changé : la machine est réinscrite, et la carte se
+ * repeuple. Les deux messages ne doivent jamais se confondre, sans quoi
+ * l'utilisateur lirait « remplacée » là où il a coupé, ou l'inverse.
  */
 
 /** Ce que le pont rend (`bureau/src/machine.rs`). Aucun jeton, jamais. */
@@ -28,7 +39,7 @@ export type EtatMachine =
   | { etat: "reprise"; machine_id: string; label: string }
   | { etat: "declaree"; machine_id: string; label: string }
   | { etat: "revoquee"; machine_id: string; label: string }
-  | { etat: "inconnue"; machine_id: string }
+  | { etat: "redeclaree"; machine_id: string; label: string }
   | { etat: "trousseau_refuse"; machine_id: string; raison: string }
   | { etat: "echec"; raison: string };
 
@@ -36,7 +47,7 @@ const ETATS = [
   "reprise",
   "declaree",
   "revoquee",
-  "inconnue",
+  "redeclaree",
   "trousseau_refuse",
   "echec",
 ] as const;
@@ -72,13 +83,30 @@ export function lireEtatMachine(reponse: unknown): EtatMachine | null {
  * pas, et le relancer en boucle ne ferait qu'ouvrir des boîtes de dialogue.
  */
 export function laMachineEstPrete(etat: EtatMachine | null): boolean {
-  return etat !== null && (etat.etat === "reprise" || etat.etat === "declaree");
+  return (
+    etat !== null &&
+    (etat.etat === "reprise" || etat.etat === "declaree" || etat.etat === "redeclaree")
+  );
 }
 
-/** Ce que la fenêtre affiche à propos de la machine, ou rien. */
+/**
+ * Ce que la fenêtre affiche à propos de la machine, ou rien.
+ *
+ * `ton` sépare ce qui appelle un geste de ce qui n'en appelle aucun : une
+ * redéclaration est un fait accompli, pas une panne, et l'annoncer comme une
+ * alerte apprendrait à l'utilisateur à ignorer le bandeau. C'est lui qui décide
+ * du rôle ARIA - un lecteur d'écran interrompt sur `alert`, jamais sur
+ * `status`.
+ */
 export type AnnonceMachine =
   | { visible: false }
-  | { visible: true; titre: string; explication: string; reessayer: boolean };
+  | {
+      visible: true;
+      ton: "alerte" | "information";
+      titre: string;
+      explication: string;
+      reessayer: boolean;
+    };
 
 /**
  * FR-080 : le refus du trousseau est un passage ATTENDU, pas une anomalie.
@@ -108,6 +136,7 @@ export function annonceDeLaMachine(etat: EtatMachine | null): AnnonceMachine {
   if (etat.etat === "trousseau_refuse") {
     return {
       visible: true,
+      ton: "alerte",
       titre: "Le jeton de cette machine n'a pas pu être lu",
       explication: `${etat.raison} ${TROUSSEAU_REFUSE}`,
       reessayer: true,
@@ -117,6 +146,7 @@ export function annonceDeLaMachine(etat: EtatMachine | null): AnnonceMachine {
   if (etat.etat === "revoquee") {
     return {
       visible: true,
+      ton: "alerte",
       titre: `« ${etat.label} » a été révoquée`,
       explication:
         "Cette machine n'envoie plus rien, et Vibe Map ne la remplace pas par une autre : ce " +
@@ -126,20 +156,27 @@ export function annonceDeLaMachine(etat: EtatMachine | null): AnnonceMachine {
     };
   }
 
-  if (etat.etat === "inconnue") {
+  if (etat.etat === "redeclaree") {
+    // FR-056 : le seul cas visible qui n'appelle aucun geste. La machine bat de
+    // nouveau ; ce qui se dit ici, c'est POURQUOI la liste des machines et la
+    // carte ne sont plus tout à fait celles d'hier - sans quoi l'utilisateur
+    // verrait son historique disparaître sans une explication.
     return {
       visible: true,
-      titre: "Cette machine n'est plus reconnue",
+      ton: "information",
+      titre: `« ${etat.label} » a été redéclarée`,
       explication:
-        "L'identifiant que ce Mac conserve ne correspond à aucune machine du compte : elle a " +
-        "été supprimée, ou la base a été remise à zéro. Rien n'a été redéclaré en silence. " +
-        "Réessayez pour voir si elle revient.",
-      reessayer: true,
+        "L'identifiant que ce Mac conservait ne correspondait plus à aucune machine du compte : " +
+        "elle avait été supprimée, ou la base remise à zéro. Vibe Map l'a réinscrite sous une " +
+        "nouvelle identité, sans rien vous demander. Vos dossiers surveillés sont inchangés, et " +
+        "la carte se repeuple à mesure que le lecteur les relit.",
+      reessayer: false,
     };
   }
 
   return {
     visible: true,
+    ton: "alerte",
     titre: "Cette machine n'a pas pu être déclarée",
     explication: `${etat.raison} Tant qu'elle ne l'est pas, rien ne part de ce Mac.`,
     reessayer: true,

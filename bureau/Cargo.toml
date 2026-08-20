@@ -44,3 +44,9 @@ tauri-build = { version = "2", features = [] }
 [dev-dependencies]
 serde_json = "1"
 toml_edit = "0.25"
+# `bureau/tests/identite.rs` rejoue le parcours complet d'un lancement contre la
+# vraie pile Supabase locale : il lui faut de quoi ouvrir une session de test et
+# relire la liste des machines. Ce test ne tourne pas dans l'integration
+# continue, faute de base - voir son en-tete.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

@@ -1,4 +1,4 @@
-//! La machine se declare elle-meme, sans code d'appairage (issue #65).
+//! La machine se declare elle-meme, sans code d'appairage (issues #65, #66).
 //!
 //! Ces tests traversent la fonction SQL, la RLS de `machines` et la signature
 //! du jeton, contre la vraie pile Supabase locale - meme discipline que
@@ -119,10 +119,10 @@ async fn un_trousseau_vide_redemande_un_jeton_sans_creer_de_machine() {
 
 /// Une base remise a zero : l'identifiant conserve ne designe plus rien.
 ///
-/// Ce que ce test fige, c'est l'ABSENCE de redeclaration silencieuse. La
-/// redeclaration annoncee est la tranche suivante (#66, FR-056) ; ce qui ne doit
-/// jamais arriver, ni maintenant ni apres, c'est qu'une machine reapparaisse
-/// sans que personne ne l'ait dit.
+/// Ce que ce test fige, c'est que la base sait le DIRE - `DansLaBase::Inconnue`
+/// et rien d'autre -, et qu'une simple lecture ne cree rien au passage. C'est
+/// cette reponse-la, et elle seule, qui autorise l'application a redeclarer
+/// (#66, FR-056).
 #[tokio::test]
 async fn une_base_remise_a_zero_ne_fabrique_pas_de_doublon_silencieux() {
     let ctx = common::TestContext::new().await;
@@ -331,9 +331,10 @@ async fn le_jeton_d_une_machine_d_un_autre_compte_ne_se_signe_pas() {
 /// FR-021 : une machine revoquee se dit revoquee, et ne se resigne pas.
 ///
 /// Ce qui compte ici, c'est que la revocation ne se lise PAS comme une machine
-/// inconnue : la premiere s'annonce et fait cesser d'emettre, la seconde
-/// appellera un jour une redeclaration (#66). Les confondre ferait redeclarer
-/// une machine que l'utilisateur venait justement de couper.
+/// inconnue : la premiere s'annonce et fait cesser d'emettre, la seconde fait
+/// redeclarer (#66, FR-056). Les confondre redeclarerait la machine que
+/// l'utilisateur venait justement de couper - et lui rendrait un jeton neuf, ce
+/// qui defait la revocation par le seul fait de rouvrir l'application.
 #[tokio::test]
 async fn une_machine_revoquee_se_dit_revoquee_et_ne_se_resigne_pas() {
     let ctx = common::TestContext::new().await;
@@ -362,4 +363,169 @@ async fn une_machine_revoquee_se_dit_revoquee_et_ne_se_resigne_pas() {
         erreur.to_string().contains("revoquee"),
         "le message doit parler de revocation, obtenu : {erreur}"
     );
+}
+
+/// La revocation coupe les ecritures, et elle reste lisible comme une revocation
+/// (#66, FR-021).
+///
+/// Les deux moities de l'exigence, dans le meme test parce qu'elles ne valent
+/// que l'une avec l'autre : une application qui cesse d'ecrire sans savoir dire
+/// pourquoi laisse un poste muet, et une application qui sait dire pourquoi tout
+/// en continuant d'ecrire n'a rien revoque du tout.
+#[tokio::test]
+async fn une_machine_revoquee_cesse_d_ecrire_et_le_motif_reste_une_revocation() {
+    let ctx = common::TestContext::new().await;
+
+    let identite = declarer(&ctx.url, &ctx.user_token, "MacBook de Yarma", Some("macos"))
+        .await
+        .expect("declaration");
+
+    // Elle bat d'abord : sans cela, ce test se contenterait de constater qu'un
+    // battement n'aboutit jamais.
+    let poste = vibemap::Supabase::new(&ctx.url, &identite.token);
+    poste
+        .announce(&identite.machine_id, chrono::Utc::now())
+        .await
+        .expect("la machine doit battre avant sa revocation");
+    let dernier = ctx
+        .last_seen_at(&identite.machine_id)
+        .await
+        .expect("un battement avant revocation");
+
+    ctx.revoquer(&identite.machine_id).await;
+
+    // 1. Elle n'ecrit plus. C'est la RLS qui l'arrete - `revoked_at is null`
+    //    dans `machines_update_own` -, pas une garde du lecteur.
+    let refus = poste
+        .announce(&identite.machine_id, chrono::Utc::now())
+        .await
+        .expect_err("une machine revoquee ne doit plus pouvoir ecrire");
+    assert!(
+        !refus.to_string().is_empty(),
+        "un refus sans message ne dit rien"
+    );
+    assert_eq!(
+        ctx.last_seen_at(&identite.machine_id).await,
+        Some(dernier),
+        "le battement refuse ne doit avoir rien ecrit"
+    );
+
+    // 2. Et le motif que l'application remonte a sa fenetre reste une
+    //    REVOCATION : c'est ce qui l'empeche de redeclarer.
+    assert_eq!(
+        representer(&ctx.url, &ctx.user_token, &identite.machine_id)
+            .await
+            .expect("la base doit repondre"),
+        DansLaBase::Revoquee {
+            label: "MacBook de Yarma".to_string()
+        },
+    );
+
+    // 3. Et la liste n'a gagne aucune machine de remplacement.
+    let machines = ctx.machines_visibles().await;
+    assert_eq!(
+        machines.len(),
+        1,
+        "une revocation ne cree aucune machine, obtenu : {machines:?}"
+    );
+    assert!(
+        machines[0]["revoked_at"].is_string(),
+        "la seule machine du compte est bien celle qui a ete revoquee, obtenu : {machines:?}"
+    );
+}
+
+/// FR-056, le critere du PRD joue de bout en bout : base remise a zero, on
+/// rouvre, la machine est redeclaree et la liste n'en porte qu'UNE.
+///
+/// C'est la difference qui compte avec la tranche precedente : elle figeait
+/// l'absence de redeclaration silencieuse ; celle-ci exige la redeclaration, et
+/// exige qu'elle ne se double pas.
+#[tokio::test]
+async fn une_base_remise_a_zero_redeclare_une_machine_et_une_seule() {
+    let ctx = common::TestContext::new().await;
+
+    let perdue = declarer(&ctx.url, &ctx.user_token, "MacBook de Yarma", Some("macos"))
+        .await
+        .expect("premiere declaration");
+    ctx.effacer_machine(&perdue.machine_id).await;
+
+    // Ce que l'application constate au lancement suivant, et la seule reponse
+    // qui autorise a redeclarer.
+    assert_eq!(
+        representer(&ctx.url, &ctx.user_token, &perdue.machine_id)
+            .await
+            .expect("la base doit repondre"),
+        DansLaBase::Inconnue
+    );
+
+    let neuve = declarer(&ctx.url, &ctx.user_token, "MacBook de Yarma", Some("macos"))
+        .await
+        .expect("la machine doit pouvoir se redeclarer");
+
+    assert_ne!(
+        neuve.machine_id, perdue.machine_id,
+        "la machine redeclaree porte une identite neuve"
+    );
+
+    let machines = ctx.machines_visibles().await;
+    assert_eq!(
+        machines.len(),
+        1,
+        "la liste ne doit porter que la machine redeclaree, obtenu : {machines:?}"
+    );
+    assert_eq!(machines[0]["id"], neuve.machine_id);
+
+    // Et elle bat : « la carte se repeuple » n'est vrai que si le jeton neuf
+    // ecrit pour de bon.
+    vibemap::Supabase::new(&ctx.url, &neuve.token)
+        .announce(&neuve.machine_id, chrono::Utc::now())
+        .await
+        .expect("la machine redeclaree doit battre");
+    assert!(ctx.last_seen_at(&neuve.machine_id).await.is_some());
+
+    // Et rouvrir encore ne redeclare plus rien : l'identifiant neuf designe
+    // maintenant quelque chose (FR-019).
+    assert_eq!(
+        representer(&ctx.url, &ctx.user_token, &neuve.machine_id)
+            .await
+            .expect("la base doit repondre"),
+        DansLaBase::Presente {
+            label: "MacBook de Yarma".to_string()
+        }
+    );
+}
+
+/// La porte de la redeclaration, et ce qui ne doit surtout pas l'ouvrir.
+///
+/// Depuis #66, `DansLaBase::Inconnue` fait CREER une machine. Tout ce qui se
+/// lirait « inconnue » a tort en fabriquerait donc une a chaque lancement : une
+/// session expiree, un jeton illisible, une pile qui repond de travers. Ces
+/// refus doivent remonter comme des ERREURS - la fenetre les annonce, et rien
+/// n'est declare.
+#[tokio::test]
+async fn une_session_qui_ne_vaut_rien_ne_se_lit_pas_comme_une_identite_perdue() {
+    let ctx = common::TestContext::new().await;
+
+    let identite = declarer(&ctx.url, &ctx.user_token, "MacBook de Yarma", Some("macos"))
+        .await
+        .expect("declaration");
+
+    for (quoi, jeton) in [
+        ("sans session", ctx.anon_key.as_str()),
+        ("un jeton illisible", "pas-un-jeton-du-tout"),
+    ] {
+        let erreur = representer(&ctx.url, jeton, &identite.machine_id)
+            .await
+            .expect_err(&format!(
+                "{quoi} ne doit pas se lire comme une identite perdue"
+            ));
+        assert!(
+            !erreur.to_string().is_empty(),
+            "{quoi} : un refus sans message ne dit rien"
+        );
+    }
+
+    // Et la machine, elle, est toujours la : rien de tout cela ne l'a touchee.
+    let machines = ctx.machines_visibles().await;
+    assert_eq!(machines.len(), 1, "obtenu : {machines:?}");
 }

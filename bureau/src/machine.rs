@@ -1,5 +1,5 @@
-//! La machine se declare elle-meme (issue #65, FR-017 a FR-022, FR-055,
-//! FR-080).
+//! La machine se declare elle-meme (issues #65, #66, #67 - FR-017 a FR-022,
+//! FR-055 a FR-057, FR-073, FR-080).
 //!
 //! Le code d'appairage n'existait que pour faire se reconnaitre deux objets
 //! separes. Ils n'en font plus qu'un : la fenetre et le lecteur vivent dans la
@@ -26,6 +26,27 @@
 //! tient la promesse « pas de doublon » (FR-019). Sans lui, une reinstallation -
 //! ou un trousseau vide - fabriquerait une machine de plus a chaque fois, et la
 //! liste des machines finirait par ne plus rien dire.
+//!
+//! ## Les deux facons de ne plus se reconnaitre, et elles ne se confondent pas
+//!
+//! Une machine **revoquee** n'est pas une machine **disparue** (issue #66).
+//!
+//! La revocation est une decision de l'utilisateur, prise depuis le web, et la
+//! base la fait tenir : `machines.revoked_at` coupe les ecritures en RLS
+//! (`machines_update_own`, `machine_du_jeton_valide()`) et `jeton_de_machine`
+//! refuse de resigner. Redeclarer une machine revoquee la ferait revenir sous
+//! une autre identite, jeton neuf compris : ce serait defaire la revocation par
+//! le seul fait de rouvrir l'application. Elle s'annonce donc, et rien de plus.
+//!
+//! La disparition, elle, n'est la decision de personne : base remise a zero,
+//! machine supprimee, compte change. L'identifiant conserve ne designe alors
+//! aucune ligne, et il n'y a rien a revoquer ni a proteger. La machine se
+//! redeclare, et la fenetre le dit (FR-056) - la ou se taire laisserait un poste
+//! muet sans que personne ne sache pourquoi.
+//!
+//! La base rend elle-meme la difference (`DansLaBase`) : une machine revoquee
+//! reste VISIBLE a la session de son proprietaire - la policy de lecture ne la
+//! cache pas -, et c'est ce qui permet de la distinguer d'une ligne absente.
 //!
 //! ## Ce qui n'arrive jamais
 //!
@@ -143,10 +164,14 @@ pub enum EtatMachine {
     /// Elle a ete revoquee depuis le web (FR-021) : elle n'emet plus, et elle
     /// ne se redeclare pas sous une autre identite.
     Revoquee { machine_id: String, label: String },
-    /// L'identifiant conserve ne designe plus rien sur ce compte. La
-    /// redeclaration annoncee est la tranche suivante (#66, FR-056) ; ce qui
-    /// compte ici, c'est que rien ne se redeclare en douce.
-    Inconnue { machine_id: String },
+    /// L'identifiant conserve ne designait plus rien sur ce compte - base
+    /// remise a zero, machine supprimee, compte change -, et la machine vient
+    /// d'etre inscrite a nouveau (FR-056). Le `machine_id` est le NOUVEAU :
+    /// l'ancien ne designait rien, et il n'y a rien a en faire.
+    ///
+    /// Ce cas s'annonce, contrairement a `Declaree` : l'utilisateur voit sa
+    /// carte se vider puis se repeupler, et il a droit a la raison.
+    Redeclaree { machine_id: String, label: String },
     /// Le systeme a refuse l'acces au jeton (FR-080). On le dit, on propose de
     /// reessayer, et on ne declare rien.
     TrousseauRefuse { machine_id: String, raison: String },
@@ -166,6 +191,14 @@ pub enum Geste {
     Reprendre { label: String },
     /// Un jeton neuf pour LA MEME machine : le trousseau ne l'avait plus.
     RedemanderLeJeton { label: String },
+    /// Inscrire cette machine a nouveau, et le dire (FR-056).
+    ///
+    /// Le SEUL geste de reprise qui cree une ligne, et il ne s'atteint que
+    /// depuis `DansLaBase::Inconnue` - jamais depuis une revocation, jamais
+    /// depuis un refus du trousseau. Il ne porte pas de label : l'ancien ne vaut
+    /// plus rien, et le nom part du systeme d'exploitation comme pour une
+    /// premiere declaration (FR-020).
+    Redeclarer,
     /// Ne rien envoyer, et le dire.
     Annoncer(EtatMachine),
 }
@@ -179,20 +212,19 @@ pub enum Geste {
 /// aussi cette retenue eprouvable : un test qui passe une fermeture qui panique
 /// prouve qu'elle n'a pas ete appelee.
 ///
-/// Et la regle qui compte : AUCUN de ces chemins ne mene a une declaration. Une
-/// machine deja connue ne se redeclare pas, quoi que dise le trousseau
-/// (FR-019, FR-080).
+/// Et la regle qui compte : une machine que la base RECONNAIT ne se redeclare
+/// jamais, quoi que dise le trousseau (FR-019, FR-080) - qu'elle emette encore
+/// ou qu'elle ait ete revoquee. La redeclaration ne s'atteint que par un
+/// identifiant qui ne designe plus aucune ligne (FR-056).
 pub fn geste_de_reprise(
     machine_id: &str,
     dans_la_base: DansLaBase,
     trousseau: impl FnOnce() -> AuTrousseau,
 ) -> Geste {
     let label = match dans_la_base {
-        DansLaBase::Inconnue => {
-            return Geste::Annoncer(EtatMachine::Inconnue {
-                machine_id: machine_id.to_string(),
-            })
-        }
+        // Rien a proteger : cet identifiant ne designe aucune ligne, donc
+        // aucune revocation ne peut etre contournee ici.
+        DansLaBase::Inconnue => return Geste::Redeclarer,
         DansLaBase::Revoquee { label } => {
             return Geste::Annoncer(EtatMachine::Revoquee {
                 machine_id: machine_id.to_string(),
@@ -212,33 +244,102 @@ pub fn geste_de_reprise(
     }
 }
 
-/* ---------- l'identite conservee sur le poste (FR-055) ---------- */
+/* ---------- l'identite conservee sur le poste (FR-055, FR-057, FR-073) ------ */
 
-/// L'identifiant de machine que ce poste conserve, s'il en a un.
+/// Ce qu'une configuration deja presente sur le poste rend a l'application.
 ///
-/// Lecture tolerante, et volontairement plus large que `Config::load` : un
-/// poste neuf n'a pas de configuration du tout, et une configuration a laquelle
-/// il manque un champ ne doit pas empecher de retrouver l'identifiant qui, lui,
-/// est la. Ce qu'on cherche ici, c'est une seule chose : a quelle machine ce
-/// poste croit-il appartenir ?
-pub fn identite_conservee(chemin_config: &Path) -> Option<String> {
+/// C'est le chemin de migration, et il n'en existe pas d'autre : le binaire en
+/// ligne de commande ecrit `~/.config/vibemap/config.toml`, l'application lit ce
+/// meme fichier, et un poste deja appaire se retrouve donc chez lui sans rien
+/// avoir a refaire (FR-057).
+///
+/// ## Ce qui n'est PAS repris, et pourquoi la structure le garantit
+///
+/// L'adresse de la base (FR-073). Ce champ est obligatoire dans la
+/// configuration du binaire, et il pointe aujourd'hui sur la pile locale de
+/// developpement : une reprise naive ferait parler l'application publiee a une
+/// base de mise au point. Elle tient son adresse de sa compilation
+/// (`adresse_de_la_base`), la meme pour tous les postes.
+///
+/// `Reprise` n'a aucun champ ou loger cette adresse - meme forme que pour le
+/// jeton dans `EtatMachine` : la regle tient par la structure, et non par la
+/// vigilance de qui ecrira la prochaine ligne. L'ajouter ici ferait tomber la
+/// compilation des tests qui construisent ce type.
+///
+/// Le JETON n'y est pas non plus, pour une raison differente : il n'a jamais ete
+/// dans ce fichier. Il vit au trousseau, sous la meme entree que celle du
+/// binaire, et c'est `au_trousseau` qui va l'y chercher (FR-018, FR-080).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reprise {
+    /// L'identifiant de machine du binaire en ligne de commande. C'est lui qui
+    /// evite le doublon : sans lui, l'application declarerait une seconde
+    /// machine a cote de celle qui bat deja (FR-019).
+    pub machine_id: String,
+    /// Les dossiers surveilles, tels qu'ils sont ecrits. Ils ne sont ni
+    /// dupliques ni effaces : l'application ne les recopie nulle part, elle
+    /// laisse le fichier les porter et se contente de les relire.
+    pub dossiers: Vec<String>,
+}
+
+/// Lit la configuration deja presente sur le poste, s'il y en a une.
+///
+/// Lecture tolerante, et volontairement plus large que `Config::load` : un poste
+/// neuf n'a pas de configuration du tout, et une configuration a laquelle il
+/// manque un champ obligatoire ne doit pas empecher de retrouver l'identifiant
+/// qui, lui, est la. `Config::load` refuserait le fichier entier, et
+/// l'application declarerait une machine de plus a cote de celle qui existe.
+///
+/// Sans identifiant de machine, il n'y a rien a reprendre : ce poste ne sait pas
+/// a quelle machine il appartient, et le seul chemin honnete est la declaration.
+/// Ses dossiers, eux, restent la ou ils sont - `poser_l_identite` ne les touche
+/// pas.
+pub fn reprise_de_la_configuration(chemin_config: &Path) -> Option<Reprise> {
     let brut = std::fs::read_to_string(chemin_config).ok()?;
     let document: DocumentMut = brut.parse().ok()?;
 
-    document
+    let machine_id = document
         .get("machine_id")
         .and_then(Item::as_str)
         .map(str::trim)
-        .filter(|machine_id| !machine_id.is_empty())
-        .map(str::to_string)
+        .filter(|machine_id| !machine_id.is_empty())?
+        .to_string();
+
+    let dossiers = document
+        .get("roots")
+        .and_then(Item::as_array)
+        .map(|racines| {
+            racines
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|dossier| !dossier.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Some(Reprise {
+        machine_id,
+        dossiers,
+    })
+}
+
+/// L'identifiant de machine que ce poste conserve, s'il en a un (FR-055).
+///
+/// La meme lecture que `reprise_de_la_configuration`, et volontairement la
+/// meme : deux lecteurs du meme fichier finiraient par ne plus dire la meme
+/// chose, et le jour ou ils divergeraient, l'un d'eux redeclarerait une machine
+/// que l'autre reconnaissait.
+pub fn identite_conservee(chemin_config: &Path) -> Option<String> {
+    reprise_de_la_configuration(chemin_config).map(|reprise| reprise.machine_id)
 }
 
 /// Ecrit l'identite de la machine dans la configuration du poste (FR-055).
 ///
 /// Le fichier reste le support de stockage, et l'edition preserve tout le
 /// reste : les dossiers surveilles, les cadences, et les commentaires que
-/// l'utilisateur y a mis (FR-036). Aucun secret n'y entre - le jeton est au
-/// trousseau, et il n'y a pas de champ `token` ici.
+/// l'utilisateur y a mis (FR-036, FR-057). Aucun secret n'y entre - le jeton est
+/// au trousseau, et il n'y a pas de champ `token` ici.
 ///
 /// L'adresse de la base est ecrite avec, et c'est voulu : c'est celle de la
 /// compilation de l'application, la meme pour tous les postes, et c'est elle que
@@ -279,6 +380,44 @@ pub fn poser_l_identite(
     }
 
     ecrire_sans_perdre(chemin_config, &document.to_string())
+}
+
+/// Aligne l'adresse de la base de la configuration sur celle de cette
+/// application (FR-073). Rend `true` si le fichier a ete touche.
+///
+/// POURQUOI cela ne concerne pas que la fenetre : l'application et le lecteur
+/// qu'elle embarque partagent ce fichier. La fenetre, elle, tient son adresse de
+/// sa compilation et ne lit jamais `supabase_url` - mais le lecteur, lui, ne
+/// connait que ce champ. Une configuration heritee du binaire en ligne de
+/// commande y designe la pile locale de developpement : sans cet alignement, le
+/// poste ecrirait ses cartes dans une base pendant que la fenetre en lirait une
+/// autre, et l'utilisateur verrait sa machine apparaitre sans jamais voir sa
+/// carte.
+///
+/// N'ecrit QUE si l'adresse differe. Un lancement ordinaire - et il y en aura
+/// des milliers pour une seule migration - ne touche alors pas au disque, et les
+/// commentaires comme la mise en page du fichier restent ou ils sont.
+///
+/// Le reste de la configuration n'est pas relu ni valide : un champ qui manque
+/// ou une cadence farfelue ne doivent pas empecher d'ecrire cette ligne-la.
+pub fn aligner_l_adresse_de_la_base(chemin_config: &Path, base: &str) -> Result<bool, String> {
+    let brut = std::fs::read_to_string(chemin_config).map_err(|erreur| {
+        format!(
+            "{} n'a pas pu etre relu : {erreur}",
+            chemin_config.display()
+        )
+    })?;
+    let mut document: DocumentMut = brut
+        .parse()
+        .map_err(|erreur| format!("{} est illisible : {erreur}", chemin_config.display()))?;
+
+    if document.get("supabase_url").and_then(Item::as_str) == Some(base) {
+        return Ok(false);
+    }
+
+    document["supabase_url"] = Item::Value(Value::from(base));
+    ecrire_sans_perdre(chemin_config, &document.to_string())?;
+    Ok(true)
 }
 
 /// L'ecriture en deux temps : un voisin, puis un renommage atomique.
@@ -322,11 +461,19 @@ fn voisin_temporaire(chemin: &Path) -> PathBuf {
 /// 3. **le trousseau en dernier**, et seulement si la base a confirme : c'est
 ///    lui qui peut ouvrir une boite de dialogue devant l'utilisateur.
 ///
+/// Entre les deux derniers s'intercale l'alignement de l'adresse de la base
+/// (FR-073), pour la meme raison qu'une declaration ecrit la configuration avant
+/// d'ouvrir le trousseau : le disque d'abord, la boite de dialogue ensuite.
+///
 /// La declaration, elle, ecrit la configuration AVANT de ranger le jeton. Si le
 /// trousseau echoue, le poste garde son identifiant et le lancement suivant
 /// redemande un jeton pour la meme machine - la ou l'ordre inverse aurait laisse
 /// un poste sans identite devant une machine deja creee, donc un doublon au
 /// lancement suivant.
+///
+/// Et une base injoignable n'est pas une identite perdue : elle s'arrete a
+/// l'etape 2, sur un `Echec`, et ne redeclare rien. Confondre les deux
+/// fabriquerait une machine de plus a chaque coupure de reseau.
 pub async fn assurer(
     chemin_config: &Path,
     base: &str,
@@ -334,8 +481,16 @@ pub async fn assurer(
     nom: &str,
     plateforme: &str,
 ) -> EtatMachine {
-    let Some(machine_id) = identite_conservee(chemin_config) else {
-        return declarer(chemin_config, base, jeton_de_session, nom, plateforme).await;
+    // Seul l'identifiant conduit la suite : les dossiers surveilles ne sont ni
+    // repris ni recopies, ils restent dans le fichier qui les porte (FR-057).
+    let Some(Reprise { machine_id, .. }) = reprise_de_la_configuration(chemin_config) else {
+        // Aucune identite conservee : le seul cas de premiere declaration
+        // (FR-017). Une configuration deja presente sur le poste - dossiers
+        // surveilles, cadences, commentaires - traverse l'ecriture intacte.
+        return match inscrire(chemin_config, base, jeton_de_session, nom, plateforme).await {
+            Ok((machine_id, label)) => EtatMachine::Declaree { machine_id, label },
+            Err(echec) => echec,
+        };
     };
 
     let dans_la_base =
@@ -347,6 +502,19 @@ pub async fn assurer(
                 }
             }
         };
+
+    // La machine est reconnue : elle va reprendre son battement, et le lecteur
+    // qui l'emet doit ecrire dans la base que la fenetre lit (FR-073). Une
+    // configuration heritee du binaire en ligne de commande designe la pile
+    // locale de developpement, et c'est ici que cet heritage s'arrete.
+    //
+    // Avant le trousseau, comme pour une declaration : le disque d'abord, la
+    // boite de dialogue du systeme ensuite.
+    if matches!(dans_la_base, DansLaBase::Presente { .. }) {
+        if let Err(raison) = aligner_l_adresse_de_la_base(chemin_config, base) {
+            return EtatMachine::Echec { raison };
+        }
+    }
 
     match geste_de_reprise(&machine_id, dans_la_base, || au_trousseau(&machine_id)) {
         Geste::Annoncer(etat) => etat,
@@ -366,43 +534,57 @@ pub async fn assurer(
                 },
             }
         }
+        // L'identifiant conserve est remplace par le neuf au passage : c'est
+        // `poser_l_identite` qui l'ecrit, et le lancement suivant se reconnaitra
+        // sous cette nouvelle identite plutot que de redeclarer encore.
+        Geste::Redeclarer => {
+            match inscrire(chemin_config, base, jeton_de_session, nom, plateforme).await {
+                Ok((machine_id, label)) => EtatMachine::Redeclaree { machine_id, label },
+                Err(echec) => echec,
+            }
+        }
     }
 }
 
-/// Le seul chemin qui cree une machine, et il ne s'emprunte que sans identite
-/// conservee (FR-017).
-async fn declarer(
+/// Le seul chemin qui cree une machine (FR-017, FR-056).
+///
+/// Deux portes y menent, et deux seulement : un poste sans identite conservee,
+/// et un identifiant que la base ne reconnait plus. Une machine revoquee n'en
+/// est pas une - `geste_de_reprise` la renvoie sur une annonce, et c'est la que
+/// la revocation tient.
+///
+/// Rend l'identite inscrite, ou l'etat a annoncer si quelque chose a cede en
+/// route. C'est l'appelant qui nomme ce qui vient d'avoir lieu - une premiere
+/// declaration ou une redeclaration -, parce que lui seul sait d'ou il vient.
+async fn inscrire(
     chemin_config: &Path,
     base: &str,
     jeton_de_session: &str,
     nom: &str,
     plateforme: &str,
-) -> EtatMachine {
+) -> Result<(String, String), EtatMachine> {
     let identite =
         match vibemap::declaration::declarer(base, jeton_de_session, nom, Some(plateforme)).await {
             Ok(identite) => identite,
             Err(erreur) => {
-                return EtatMachine::Echec {
+                return Err(EtatMachine::Echec {
                     raison: erreur.to_string(),
-                }
+                })
             }
         };
 
     if let Err(raison) =
         poser_l_identite(chemin_config, base, &identite.machine_id, &identite.label)
     {
-        return EtatMachine::Echec { raison };
+        return Err(EtatMachine::Echec { raison });
     }
 
     if let Err(refus) = vibemap::trousseau::ranger(&identite.machine_id, &identite.token) {
-        return EtatMachine::TrousseauRefuse {
+        return Err(EtatMachine::TrousseauRefuse {
             machine_id: identite.machine_id,
             raison: refus.to_string(),
-        };
+        });
     }
 
-    EtatMachine::Declaree {
-        machine_id: identite.machine_id,
-        label: identite.label,
-    }
+    Ok((identite.machine_id, identite.label))
 }
