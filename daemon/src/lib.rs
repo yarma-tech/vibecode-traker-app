@@ -3,7 +3,6 @@
 //! Il observe ce que font les agents sur le poste et pousse des metadonnees
 //! vers Supabase. Aucun contenu de fichier ne sort jamais d'ici.
 
-mod appairage;
 pub mod commits;
 mod config;
 pub mod declaration;
@@ -17,9 +16,9 @@ pub mod trousseau;
 pub mod verrou;
 mod worktree;
 
-pub use appairage::Identite;
 pub use commits::{branche_courante, commits_depuis, head, CommitLocal};
 pub use config::{Config, ConfigError};
+pub use declaration::Identite;
 pub use declaration::{declarer, DansLaBase, DeclarationError};
 pub use plan::{empreinte, identite, normaliser_distant, scanner, Module, Plan, ScanError};
 pub use verrou::{Marque, Tenant, Verrou, VerrouError};

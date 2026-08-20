@@ -25,7 +25,18 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::appairage::Identite;
+/// Ce qu'une machine sait d'elle-meme une fois reliee au compte.
+///
+/// La structure a survecu au chemin qui l'a produite : elle venait de l'echange
+/// d'un code d'appairage, ferme depuis (FR-082), et vient desormais de la
+/// declaration. C'est la forme qui compte, pas la porte.
+#[derive(Debug, Deserialize)]
+pub struct Identite {
+    pub machine_id: String,
+    pub label: String,
+    /// Ne finit jamais dans un fichier : il va au trousseau du systeme.
+    pub token: String,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum DeclarationError {
