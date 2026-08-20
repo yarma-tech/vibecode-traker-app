@@ -8,6 +8,7 @@
 //! laisse sa fenetre.
 
 pub mod autorisation;
+pub mod contexte;
 pub mod dossiers;
 pub mod geometrie;
 pub mod lecteur;

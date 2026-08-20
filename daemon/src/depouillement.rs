@@ -302,7 +302,7 @@ pub async fn depouiller(
         let atteint = restants
             .get(rang + 1)
             .map_or(debut, |(_, ecrit_a)| *ecrit_a);
-        marque.avancer(atteint);
+        marque.progresser(atteint, resume.journaux_depouilles, resume.journaux_total);
     }
 
     resume
@@ -321,6 +321,14 @@ pub async fn depouiller(
 /// commande la reprise : tout journal ecrit avant cette date a ete depouille, et
 /// ne sera pas relu. Les deux autres champs ne servent qu'a dire aux reglages ou
 /// en est le depouillement et quand il s'est termine (FR-050).
+///
+/// POURQUOI l'avancement s'ecrit ici, et pas ailleurs : c'est le seul endroit
+/// que les reglages peuvent lire. Le depouillement tourne dans une tache a part,
+/// et l'ecran ne lui parle pas ; il lit ce fichier a chaque fois qu'il pose la
+/// question, comme la liste des dossiers se releve a chaque demande. Ce qui y
+/// est ecrit survit d'une ouverture a l'autre, ce qui est exactement ce que
+/// FR-050 demande de montrer - une reprise qui repart de son avancement, jamais
+/// de zero.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Marque {
     /// Fin du dernier depouillement mene a son terme.
@@ -330,11 +338,15 @@ pub struct Marque {
     /// Absente, le depouillement rend les trente derniers jours et rien de plus.
     #[serde(default)]
     pub depouille_jusqu_a: Option<DateTime<Utc>>,
-    /// Nombre de journaux depouilles au dernier passage mene a son terme.
+    /// Nombre de journaux depouilles, tel que le passage en cours l'a laisse.
+    ///
+    /// Il ne retombe pas a zero d'un passage a l'autre : un passage qui reprend
+    /// part de ce que les precedents ont deja lu (`Resume::depart`).
     #[serde(default)]
     pub journaux: usize,
     /// Nombre de journaux sous la racine a ce moment-la : le denominateur de
-    /// l'avancement.
+    /// l'avancement. Zero, une fois un passage termine, dit qu'il n'y a rien a
+    /// depouiller sur ce poste (FR-065).
     #[serde(default)]
     pub total: usize,
     /// Ou ecrire. `None` : une marque ephemere, sans memoire entre deux vies.
@@ -380,6 +392,32 @@ impl Marque {
         }
 
         self.depouille_jusqu_a = Some(jusqu_a);
+        let _ = self.enregistrer();
+    }
+
+    /// La meme avancee, avec l'avancement chiffre que les reglages liront
+    /// (FR-050).
+    ///
+    /// POURQUOI les deux nombres s'ecrivent a chaque journal, et pas seulement
+    /// au terme du passage : c'est ce qui rend l'avancement OBSERVABLE pendant
+    /// qu'il avance. Un compte pose une seule fois, a la fin, laisserait l'ecran
+    /// annoncer l'avancement du passage precedent tout le temps que dure
+    /// celui-ci - et sur un poste dont les journaux pesent un gigaoctet, cela se
+    /// compte en minutes.
+    ///
+    /// Ils s'ecrivent meme quand la date ne bouge pas : deux journaux ecrits
+    /// dans la meme seconde ne feraient sinon avancer aucun compteur, et l'ecran
+    /// se figerait sur un depouillement qui, lui, progresse.
+    pub fn progresser(&mut self, jusqu_a: DateTime<Utc>, depouilles: usize, total: usize) {
+        self.journaux = depouilles;
+        self.total = total;
+
+        // Une marque ne recule jamais : rien de ce qui a ete depouille ne
+        // redevient a depouiller.
+        if !self.depouille_jusqu_a.is_some_and(|deja| deja >= jusqu_a) {
+            self.depouille_jusqu_a = Some(jusqu_a);
+        }
+
         let _ = self.enregistrer();
     }
 

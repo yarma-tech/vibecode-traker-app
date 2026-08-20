@@ -849,3 +849,172 @@ async fn un_depouillement_interrompu_repart_de_son_avancement() {
         "le passage de reprise doit mener l'avancement au total"
     );
 }
+
+// ----------------------------------------------------------------------------
+// L'avancement, tel que les reglages le liront (FR-050, FR-065).
+//
+// La marque est le seul endroit ou le depouillement se laisse regarder : il
+// tourne dans une tache a part, et l'ecran ne lui parle pas. Ce que ces tests
+// tiennent, c'est donc ce que la marque PORTE - les deux nombres, et leurs noms
+// de champs, que `bureau/tests/contexte.rs` relit de l'autre bout.
+// ----------------------------------------------------------------------------
+
+/// La marque relue sur le disque, telle quelle.
+fn marque_brute(chemin: &Path) -> serde_json::Value {
+    serde_json::from_slice(&std::fs::read(chemin).expect("la marque existe"))
+        .expect("la marque est du JSON")
+}
+
+/// Au terme d'un passage, la marque porte l'avancement et son denominateur.
+///
+/// Les deux nombres de FR-050 vivent sur le disque, sous ces noms-la : c'est le
+/// contrat entre celui qui depouille et l'ecran qui le regarde.
+#[tokio::test]
+async fn la_marque_porte_les_deux_nombres_de_l_avancement() {
+    let bac = Bac::new();
+    let hier = Utc::now() - Duration::days(1);
+    for i in 0..4 {
+        bac.journal(&format!("session-{i}.jsonl"), hier + Duration::minutes(i));
+    }
+
+    let mut marque = Marque::charger(&bac.marque());
+    depouiller(
+        &client_injoignable(),
+        &bac.journaux(),
+        &BTreeMap::new(),
+        horizon(Utc::now()),
+        &mut marque,
+    )
+    .await;
+
+    let ecrite = marque_brute(&bac.marque());
+    assert_eq!(ecrite["journaux"], 4, "obtenu : {ecrite}");
+    assert_eq!(ecrite["total"], 4, "obtenu : {ecrite}");
+}
+
+/// L'avancement s'ecrit PENDANT le passage, et pas seulement a son terme.
+///
+/// C'est ce qui le rend observable : un compte pose une seule fois, a la fin,
+/// laisserait l'ecran annoncer l'avancement du passage precedent tout le temps
+/// que dure celui-ci. La borne haute compte autant que la basse - un avancement
+/// deja complet alors que le passage court dirait « termine » a mi-chemin.
+///
+/// Comme pour l'interruption, rien ne se joue sur un delai : une tache voisine
+/// lit la marque sur le disque et coupe des qu'elle a vu l'avancement passer le
+/// dixieme journal.
+#[tokio::test]
+async fn l_avancement_s_ecrit_au_fil_du_passage_et_non_a_son_terme() {
+    let bac = Bac::new();
+    let premiere_ecriture = Utc::now() - Duration::days(2);
+    for i in 0..40 {
+        bac.journal(
+            &format!("session-{:03}.jsonl", i),
+            premiere_ecriture + Duration::minutes(i),
+        );
+    }
+
+    let chemin_marque = bac.marque();
+    let dossier = bac.journaux();
+    let client = client_injoignable();
+    let sans_depot = BTreeMap::new();
+    let mut marque = Marque::charger(&chemin_marque);
+
+    let vue_en_vol = async {
+        loop {
+            let vue = Marque::charger(&chemin_marque);
+            if vue.journaux >= 10 {
+                return (vue.journaux, vue.total);
+            }
+            tokio::task::yield_now().await;
+        }
+    };
+
+    let (journaux, total) = tokio::select! {
+        _ = depouiller(&client, &dossier, &sans_depot, horizon(Utc::now()), &mut marque) =>
+            panic!("le passage devait etre regarde avant son terme"),
+        vu = vue_en_vol => vu,
+    };
+
+    assert_eq!(
+        total, 40,
+        "le denominateur doit etre le total sous la racine des le premier journal"
+    );
+    assert!(
+        (10..40).contains(&journaux),
+        "l'avancement lu en plein passage vaut {journaux} : il doit avancer sans \
+         atteindre le total avant la fin"
+    );
+}
+
+/// Un poste sans aucun journal : le passage aboutit, et il n'y a rien a
+/// depouiller (FR-065).
+///
+/// Le total vaut zero parce qu'il n'y a AUCUN journal, et non parce qu'il n'y
+/// aurait rien a reprendre : c'est cette difference que l'ecran met en mots
+/// plutot que d'afficher « 0 sur 0 ».
+#[tokio::test]
+async fn un_poste_sans_aucun_journal_termine_aussitot_sans_rien_a_depouiller() {
+    let bac = Bac::new();
+    let mut marque = Marque::charger(&bac.marque());
+
+    let resume = depouiller(
+        &client_injoignable(),
+        &bac.journaux(),
+        &carte(),
+        horizon(Utc::now()),
+        &mut marque,
+    )
+    .await;
+
+    assert_eq!(resume.journaux_total, 0);
+    assert_eq!(resume.journaux_a_depouiller, 0);
+    assert_eq!(resume.journaux_depouilles, 0);
+    assert_eq!(resume.en_defaut, 0);
+
+    // Ce que le lecteur fait au retour du depouillement : il pose la marque.
+    marque.poser(
+        Utc::now(),
+        resume.journaux_depouilles,
+        resume.journaux_total,
+    );
+    marque.enregistrer().expect("marque ecrite");
+
+    let ecrite = marque_brute(&bac.marque());
+    assert_eq!(ecrite["total"], 0, "obtenu : {ecrite}");
+    assert!(
+        !ecrite["termine_a"].is_null(),
+        "un passage sans journal est alle a son terme : {ecrite}"
+    );
+}
+
+/// Ecrire l'avancement ne fait pas reculer la marque.
+///
+/// POURQUOI ce test plutot que la seule lecture du code : dans un passage, la
+/// date proposee ne recule jamais - les journaux sont repris du plus ancien au
+/// plus recent -, et rien de ce que `depouiller` fait ne peut donc mettre cette
+/// garde a l'epreuve. Elle protege de ce qu'un futur appelant ferait ; sans ce
+/// test, elle pourrait disparaitre sans que rien ne bronche, et un journal deja
+/// depouille redeviendrait a depouiller a chaque ouverture.
+#[test]
+fn ecrire_l_avancement_ne_fait_pas_reculer_la_marque() {
+    let bac = Bac::new();
+    let chemin = bac.marque();
+    let tard = Utc::now();
+    let tot = tard - Duration::hours(3);
+
+    let mut marque = Marque::charger(&chemin);
+    marque.progresser(tard, 10, 40);
+    marque.progresser(tot, 11, 40);
+
+    let relue = Marque::charger(&chemin);
+    assert_eq!(
+        relue.depouille_jusqu_a,
+        Some(tard),
+        "la marque a recule : ce qui etait depouille est redevenu a depouiller"
+    );
+    assert_eq!(
+        relue.journaux, 11,
+        "les deux nombres, eux, suivent le passage"
+    );
+    assert_eq!(relue.total, 40);
+}

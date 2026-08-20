@@ -267,9 +267,15 @@ export function DossiersSurveilles({
     return (
       <>
         {cartographie}
+        {/* La mention couvre TOUS les faits du poste de cet écran, et pas les
+            seuls dossiers : la section « Cette machine » - version, nom,
+            dépouillement - s'efface avec eux hors de l'application (FR-060), et
+            elle n'a pas de mention à elle. Deux mentions côte à côte diraient
+            deux fois la même chose. */}
         <p className="hors-application">
           Ces réglages n&apos;existent que dans l&apos;application Vibe&nbsp;Map&nbsp;: elle seule
-          voit les dossiers de cette machine.
+          voit les dossiers de cette machine, la version qu&apos;elle exécute et où en est son
+          dépouillement.
         </p>
       </>
     );

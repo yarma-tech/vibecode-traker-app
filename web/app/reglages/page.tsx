@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Deconnexion } from "../deconnexion";
 import { Comptes, type Correspondance } from "./comptes";
 import { DossiersSurveilles } from "./dossiers";
+import { CetteMachine } from "./machine";
 
 export default async function PageReglages() {
   const supabase = await createClient();
@@ -85,6 +86,13 @@ export default async function PageReglages() {
       </p>
 
       <DossiersSurveilles heures={heures} baseInjoignable={baseInjoignable(erreurRepos)} />
+
+      {/* Ce que le poste sait de lui-même : la version qu'il exécute à côté du
+          nom de la machine (FR-068), et où en est son dépouillement (FR-050).
+          Après les dossiers, et non avant : hors de l'application, la section
+          s'efface, et c'est la mention de FR-060 juste au-dessus qui la
+          couvre. */}
+      <CetteMachine />
     </main>
   );
 }

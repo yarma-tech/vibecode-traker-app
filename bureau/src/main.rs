@@ -109,6 +109,7 @@ fn main() {
             relancer_le_lecteur,
             arreter_le_lecteur,
             dossiers_surveilles,
+            contexte_du_poste,
             ajouter_un_dossier,
             ouvrir_l_autorisation,
             declarer_la_machine,
@@ -430,6 +431,22 @@ fn etat_du_lecteur(etat: State<EtatCourant>) -> EtatLecteur {
 #[tauri::command]
 fn dossiers_surveilles() -> Surveillance {
     bureau::dossiers::dossiers_du_poste()
+}
+
+/// « Lire le contexte » : ce que le poste sait de lui-meme - la version qu'il
+/// execute, le nom de cette machine, et ou en est le depouillement du passe
+/// (FR-050, FR-065, FR-068).
+///
+/// Des faits du poste, comme les dossiers surveilles : la base ne porte ni le
+/// numero de version de l'application qui tourne ici, ni l'avancement d'un
+/// depouillement qui n'a lieu que sur cette machine (FR-059).
+///
+/// Elle ne recoit rien et ne rend qu'un constat. L'ecran la redemande sans
+/// cesse ; c'est ainsi que l'avancement du depouillement se voit bouger sans
+/// recharger la page.
+#[tauri::command]
+fn contexte_du_poste() -> bureau::contexte::Contexte {
+    bureau::contexte::contexte_du_poste()
 }
 
 /// « Ajouter un dossier » : ouvre le selecteur du systeme, inscrit le dossier

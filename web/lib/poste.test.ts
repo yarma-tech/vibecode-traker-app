@@ -1,19 +1,23 @@
 import { describe, it, expect } from "vitest";
 import {
   aDecouvrirDuPoste,
+  avancementDepouillement,
   bandeauDuLecteur,
   compteDepots,
   derniereCartographie,
   echecDeLaRedemande,
   etatCartographie,
+  journauxDepouilles,
   ligneDossier,
   pontOuvert,
   sectionDossiers,
+  sectionPoste,
   silenceCartographie,
   suiteDeLAjout,
   suiteDeLaReautorisation,
   suiteDuRetrait,
   type DossierSurveille,
+  type FaitsDuPoste,
   type Surveillance,
 } from "./poste";
 
@@ -875,5 +879,164 @@ describe("bandeauDuLecteur - ne parle que quand ça cloche", () => {
     if (!bandeau.visible) return;
     expect(bandeau.explication).toContain("vibemap");
     expect(bandeau.relance).toBe(true);
+  });
+});
+
+// Les faits que le poste sait de lui-même : sa version, son nom, et où en est
+// son dépouillement (FR-050, FR-065, FR-068). Comme les dossiers, ils viennent
+// du pont et de lui seul ; comme eux, ils cèdent la place à la mention de
+// FR-060 dans un navigateur ordinaire.
+
+/** Un poste qui répond, avec le dépouillement qu'on lui donne. */
+function poste(reste: Partial<FaitsDuPoste> = {}): FaitsDuPoste {
+  return {
+    version: "0.1.0",
+    machine: "MacBook de Yarma",
+    depouillement: { etat: "jamais" },
+    ...reste,
+  };
+}
+
+/** Un instant de référence, pour que rien ne dépende de l'horloge réelle. */
+const MIDI = Date.parse("2026-08-19T12:00:00Z");
+
+describe("sectionPoste - ce que la section montre (FR-060)", () => {
+  it("sans pont : rien à montrer, et la mention des dossiers couvre le reste", () => {
+    expect(sectionPoste(null)).toEqual({ quoi: "hors_application" });
+  });
+
+  it("avec pont : la version, le nom de la machine et le dépouillement", () => {
+    const faits = poste();
+    expect(sectionPoste(faits)).toEqual({ quoi: "faits", faits });
+  });
+
+  it("un pont présent mais muet ne se déguise pas en navigateur ordinaire", () => {
+    expect(sectionPoste({ etat: "sans_reponse", raison: "le pont n'a rien rendu" })).toEqual({
+      quoi: "sans_reponse",
+      raison: "le pont n'a rien rendu",
+    });
+  });
+
+  it("un poste qui ne sait pas se nommer garde sa version : c'est ce qu'on venait lire", () => {
+    const section = sectionPoste(poste({ machine: null }));
+    expect(section.quoi).toBe("faits");
+    if (section.quoi !== "faits") return;
+    expect(section.faits.machine).toBeNull();
+    expect(section.faits.version).toBe("0.1.0");
+  });
+});
+
+describe("avancementDepouillement - un dépouillement en cours (FR-050)", () => {
+  it("montre les deux nombres : les journaux dépouillés sur le total", () => {
+    const vu = avancementDepouillement(
+      { etat: "en_cours", journaux: 120, total: 400 },
+      MIDI,
+    );
+    expect(vu.etat).toBe("en_cours");
+    expect(vu.texte).toBe("120 journaux dépouillés sur 400");
+  });
+
+  it("le premier journal ne se dit pas au pluriel", () => {
+    const vu = avancementDepouillement({ etat: "en_cours", journaux: 1, total: 400 }, MIDI);
+    expect(vu.texte).toBe("1 journal dépouillé sur 400");
+  });
+
+  it("une reprise repart de son avancement, jamais de zéro (FR-049, FR-078)", () => {
+    // Quatre cents journaux dépouillés hier, vingt écrits depuis. « 0 sur 20 »
+    // donnerait à croire que tout est à refaire ; c'est précisément ce que cette
+    // tranche rend observable.
+    const vu = avancementDepouillement({ etat: "en_cours", journaux: 400, total: 420 }, MIDI);
+    expect(vu.texte).toBe("400 journaux dépouillés sur 420");
+    expect(vu.texte).not.toContain("0 sur 20");
+  });
+});
+
+describe("avancementDepouillement - un dépouillement terminé (FR-050)", () => {
+  it("dit quand il s'est terminé, et depuis combien de temps", () => {
+    const vu = avancementDepouillement(
+      { etat: "termine", quand: "2026-08-19T11:58:00Z", journaux: 400 },
+      MIDI,
+    );
+    expect(vu.etat).toBe("termine");
+    if (vu.etat !== "termine") return;
+    expect(vu.age).toBe("2 min");
+    expect(vu.quand).toBe(Date.parse("2026-08-19T11:58:00Z"));
+    expect(vu.texte).toContain("terminé il y a 2 min");
+  });
+
+  it("l'horloge est reçue en paramètre : la même fin vieillit avec l'écran", () => {
+    const fini = { etat: "termine", quand: "2026-08-19T11:58:00Z", journaux: 400 } as const;
+    const tout_de_suite = avancementDepouillement(fini, MIDI);
+    const deux_heures_plus_tard = avancementDepouillement(fini, MIDI + 2 * 3600_000);
+    expect(tout_de_suite.texte).not.toBe(deux_heures_plus_tard.texte);
+  });
+
+  it("une heure illisible n'efface pas le fait : le dépouillement s'est terminé", () => {
+    const vu = avancementDepouillement(
+      { etat: "termine", quand: "pas une date", journaux: 400 },
+      MIDI,
+    );
+    expect(vu.etat).toBe("termine");
+    if (vu.etat !== "termine") return;
+    expect(vu.quand).toBeNull();
+    expect(vu.age).toBeNull();
+    expect(vu.texte).toContain("terminé");
+    expect(vu.texte).not.toContain("NaN");
+  });
+});
+
+describe("avancementDepouillement - rien à dépouiller, et jamais commencé", () => {
+  it("un Mac sans aucun journal le dit tout de suite (FR-065)", () => {
+    const vu = avancementDepouillement({ etat: "rien_a_depouiller" }, MIDI);
+    expect(vu.etat).toBe("rien");
+    expect(vu.texte).toBe("aucun journal à dépouiller sur cette machine");
+  });
+
+  it("ce même Mac ne montre ni « 0 sur 0 » ni un avancement figé", () => {
+    const vu = avancementDepouillement({ etat: "rien_a_depouiller" }, MIDI);
+    // Aucun chiffre du tout : « 0 sur 0 » se lirait comme un dépouillement qui
+    // n'avance pas, et « 0 journal » comme un compte en attente d'un autre.
+    expect(vu.texte).not.toMatch(/\d/);
+  });
+
+  it("un avancement sans dénominateur ne s'affiche pas comme « 0 sur 0 »", () => {
+    // Le poste ne rend pas cette forme-là, mais l'écran ne doit pas afficher un
+    // avancement qui ne peut pas bouger si cela arrivait.
+    const vu = avancementDepouillement({ etat: "en_cours", journaux: 0, total: 0 }, MIDI);
+    expect(vu.etat).toBe("rien");
+    expect(vu.texte).not.toContain("0 sur 0");
+  });
+
+  it("un dépouillement jamais commencé ne se donne pas pour un dépouillement sans journal", () => {
+    const vu = avancementDepouillement({ etat: "jamais" }, MIDI);
+    expect(vu.etat).toBe("jamais");
+    expect(vu.texte).toBe("en attente du premier dépouillement");
+  });
+
+  it("les quatre cas rendent quatre phrases distinctes : aucun ne se lit pour un autre", () => {
+    const phrases = [
+      avancementDepouillement({ etat: "jamais" }, MIDI).texte,
+      avancementDepouillement({ etat: "rien_a_depouiller" }, MIDI).texte,
+      avancementDepouillement({ etat: "en_cours", journaux: 120, total: 400 }, MIDI).texte,
+      avancementDepouillement(
+        { etat: "termine", quand: "2026-08-19T11:58:00Z", journaux: 400 },
+        MIDI,
+      ).texte,
+    ];
+    expect(new Set(phrases).size).toBe(phrases.length);
+  });
+});
+
+describe("journauxDepouilles - une phrase, pas une case de tableau", () => {
+  it("aucun journal", () => {
+    expect(journauxDepouilles(0)).toBe("0 journaux dépouillés");
+  });
+
+  it("un seul journal reste au singulier", () => {
+    expect(journauxDepouilles(1)).toBe("1 journal dépouillé");
+  });
+
+  it("plusieurs journaux", () => {
+    expect(journauxDepouilles(400)).toBe("400 journaux dépouillés");
   });
 });

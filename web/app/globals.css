@@ -2705,3 +2705,59 @@ code {
     margin-left: 0;
   }
 }
+
+/* ---------- reglages : ce que cette machine sait d'elle-meme (#81, #85) ---------- */
+
+/* La version a cote du nom de la machine (FR-068), et l'avancement du
+   depouillement (FR-050). Meme facture que la ligne de la derniere
+   cartographie - meme famille de faits, meme place dans l'oeil : un constat
+   date, pas un reglage sur lequel agir. Ces faits-la viennent du pont, et non
+   de la base : hors de l'application, la section entiere s'efface (FR-060). */
+.poste-fait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0 0 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* La derniere ligne de la section ferme la page : sans cette marge, elle
+   collerait au bord bas du tableau. */
+.poste-fait:last-child {
+  margin-bottom: 1.2rem;
+}
+
+.poste-quoi {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Le point median separe les trois temps de la ligne - ce que c'est, sa valeur,
+   sa precision - sans ajouter de ponctuation au texte lui-meme. */
+.poste-valeur::before,
+.poste-precision::before {
+  content: "\00b7";
+  margin-right: 0.4rem;
+  color: var(--rule-2);
+}
+
+.poste-valeur {
+  color: var(--ink-2);
+  font-weight: 620;
+}
+
+/* Un depouillement qui court n'est pas un fait acquis : l'italique le distingue
+   d'un compte arrete, comme « cartographie en cours » le fait de son heure. Le
+   texte porte le sens a lui seul - deux nombres qui bougent -, la forme ne fait
+   que le souligner. */
+.poste-en-cours {
+  font-style: italic;
+}
+
+.poste-precision {
+  color: var(--ink-3);
+}

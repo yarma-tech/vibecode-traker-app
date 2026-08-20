@@ -778,3 +778,139 @@ export function bandeauDuLecteur(lecteur: EtatLecteur | null): BandeauLecteur {
     relance: true,
   };
 }
+
+/* ---------- ce que le poste sait de lui-même (FR-050, FR-065, FR-068) ---------- */
+
+/**
+ * Où en est le dépouillement des trente derniers jours de journaux, tel que le
+ * pont le rend (`bureau/src/contexte.rs`).
+ *
+ * Quatre états qui ne se confondent pas, et c'est tout l'objet de cette
+ * tranche : « rien à dépouiller » n'est pas « 0 sur 0 », « jamais commencé »
+ * n'est pas « terminé ». Chacun appelle une phrase différente parce qu'aucun ne
+ * dit la même chose de ce qui va se passer ensuite.
+ */
+export type Depouillement =
+  | { etat: "jamais" }
+  | { etat: "rien_a_depouiller" }
+  | { etat: "en_cours"; journaux: number; total: number }
+  | { etat: "termine"; quand: string; journaux: number };
+
+/** Ce que la commande de pont « lire le contexte » rend du poste. */
+export type FaitsDuPoste = {
+  /** Le numéro que l'application porte, fixé à sa compilation (FR-068). */
+  version: string;
+  /**
+   * Le nom de cette machine, identique à celui de la liste des machines.
+   * `null` quand le poste ne sait pas le dire : l'écran se tait alors plutôt
+   * que d'afficher un nom inventé à la place de celui du Mac.
+   */
+  machine: string | null;
+  depouillement: Depouillement;
+};
+
+/**
+ * Ce que la fenêtre a obtenu en demandant. `null` dit qu'il n'y a pas de pont à
+ * qui demander - le navigateur ordinaire de FR-060.
+ */
+export type ReponseContexte =
+  | FaitsDuPoste
+  | { etat: "sans_reponse"; raison: string }
+  | null;
+
+/**
+ * Ce que la section montre, ou ce qui la remplace.
+ *
+ * - « hors application » : pas de pont. La section entière s'efface, et la
+ *   mention de FR-060 - une seule, celle des dossiers - la couvre. Deux
+ *   mentions côte à côte sur le même écran diraient deux fois la même chose.
+ * - « sans réponse » : le pont est là et n'a rien rendu. Il ne doit pas se
+ *   déguiser en navigateur ordinaire : ici, quelque chose cloche.
+ * - « faits » : la version, le nom de la machine, le dépouillement.
+ */
+export type SectionPoste =
+  | { quoi: "hors_application" }
+  | { quoi: "sans_reponse"; raison: string }
+  | { quoi: "faits"; faits: FaitsDuPoste };
+
+export function sectionPoste(reponse: ReponseContexte): SectionPoste {
+  if (reponse === null) return { quoi: "hors_application" };
+  if ("etat" in reponse) return { quoi: "sans_reponse", raison: reponse.raison };
+  return { quoi: "faits", faits: reponse };
+}
+
+/**
+ * L'avancement du dépouillement, mis en mots (FR-050, FR-065).
+ *
+ * `quand` et `age` n'accompagnent que le terme : c'est l'écran qui met l'heure
+ * en forme dans le fuseau du lecteur, comme il le fait de la dernière
+ * cartographie. `maintenant` est reçu en paramètre, jamais lu : un test qui
+ * dépendrait de l'horloge réelle deviendrait rouge un jour sans que rien n'ait
+ * changé.
+ */
+export type Avancement =
+  | { etat: "jamais"; texte: string }
+  | { etat: "rien"; texte: string }
+  | { etat: "en_cours"; texte: string; journaux: number; total: number }
+  | { etat: "termine"; texte: string; quand: number | null; age: string | null };
+
+/**
+ * FR-065 : sur un Mac où Claude Code n'a jamais tourné, il n'y a rien à
+ * dépouiller, et le dire tout de suite est ce qui évite d'attendre un
+ * avancement qui ne bougera jamais.
+ */
+const RIEN_A_DEPOUILLER = "aucun journal à dépouiller sur cette machine";
+
+/** Tant que le lecteur n'a pas ouvert son premier journal, il n'y a pas encore
+ * d'avancement à montrer - et ce n'est pas un dépouillement qui n'a rien
+ * trouvé. */
+const PAS_ENCORE = "en attente du premier dépouillement";
+
+export function avancementDepouillement(
+  depouillement: Depouillement,
+  maintenant: number,
+): Avancement {
+  if (depouillement.etat === "jamais") {
+    return { etat: "jamais", texte: PAS_ENCORE };
+  }
+
+  if (depouillement.etat === "rien_a_depouiller") {
+    return { etat: "rien", texte: RIEN_A_DEPOUILLER };
+  }
+
+  if (depouillement.etat === "en_cours") {
+    const { journaux, total } = depouillement;
+    // Un avancement sans dénominateur ne dit rien : « 0 sur 0 » se lirait comme
+    // un dépouillement figé, alors qu'il n'y a rien à dépouiller (FR-065). Le
+    // poste ne le rend pas sous cette forme ; l'écran ne doit pas pour autant
+    // l'afficher si cela arrivait.
+    if (total === 0) return { etat: "rien", texte: RIEN_A_DEPOUILLER };
+    return {
+      etat: "en_cours",
+      texte: `${journauxDepouilles(journaux)} sur ${total}`,
+      journaux,
+      total,
+    };
+  }
+
+  const fait = journauxDepouilles(depouillement.journaux);
+  const quand = Date.parse(depouillement.quand);
+
+  // Une heure qu'on ne sait pas lire n'efface pas le fait : le dépouillement
+  // s'est bien terminé, et c'est ce qui compte le plus des deux.
+  if (Number.isNaN(quand)) {
+    return { etat: "termine", texte: `terminé, ${fait}`, quand: null, age: null };
+  }
+
+  const age = dureeTexte(maintenant - quand);
+  return { etat: "termine", texte: `terminé il y a ${age}, ${fait}`, quand, age };
+}
+
+/**
+ * Le compte, en clair. Comme celui des dépôts : une phrase, pas une case de
+ * tableau - et le singulier tient, parce qu'un « 1 journaux dépouillés » se
+ * remarque plus que le nombre lui-même.
+ */
+export function journauxDepouilles(journaux: number): string {
+  return journaux === 1 ? "1 journal dépouillé" : `${journaux} journaux dépouillés`;
+}
