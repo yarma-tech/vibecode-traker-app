@@ -1601,6 +1601,14 @@ code {
   background: var(--edit-f);
 }
 
+/* Meme raison que pour `.injoignable` : le gris des `.vide-suite` est cale pour
+   le fond papier et tombe sous AA des que le fond se colore. Ces deux etats-la
+   portent un fond, leur phrase reprend donc l'encre pleine. */
+.vide-acheve .vide-suite,
+.vide-muet .vide-suite {
+  color: var(--ink);
+}
+
 /* Le formulaire de creation, seule ecriture de cette issue : un rang de
    champs courts, pas une boite modale — la saisie doit rester une geste,
    pas une interruption. */
