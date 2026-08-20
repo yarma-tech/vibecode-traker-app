@@ -39,6 +39,64 @@ pub struct Activite {
     pub occurred_at: DateTime<Utc>,
 }
 
+/// Les deux dates de derniere touche d'une zone, pretes a partir.
+///
+/// Liste fermee : un chemin de dossier relatif a la racine du depot, et jusqu'a
+/// deux horodatages. Aucun chemin absolu, aucun nom de fichier, aucune session,
+/// aucun nom d'agent (FR-045) - la structure n'a pas de champ ou les loger.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DerniereTouche {
+    /// Dossier relatif a la racine du depot. La racine porte la chaine vide.
+    pub chemin: String,
+    pub derniere_ecriture: Option<DateTime<Utc>>,
+    pub derniere_lecture: Option<DateTime<Utc>>,
+}
+
+impl DerniereTouche {
+    /// Ramene un lot d'appels d'outils a une touche par zone.
+    ///
+    /// Une ecriture ne renseigne que la date d'ecriture, une lecture que celle
+    /// de lecture : c'est ce qui fait que l'une ne chasse jamais l'autre
+    /// (FR-039, FR-040). L'ordre d'arrivee des evenements n'a pas d'importance,
+    /// on ne garde que la date la plus recente de chaque nature.
+    pub fn depuis_activites(evenements: &[Activite]) -> Vec<Self> {
+        let mut par_zone: BTreeMap<&str, Self> = BTreeMap::new();
+
+        for evenement in evenements {
+            let touche = par_zone
+                .entry(&evenement.module_path)
+                .or_insert_with(|| Self {
+                    chemin: evenement.module_path.clone(),
+                    derniere_ecriture: None,
+                    derniere_lecture: None,
+                });
+            let date = match evenement.kind {
+                "write" => &mut touche.derniere_ecriture,
+                _ => &mut touche.derniere_lecture,
+            };
+            *date = Some(match *date {
+                Some(connue) => connue.max(evenement.occurred_at),
+                None => evenement.occurred_at,
+            });
+        }
+
+        par_zone.into_values().collect()
+    }
+
+    /// Ce qui part sur le reseau pour cette zone, et rien de plus.
+    ///
+    /// Le seul endroit ou la charge utile est construite : un champ qui
+    /// s'ajouterait ailleurs ne partirait pas, et un champ ajoute ici tombe
+    /// sous le test qui compte les cles.
+    pub fn charge(&self) -> serde_json::Value {
+        json!({
+            "chemin":  self.chemin,
+            "ecrit_a": self.derniere_ecriture,
+            "lu_a":    self.derniere_lecture,
+        })
+    }
+}
+
 /// La consommation d'une session, agregee et prete a partir.
 ///
 /// Les jetons s'additionnent au fil des reponses de l'agent ; le modele et les
@@ -421,7 +479,46 @@ impl Supabase {
             )
             .await?;
 
+        // Les evenements bruts sont purges a sept jours : les deux dates de
+        // derniere touche se posent maintenant ou jamais. On les tient meme
+        // quand aucune ligne n'a ete creee - un lot deja connu, rejoue par la
+        // file d'attente, n'a rien a poser mais rien a defaire non plus.
+        self.pousser_dernieres_touches(repo_id, &DerniereTouche::depuis_activites(evenements))
+            .await?;
+
         Ok(poses.as_array().map(Vec::len).unwrap_or(0))
+    }
+
+    /// Tient les deux dates de derniere touche des zones d'un depot, et rend le
+    /// nombre de zones ecrites.
+    ///
+    /// Canal partage : la lecture vivante des journaux passe par ici, et le
+    /// depouillement du passe (F9) y passera. Aucun des deux n'a besoin de
+    /// savoir ce qui est deja en base : la monotonie est tenue cote agregat,
+    /// une date plus ancienne que celle en place est ignoree sans erreur.
+    pub async fn pousser_dernieres_touches(
+        &self,
+        repo_id: &str,
+        touches: &[DerniereTouche],
+    ) -> Result<usize, ApiError> {
+        if touches.is_empty() {
+            return Ok(0);
+        }
+
+        let lignes: Vec<_> = touches.iter().map(DerniereTouche::charge).collect();
+
+        let reponse = self
+            .envoyer(
+                "rpc/noter_dernieres_touches",
+                None,
+                json!({
+                    "p_repo_id": repo_id,
+                    "p_touches": lignes,
+                }),
+            )
+            .await?;
+
+        Ok(reponse.as_u64().unwrap_or(0) as usize)
     }
 
     /// Annonce la consommation de chaque session, jetons et modele compris.

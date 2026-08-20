@@ -1150,4 +1150,84 @@ impl TestContext {
                 .expect("last_seen_at doit etre une date valide")
         })
     }
+
+    /// Les deux dates de chaque parcelle dessinee, telles que la carte les
+    /// lira : heritage par prefixe compris, zones disparues exclues.
+    pub async fn touches_modules(&self, repo_id: &str) -> Vec<Value> {
+        self.appeler("touches_modules", json!({ "p_repo_id": repo_id }))
+            .await
+    }
+
+    /// Relit l'agregat brut d'un repo en contournant la RLS.
+    ///
+    /// Distinct de `touches_modules` a dessein : c'est la seule facon de voir
+    /// qu'une ligne survit a la disparition de sa zone de la carte.
+    pub async fn lire_dernieres_touches(&self, repo_id: &str) -> Vec<Value> {
+        self.lire(&format!(
+            "dernieres_touches?repo_id=eq.{repo_id}&select=*&order=chemin"
+        ))
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+    }
+
+    /// Efface les zones d'un repo sans toucher a son agregat : ce que fait la
+    /// cartographie avant de repousser sa carte.
+    pub async fn supprimer_modules(&self, repo_id: &str) {
+        self.supprimer(&format!("modules?repo_id=eq.{repo_id}"))
+            .await;
+    }
+
+    /// Supprime un repo, la seule facon d'emporter son agregat (en cascade).
+    pub async fn supprimer_repo(&self, repo_id: &str) {
+        self.supprimer(&format!("repos?id=eq.{repo_id}")).await;
+    }
+
+    /// Tente d'effacer une ligne d'agregat avec le jeton d'une machine : sert a
+    /// eprouver qu'aucun droit de suppression n'a ete accorde.
+    pub async fn tenter_supprimer_touche_avec_jeton(
+        &self,
+        jeton: &str,
+        repo_id: &str,
+        chemin: &str,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .delete(format!(
+                "{}/rest/v1/dernieres_touches?repo_id=eq.{repo_id}&chemin=eq.{chemin}",
+                self.url
+            ))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .header("Prefer", "return=representation")
+            .send()
+            .await
+            .expect("tentative de suppression d'une derniere touche");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        if texte.trim() == "[]" {
+            return Err((code, "aucune ligne effacee".to_string()));
+        }
+        Ok(())
+    }
+
+    /// Suppression de service qui refuse d'echouer en silence.
+    async fn supprimer(&self, chemin: &str) {
+        let reponse = self
+            .http
+            .delete(format!("{}/rest/v1/{}", self.url, chemin))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .send()
+            .await
+            .expect("requete de service");
+
+        let code = reponse.status();
+        assert!(code.is_success(), "DELETE {chemin} a echoue ({code})");
+    }
 }
