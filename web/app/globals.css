@@ -2385,7 +2385,11 @@ code {
 .cartographie-en-cours::before,
 .cartographie-age::before {
   content: "\00b7";
-  margin-right: 0.4rem;
+  /* Marge des DEUX cotes : les elements de la ligne se suivent sans espace
+     dans le balisage - un saut de ligne entre deux elements n'en produit
+     aucune - donc sans marge a gauche le point collerait au mot precedent
+     tout en flottant loin du suivant. */
+  margin-inline: 0.4rem;
   color: var(--rule-2);
 }
 
@@ -2741,7 +2745,9 @@ code {
 .poste-valeur::before,
 .poste-precision::before {
   content: "\00b7";
-  margin-right: 0.4rem;
+  /* Meme raison que pour la ligne de cartographie : rien ne separe ces
+     elements dans le balisage, la marge doit donc venir des deux cotes. */
+  margin-inline: 0.4rem;
   color: var(--rule-2);
 }
 
