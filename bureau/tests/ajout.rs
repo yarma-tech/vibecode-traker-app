@@ -152,7 +152,7 @@ fn un_ajout_rend_la_liste_entiere_avec_le_compte_du_nouveau_dossier() {
 
     let Ajout::Ajoute {
         chemin,
-        surveillance: Surveillance::Lue { dossiers },
+        surveillance: Surveillance::Lue { dossiers, .. },
     } = ajouter(&config, &choisi)
     else {
         panic!("un ajout abouti rend la liste des dossiers surveilles");
@@ -497,7 +497,7 @@ fn un_dossier_ajoute_est_surveille_sans_fermer_l_application() {
     let Ajout::Ajoute { surveillance, .. } = &ajout else {
         panic!("l'ajout devait aboutir, obtenu : {ajout:?}");
     };
-    let Surveillance::Lue { dossiers } = surveillance else {
+    let Surveillance::Lue { dossiers, .. } = surveillance else {
         panic!("la liste rendue devait etre lue, obtenu : {surveillance:?}");
     };
     assert_eq!(

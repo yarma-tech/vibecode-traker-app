@@ -2388,6 +2388,9 @@ code {
    depuis combien - sans y ajouter de ponctuation dans le texte lui-meme. */
 .cartographie-quand::before,
 .cartographie-jamais::before,
+.cartographie-inconnue::before,
+.cartographie-pourquoi::before,
+.cartographie-en-cours::before,
 .cartographie-age::before {
   content: "\00b7";
   margin-right: 0.4rem;
@@ -2407,6 +2410,26 @@ code {
   font-style: italic;
 }
 
+/* Base injoignable (FR-085) : on ne SAIT pas, et cela ne se lit pas comme
+   « jamais ». L'ambre des avertissements le distingue au premier coup d'oeil,
+   mais c'est le mot « inconnue » qui porte le sens - jamais la couleur seule. */
+.cartographie-inconnue {
+  color: var(--edit);
+  font-weight: 620;
+}
+
+.cartographie-pourquoi {
+  color: var(--ink-3);
+}
+
+/* FR-074 : une cartographie en cours se signale A COTE de l'heure connue,
+   jamais a sa place. D'ou une marque a part, en fin de ligne, et non un
+   remplacement du champ date. */
+.cartographie-en-cours {
+  color: var(--ink-2);
+  font-style: italic;
+}
+
 .dossiers {
   list-style: none;
   margin: 0;
@@ -2414,12 +2437,30 @@ code {
   border-top: 1px solid var(--rule);
 }
 
+/* La ligne peut porter une explication sous elle (FR-076) : le rang est donc
+   une colonne, et c'est `.dossier-ligne` qui tient le chemin et le compte aux
+   deux bords. */
 .dossier {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.dossier-ligne {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid var(--rule);
+}
+
+/* FR-076 : pourquoi ce dossier ne rend aucun depot. Elle ne parait que sur un
+   compte nul, en retrait sous le chemin - c'est une note de bas de ligne, pas
+   un second titre. */
+.dossier-explication {
+  display: block;
+  margin-top: 0.25rem;
+  max-width: 62ch;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--ink-3);
 }
 
 .dossier-chemin {

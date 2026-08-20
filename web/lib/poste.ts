@@ -44,9 +44,20 @@ export type DossierSurveille = {
   depots: number | null;
 };
 
+/**
+ * Ce que le poste dit qu'il y a à cartographier (FR-087).
+ *
+ * Un fait du poste, et il le reste : quand une cartographie a abouti sans
+ * trouver aucun dépôt, la base ne porte AUCUNE heure - il n'y a pas de dépôt
+ * pour en porter une. Sans ce fait, l'écran conclurait « jamais cartographié »
+ * à un poste qui l'a été. « inconnu » se garde pour un dossier qu'on n'a pas pu
+ * ouvrir : il porte peut-être cinquante dépôts.
+ */
+export type ADecouvrir = "des_depots" | "rien" | "inconnu";
+
 /** La réponse du pont à « lister les dossiers surveillés ». */
 export type Surveillance =
-  | { etat: "lue"; dossiers: DossierSurveille[] }
+  | { etat: "lue"; dossiers: DossierSurveille[]; a_decouvrir?: ADecouvrir }
   | { etat: "sans_configuration"; raison: string };
 
 /**
@@ -124,17 +135,40 @@ export function sectionDossiers(reponse: ReponseDuPont): SectionDossiers {
   return { quoi: "liste", dossiers: reponse.dossiers };
 }
 
+/**
+ * Ce que le poste dit qu'il y a à cartographier, ou `null` quand personne n'est
+ * là pour le dire (FR-087).
+ *
+ * `null` hors de l'application - FR-060 retire les faits du poste -, et `null`
+ * aussi quand le pont n'a pas su lire la configuration : conclure « rien à
+ * cartographier » d'une liste qu'on n'a pas pu lire serait affirmer ce qu'on ne
+ * sait pas. L'écran s'en tient alors à ce que la base porte.
+ */
+export function aDecouvrirDuPoste(reponse: ReponseDuPont): ADecouvrir | null {
+  if (reponse === null || reponse.etat !== "lue") return null;
+  return reponse.a_decouvrir ?? null;
+}
+
 /* ---------- la ligne d'un dossier (FR-028, FR-029) ---------- */
 
 /**
- * Ce qu'une ligne dit d'un dossier : son compte de dépôts, et le signal qui le
- * remplace quand le dossier ne se lit pas.
+ * Ce qu'une ligne dit d'un dossier : son compte de dépôts, ce qui l'explique
+ * quand il est nul, et le signal qui remplace le tout quand le dossier ne se lit
+ * pas.
  *
  * `signal` est `null` pour un dossier lisible : c'est ce qui distingue une
  * ligne ordinaire d'une ligne à signaler (FR-029). Le texte porte le sens à
  * lui seul - jamais la couleur seule.
+ *
+ * `explication` ne paraît que sur un compte nul (FR-076) : c'est le seul cas où
+ * le compte, à lui seul, ne dit pas pourquoi. Sur une ligne qui affiche des
+ * dépôts, elle serait du bruit.
  */
-export type LigneDossier = { compte: string | null; signal: string | null };
+export type LigneDossier = {
+  compte: string | null;
+  explication: string | null;
+  signal: string | null;
+};
 
 const SIGNAUX: Record<Exclude<Lisibilite, "lisible">, string> = {
   introuvable: "Dossier introuvable",
@@ -142,13 +176,54 @@ const SIGNAUX: Record<Exclude<Lisibilite, "lisible">, string> = {
   pas_un_dossier: "Pas un dossier",
 };
 
-export function ligneDossier(dossier: DossierSurveille): LigneDossier {
+/**
+ * FR-076 : ce qui a été cherché, en clair.
+ *
+ * POURQUOI cette phrase-là : la cartographie ne regarde que les enfants DIRECTS
+ * d'un dossier surveillé. Le geste le plus probable au sélecteur du système -
+ * ouvrir le dossier d'un projet et le choisir - désigne donc un dossier qui est
+ * lui-même un dépôt, et ne remonte rien. « aucun dépôt » tout seul laisserait
+ * chercher la panne ailleurs ; nommer le critère et le geste qui corrige est ce
+ * qui fait la différence entre une ligne muette et une réponse.
+ */
+const RIEN_TROUVE =
+  "Un dépôt est un dossier qui contient un .git, parmi les enfants directs de celui-ci. " +
+  "Si ce dossier est lui-même un dépôt, ajoutez plutôt le dossier qui le contient.";
+
+/**
+ * FR-074 : tant qu'aucune cartographie n'a jamais abouti, un compte de zéro se
+ * lirait « ce dossier est vide » alors que rien n'a encore été regardé. La ligne
+ * annonce une attente à la place.
+ */
+const ATTENTE = "en attente de la première cartographie";
+
+/**
+ * `silence` est ce que l'écran sait de la dernière cartographie : il change ce
+ * qu'une ligne peut honnêtement dire de son compte. Sur un poste jamais
+ * cartographié, aucun compte ne veut encore dire quoi que ce soit.
+ */
+export function ligneDossier(dossier: DossierSurveille, silence: Silence): LigneDossier {
   if (dossier.lisibilite !== "lisible" || dossier.depots === null) {
     // Pas de compte du tout : un « 0 dépôt » sur une ligne signalée
     // enverrait chercher des dépôts absents d'un dossier qui, lui, est absent.
-    return { compte: null, signal: SIGNAUX[signalable(dossier.lisibilite)] };
+    // Le signal vaut avant tout le reste, y compris avant l'attente : un dossier
+    // introuvable le restera, cartographie ou pas.
+    return {
+      compte: null,
+      explication: null,
+      signal: SIGNAUX[signalable(dossier.lisibilite)],
+    };
   }
-  return { compte: compteDepots(dossier.depots), signal: null };
+
+  if (silence === "jamais") {
+    return { compte: ATTENTE, explication: null, signal: null };
+  }
+
+  return {
+    compte: compteDepots(dossier.depots),
+    explication: dossier.depots === 0 ? RIEN_TROUVE : null,
+    signal: null,
+  };
 }
 
 /**
@@ -183,9 +258,17 @@ export function compteDepots(depots: number): string {
  * `null` dit qu'il n'y avait pas de pont à qui demander - hors de
  * l'application, le bouton n'existe pas.
  */
+/**
+ * Comment le dossier choisi rencontre un dossier déjà surveillé (FR-075). Les
+ * trois se refusent, et ils ne se corrigent pas de la même façon : d'où trois
+ * phrases, et non « déjà surveillé » pour tout le monde.
+ */
+export type Emboitement = "meme" | "contenu" | "contient";
+
 export type ReponseAjout =
   | { issue: "ajoute"; chemin: string; surveillance: Surveillance }
   | { issue: "annule" }
+  | { issue: "refuse"; chemin: string; deja: string; cas: Emboitement }
   | { issue: "echoue"; raison: string }
   | null;
 
@@ -211,6 +294,16 @@ export function suiteDeLAjout(reponse: ReponseAjout): SuiteAjout {
     return { annonce: null, surveillance: null };
   }
 
+  if (reponse.issue === "refuse") {
+    // Rien n'a été écrit, et la liste affichée est déjà la bonne : c'est même
+    // tout le sens du refus. La remplacer ferait clignoter une section qui n'a
+    // pas bougé.
+    return {
+      annonce: { ton: "echec", texte: refusDAjout(reponse) },
+      surveillance: null,
+    };
+  }
+
   if (reponse.issue === "echoue") {
     return {
       annonce: {
@@ -231,6 +324,37 @@ export function suiteDeLAjout(reponse: ReponseAjout): SuiteAjout {
     },
     surveillance: reponse.surveillance,
   };
+}
+
+/**
+ * Le refus, en clair (FR-037, FR-075).
+ *
+ * Trois exigences tiennent ensemble dans chacune de ces phrases : elle NOMME le
+ * dossier déjà surveillé qui s'oppose - « déjà surveillé » sans dire lequel
+ * enverrait ouvrir le fichier de configuration, ce que FR-036 interdit -, elle
+ * dit pourquoi c'en est un, et elle dit quoi faire. Les trois cas ne se
+ * corrigent pas de la même façon : le même dossier n'appelle aucun geste, un
+ * dossier contenu s'échange contre un autre choix, un dossier qui en contient un
+ * déjà surveillé demande de retirer d'abord la racine étroite.
+ */
+export function refusDAjout(refus: {
+  chemin: string;
+  deja: string;
+  cas: Emboitement;
+}): string {
+  if (refus.cas === "meme") {
+    return `« ${refus.deja} » est déjà surveillé : ses dépôts sont déjà cartographiés. Rien n'a été ajouté.`;
+  }
+  if (refus.cas === "contenu") {
+    return (
+      `« ${refus.chemin} » est déjà couvert par « ${refus.deja} », qui est surveillé : ses dépôts ` +
+      `remontent déjà de là. Choisissez un dossier situé en dehors de « ${refus.deja} ».`
+    );
+  }
+  return (
+    `« ${refus.chemin} » contient « ${refus.deja} », déjà surveillé : les mêmes dépôts seraient ` +
+    `cartographiés deux fois. Retirez d'abord « ${refus.deja} » de la surveillance.`
+  );
 }
 
 /* ---------- l'heure de la dernière cartographie (FR-030, FR-086) ---------- */
@@ -258,15 +382,96 @@ export function derniereCartographie(
   heures: ReadonlyArray<string | null | undefined>,
   maintenant: number,
 ): Cartographie {
-  const connues = heures
-    .filter((heure): heure is string => typeof heure === "string" && heure !== "")
-    .map((heure) => Date.parse(heure))
-    .filter((instant) => !Number.isNaN(instant));
-
+  const connues = instantsConnus(heures);
   if (connues.length === 0) return { etat: "jamais" };
 
   const quand = Math.max(...connues);
   return { etat: "connue", quand, age: dureeTexte(maintenant - quand) };
+}
+
+/**
+ * Les heures qu'on sait lire, en millisecondes. Une seule règle de lecture pour
+ * l'agrégat et pour le silence : deux règles finiraient par diverger, et l'écran
+ * dirait « jamais cartographié » à côté d'une heure affichée.
+ */
+function instantsConnus(heures: ReadonlyArray<string | null | undefined>): number[] {
+  return heures
+    .filter((heure): heure is string => typeof heure === "string" && heure !== "")
+    .map((heure) => Date.parse(heure))
+    .filter((instant) => !Number.isNaN(instant));
+}
+
+/* ---------- les trois silences (FR-074, FR-087, issue #69) ---------- */
+
+/**
+ * Ce que l'écran sait de la dernière cartographie.
+ *
+ * Trois silences qui se ressemblent et ne disent pas la même chose - c'est tout
+ * l'objet de cette tranche :
+ *
+ * - « injoignable » : la base n'a pas répondu (FR-085), donc on ne SAIT pas.
+ *   Conclure « jamais » ferait annoncer une panne du poste pour une panne de
+ *   réseau.
+ * - « jamais » : aucune cartographie n'a jamais abouti ici.
+ * - « sans_depot » : une cartographie a abouti et n'a trouvé aucun dépôt. La
+ *   base n'a alors aucune heure à donner, et « jamais » serait un contresens
+ *   (FR-087).
+ * - « connue » : une heure existe, et c'est la plus récente qui s'affiche.
+ */
+export type Silence = "injoignable" | "jamais" | "sans_depot" | "connue";
+
+export type FaitsCartographie = {
+  /** Les heures de cartographie des dépôts, telles que la base les porte. */
+  heures: ReadonlyArray<string | null | undefined>;
+  /** La base a-t-elle refusé de répondre ? (FR-085) */
+  baseInjoignable: boolean;
+  /**
+   * Ce que le poste dit qu'il y a à cartographier. `null` quand personne n'est
+   * là pour le dire - un navigateur ordinaire, où FR-060 retire les faits du
+   * poste : l'écran s'en tient alors à ce que la base porte.
+   */
+  aDecouvrir: ADecouvrir | null;
+};
+
+/**
+ * Lequel des quatre. L'ordre est tout :
+ *
+ * 1. une base muette d'abord, parce qu'elle rend toutes les autres questions
+ *    sans réponse ;
+ * 2. une heure connue ensuite, parce qu'elle est un fait et qu'aucun fait local
+ *    ne la contredit - une cartographie en cours se signale À CÔTÉ d'elle, elle
+ *    ne la remplace pas (FR-074) ;
+ * 3. le fait du poste enfin, qui est la seule chose capable de distinguer « rien
+ *    trouvé » de « jamais rien cherché » ;
+ * 4. et « jamais » en dernier, comme la conclusion qu'on ne tire qu'après avoir
+ *    écarté les trois autres.
+ */
+export function silenceCartographie(faits: FaitsCartographie): Silence {
+  if (faits.baseInjoignable) return "injoignable";
+  if (instantsConnus(faits.heures).length > 0) return "connue";
+  if (faits.aDecouvrir === "rien") return "sans_depot";
+  return "jamais";
+}
+
+/** Ce que la ligne de la dernière cartographie affiche. */
+export type EtatCartographie =
+  | { etat: "injoignable" }
+  | { etat: "jamais" }
+  | { etat: "sans_depot" }
+  | { etat: "connue"; quand: number; age: string };
+
+/**
+ * Le silence, et l'heure quand il y en a une. `maintenant` est reçu en
+ * paramètre, jamais lu : un test qui dépendrait de l'horloge réelle deviendrait
+ * rouge un jour sans que rien n'ait changé.
+ */
+export function etatCartographie(
+  faits: FaitsCartographie,
+  maintenant: number,
+): EtatCartographie {
+  const silence = silenceCartographie(faits);
+  if (silence !== "connue") return { etat: silence };
+  return derniereCartographie(faits.heures, maintenant);
 }
 
 /* ---------- le lecteur, par-dessus l'interface (FR-009, FR-010) ---------- */

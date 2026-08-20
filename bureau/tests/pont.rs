@@ -14,7 +14,7 @@
 
 use std::path::{Path, PathBuf};
 
-use bureau::dossiers::{dossiers_surveilles, regarder, Lisibilite, Surveillance};
+use bureau::dossiers::{dossiers_surveilles, regarder, ADecouvrir, Lisibilite, Surveillance};
 use bureau::sonde::url_de_la_fenetre;
 
 fn bac_a_sable(quoi: &str) -> PathBuf {
@@ -149,6 +149,34 @@ fn le_compte_ne_retient_que_les_enfants_directs_porteurs_d_un_depot() {
     std::fs::remove_dir_all(&bac).ok();
 }
 
+/// Un dossier qui est LUI-MEME un depot ne rend aucun depot (FR-076, issue
+/// #73).
+///
+/// C'est le geste le plus probable au selecteur du systeme - on ouvre le
+/// dossier d'un projet et on le choisit -, et il ne remonte rien : la
+/// cartographie ne regarde que les enfants directs. Le compte le dit ici, et
+/// l'ecran en tire l'explication ; c'est justement parce que ce compte vaut zero
+/// que l'ecran doit nommer ce qui a ete cherche.
+#[test]
+fn un_dossier_qui_est_lui_meme_un_depot_ne_compte_aucun_depot() {
+    let bac = bac_a_sable("depot-lui-meme");
+    let projet = bac.join("vibecode-traker-app");
+    std::fs::create_dir_all(projet.join(".git")).expect("le dossier choisi est un depot");
+    dossier_ordinaire(&projet, "web");
+    dossier_ordinaire(&projet, "daemon");
+
+    let vu = regarder("~/vibecode-traker-app", &projet);
+    assert_eq!(vu.lisibilite, Lisibilite::Lisible);
+    assert_eq!(
+        vu.depots,
+        Some(0),
+        "le `.git` du dossier choisi lui-meme n'en fait pas un enfant direct porteur de depot, \
+         obtenu : {vu:?}"
+    );
+
+    std::fs::remove_dir_all(&bac).ok();
+}
+
 /// Un dossier bien ouvert et vide se dit « zero », jamais « illisible ».
 ///
 /// Les deux se corrigent autrement : l'un attend qu'on y mette un depot,
@@ -239,12 +267,104 @@ fn la_liste_suit_la_configuration_du_lecteur() {
         ],
     );
 
-    let Surveillance::Lue { dossiers } = dossiers_surveilles(&config) else {
+    let Surveillance::Lue { dossiers, .. } = dossiers_surveilles(&config) else {
         panic!("une configuration lisible rend la liste des dossiers");
     };
     assert_eq!(dossiers.len(), 2, "obtenu : {dossiers:?}");
     assert_eq!(dossiers[0].depots, Some(1));
     assert_eq!(dossiers[1].depots, Some(0));
+
+    std::fs::remove_dir_all(&bac).ok();
+}
+
+/* ---------- une cartographie qui a abouti sans rien trouver (FR-087) ---------- */
+
+/// Le fait du poste que la base ne peut pas porter : il n'y a rien a
+/// cartographier ici (issue #69).
+///
+/// POURQUOI il passe par le pont : quand une cartographie aboutit sans trouver
+/// aucun depot, aucune ligne de la base ne porte d'heure - il n'y a pas de depot
+/// pour en porter une. L'ecran conclurait alors « jamais cartographie » a un
+/// poste qui l'a ete, et enverrait chercher une panne la ou il n'y en a pas.
+#[test]
+fn un_poste_dont_les_dossiers_ne_portent_aucun_depot_le_dit() {
+    let bac = bac_a_sable("rien-a-trouver");
+    let surveille = bac.join("Developer");
+    dossier_ordinaire(&surveille, "notes");
+    let config = config_qui_surveille(&bac, &[&surveille.display().to_string()]);
+
+    let Surveillance::Lue { a_decouvrir, .. } = dossiers_surveilles(&config) else {
+        panic!("une configuration lisible rend la liste des dossiers");
+    };
+    assert_eq!(
+        a_decouvrir,
+        ADecouvrir::Rien,
+        "tous les dossiers s'ouvrent et aucun ne porte de depot : une cartographie a beau \
+         aboutir, elle ne rapporte rien"
+    );
+
+    std::fs::remove_dir_all(&bac).ok();
+}
+
+/// Un seul depot suffit a faire attendre une heure de la base : ce poste-la, si
+/// la base n'a rien, n'a jamais ete cartographie.
+#[test]
+fn un_poste_qui_porte_un_depot_attend_une_heure_de_la_base() {
+    let bac = bac_a_sable("des-depots");
+    let vide = bac.join("Vide");
+    let plein = bac.join("Developer");
+    dossier_ordinaire(&bac, "Vide");
+    depot(&plein, "carte");
+    let config = config_qui_surveille(
+        &bac,
+        &[&vide.display().to_string(), &plein.display().to_string()],
+    );
+
+    let Surveillance::Lue { a_decouvrir, .. } = dossiers_surveilles(&config) else {
+        panic!("une configuration lisible rend la liste des dossiers");
+    };
+    assert_eq!(
+        a_decouvrir,
+        ADecouvrir::DesDepots,
+        "un seul dossier porteur suffit : les autres ont beau etre vides"
+    );
+
+    std::fs::remove_dir_all(&bac).ok();
+}
+
+/// Un dossier qu'on n'a pas pu ouvrir ne se conclut pas « rien ».
+///
+/// Il porte peut-etre cinquante depots. Dire « la derniere cartographie n'a rien
+/// trouve » a sa place serait affirmer ce qu'on ne sait pas, et cacher le vrai
+/// probleme - qui est sur la ligne du dossier, juste a cote.
+#[test]
+fn un_dossier_illisible_empeche_de_conclure_que_rien_n_est_a_cartographier() {
+    let bac = bac_a_sable("inconnu");
+    let disparu = bac.join("Developer-renomme");
+    let config = config_qui_surveille(&bac, &[&disparu.display().to_string()]);
+
+    let Surveillance::Lue { a_decouvrir, .. } = dossiers_surveilles(&config) else {
+        panic!("une configuration lisible rend la liste des dossiers");
+    };
+    assert_eq!(a_decouvrir, ADecouvrir::Inconnu);
+
+    std::fs::remove_dir_all(&bac).ok();
+}
+
+/// Le fait se lit tel quel dans la fenetre, a cote de la liste et dans la meme
+/// reponse : deux appels separes pourraient tomber de part et d'autre d'un ajout
+/// et se contredire.
+#[test]
+fn le_fait_du_poste_voyage_avec_la_liste_des_dossiers() {
+    let bac = bac_a_sable("forme-fait");
+    let surveille = bac.join("Developer");
+    dossier_ordinaire(&surveille, "notes");
+    let config = config_qui_surveille(&bac, &[&surveille.display().to_string()]);
+
+    let rendu = serde_json::to_value(dossiers_surveilles(&config)).expect("liste serialisable");
+    assert_eq!(rendu["etat"], "lue");
+    assert_eq!(rendu["a_decouvrir"], "rien");
+    assert_eq!(rendu["dossiers"][0]["depots"], 0);
 
     std::fs::remove_dir_all(&bac).ok();
 }

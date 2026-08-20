@@ -5,8 +5,15 @@
 //! leur autorisation sont des faits du POSTE. Ils n'existent nulle part
 //! ailleurs que sur cette machine - la base ne porte ni les chemins surveilles,
 //! ni le fait qu'un dossier ait ete renomme il y a dix secondes -, et ils ne
-//! sortent pas d'ici. L'heure de la derniere cartographie, elle, ne passe pas
+//! sortent pas d'ici. L'HEURE de la derniere cartographie, elle, ne passe pas
 //! par la : elle vit en base avec le catalogue, et l'ecran l'y lit.
+//!
+//! Le partage n'est pas pour autant « tout ce qui touche a la cartographie va
+//! en base » : le fait qu'il n'y ait RIEN a cartographier ici (FR-087) est un
+//! fait du poste, et il passe par ce module. Quand une cartographie aboutit sans
+//! trouver aucun depot, la base n'a aucune heure a donner - il n'y a pas de
+//! depot pour en porter une -, et l'ecran conclurait « jamais cartographie » a
+//! un poste qui l'a bien ete.
 //!
 //! POURQUOI ces faits se relevent a chaque demande, plutot que de se noter au
 //! demarrage : la question que l'utilisateur pose en ouvrant Reglages est
@@ -64,6 +71,46 @@ pub struct DossierSurveille {
     pub depots: Option<usize>,
 }
 
+/// Y a-t-il quelque chose a cartographier sur ce poste ? (FR-087)
+///
+/// POURQUOI ce fait-la passe par le pont alors que l'heure de la cartographie
+/// vit en base : quand une cartographie a abouti sans trouver aucun depot, la
+/// base ne porte AUCUNE heure - il n'y a pas de depot pour en porter une. Sans
+/// ce fait, l'ecran conclurait « jamais cartographie » a un poste qui l'a ete,
+/// et enverrait chercher une panne la ou il n'y en a pas. La base ne peut pas
+/// le dire ; le poste, si.
+///
+/// « On ne sait pas » se garde pour un dossier qu'on n'a pas pu ouvrir :
+/// conclure « rien » a sa place ferait dire a l'ecran qu'une cartographie a
+/// abouti sur du vide alors qu'elle a peut-etre trouve cinquante depots.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ADecouvrir {
+    /// Au moins un dossier surveille porte un depot : une cartographie qui
+    /// aboutit ici laisse forcement une heure en base.
+    DesDepots,
+    /// Tous les dossiers surveilles s'ouvrent, et aucun ne porte de depot. Une
+    /// cartographie a beau aboutir, elle ne rapporte rien.
+    Rien,
+    /// Un dossier au moins ne s'ouvre pas : on ne conclut pas a sa place.
+    Inconnu,
+}
+
+impl ADecouvrir {
+    fn depuis(dossiers: &[DossierSurveille]) -> ADecouvrir {
+        if dossiers.iter().any(|dossier| dossier.depots.is_none()) {
+            return ADecouvrir::Inconnu;
+        }
+        if dossiers
+            .iter()
+            .any(|dossier| dossier.depots.unwrap_or(0) > 0)
+        {
+            return ADecouvrir::DesDepots;
+        }
+        ADecouvrir::Rien
+    }
+}
+
 /// Ce que la commande du pont rend a l'ecran.
 ///
 /// Une configuration illisible n'est pas une liste vide : l'une dit « aucun
@@ -73,8 +120,17 @@ pub struct DossierSurveille {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(tag = "etat", rename_all = "snake_case")]
 pub enum Surveillance {
-    Lue { dossiers: Vec<DossierSurveille> },
-    SansConfiguration { raison: String },
+    Lue {
+        dossiers: Vec<DossierSurveille>,
+        /// FR-087 : ce fait du poste voyage avec la liste, et non par une
+        /// commande a part. Il se lit sur les MEMES dossiers, au meme instant :
+        /// deux appels separes pourraient tomber de part et d'autre d'un ajout
+        /// et se contredire.
+        a_decouvrir: ADecouvrir,
+    },
+    SansConfiguration {
+        raison: String,
+    },
 }
 
 /// Les dossiers surveilles du poste, lus a l'emplacement habituel de la
@@ -103,14 +159,18 @@ pub fn dossiers_surveilles(chemin_config: &Path) -> Surveillance {
     // `roots` et `racines()` marchent du meme pas : le premier garde l'ecriture
     // de l'utilisateur, le second la deplie. On tient les deux, parce que
     // l'ecran montre l'une et regarde l'autre.
-    let dossiers = config
+    let dossiers: Vec<DossierSurveille> = config
         .roots
         .iter()
         .zip(config.racines())
         .map(|(brut, emplacement)| regarder(brut, &emplacement))
         .collect();
 
-    Surveillance::Lue { dossiers }
+    let a_decouvrir = ADecouvrir::depuis(&dossiers);
+    Surveillance::Lue {
+        dossiers,
+        a_decouvrir,
+    }
 }
 
 /// Ce qu'un dossier surveille donne quand on va le voir.
@@ -174,10 +234,12 @@ fn porte_un_depot(enfant: &Path) -> bool {
 
 /// Ce que l'ajout d'un dossier a donne, tel que l'ecran le lit.
 ///
-/// Trois issues, et elles ne se ressemblent pas. Un selecteur ferme sans rien
+/// Quatre issues, et elles ne se ressemblent pas. Un selecteur ferme sans rien
 /// choisir n'est pas un echec : c'est un geste repris, et l'ecran n'a rien a
 /// annoncer. Une ecriture qui echoue, si : la liste n'a pas bouge, et
-/// l'utilisateur doit savoir que son dossier n'est pas surveille.
+/// l'utilisateur doit savoir que son dossier n'est pas surveille. Un refus n'est
+/// ni l'un ni l'autre : rien ne s'est casse, et le poste surveille deja ce
+/// dossier - encore faut-il dire par ou (FR-037, FR-075).
 ///
 /// L'ajout rend la liste entiere plutot que le seul dossier ajoute : l'ecran
 /// montre alors le nouveau venu ET son compte de depots d'un seul tenant, sans
@@ -192,6 +254,19 @@ pub enum Ajout {
         /// Le chemin tel qu'il vient d'etre ecrit dans la configuration.
         chemin: String,
         surveillance: Surveillance,
+    },
+    /// Le dossier choisi est deja couvert par la surveillance (FR-037,
+    /// FR-075). Rien n'a ete ecrit, et le refus NOMME le dossier surveille qui
+    /// s'y oppose : « deja surveille » sans dire lequel laisserait l'utilisateur
+    /// ouvrir le fichier de configuration pour le chercher, ce que FR-036
+    /// interdit.
+    Refuse {
+        /// Le dossier choisi, ecrit comme l'utilisateur ecrit les siens.
+        chemin: String,
+        /// Le dossier deja surveille qui s'y oppose, tel qu'il est ecrit dans
+        /// la configuration.
+        deja: String,
+        cas: Emboitement,
     },
     /// Rien n'a pu etre ecrit. `raison` nomme ce qui s'y oppose, dans les
     /// termes de la configuration du lecteur.
@@ -209,11 +284,28 @@ pub fn ajouter_au_poste(choisi: &Path) -> Ajout {
 /// Le chemin est passe explicitement pour que l'ecriture s'eprouve sur des
 /// dossiers temporaires, sans toucher a la configuration de l'utilisateur.
 ///
-/// Ce que cette tranche ne fait pas : juger le dossier choisi. Un doublon, un
-/// dossier emboite dans un autre - c'est la regle de FR-037 et FR-075, et elle
-/// vient apres. `Echoue` ne dit ici que ce qui empeche d'ecrire.
+/// Le dossier est juge AVANT d'etre ecrit (FR-037, FR-075) : un refus ne doit
+/// pas laisser la configuration gagner une ligne qu'il faudrait ensuite
+/// reprendre.
 pub fn ajouter(chemin_config: &Path, choisi: &Path) -> Ajout {
     let ecrit = abreger(choisi, &maison());
+
+    // La configuration se lit une premiere fois pour juger. C'est la meme porte
+    // que `inscrire` reouvrira : une configuration que le lecteur refuse ne
+    // rend pas de racines, et l'ajout echoue alors en le disant plutot que de
+    // se prononcer sur un doublon a partir de rien.
+    if let Ok(config) = Config::load(chemin_config) {
+        let surveilles: Vec<(String, PathBuf)> =
+            config.roots.iter().cloned().zip(config.racines()).collect();
+
+        if let Some(conflit) = deja_surveille(&surveilles, choisi) {
+            return Ajout::Refuse {
+                chemin: ecrit,
+                deja: conflit.deja,
+                cas: conflit.cas,
+            };
+        }
+    }
 
     match inscrire(chemin_config, &ecrit) {
         Ok(()) => Ajout::Ajoute {
@@ -222,6 +314,101 @@ pub fn ajouter(chemin_config: &Path, choisi: &Path) -> Ajout {
         },
         Err(raison) => Ajout::Echoue { raison },
     }
+}
+
+/* ---------- le doublon, et l'emboitement (FR-037, FR-075) ---------- */
+
+/// Comment le dossier choisi rencontre un dossier deja surveille.
+///
+/// Les trois se refusent, et ils ne se disent pas de la meme facon : le premier
+/// est un geste sans effet, le deuxieme des depots qui remontent deja d'ailleurs,
+/// le troisieme une racine plus large qui cartographierait les memes depots deux
+/// fois. L'ecran a besoin de savoir lequel pour dire quoi faire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Emboitement {
+    /// Le meme dossier, sous une autre ecriture.
+    Meme,
+    /// Le dossier choisi est DEDANS un dossier deja surveille.
+    Contenu,
+    /// Le dossier choisi CONTIENT un dossier deja surveille.
+    Contient,
+}
+
+/// Le dossier surveille qui s'oppose a l'ajout, et pourquoi.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Conflit {
+    /// Tel qu'il est ecrit dans la configuration : c'est l'ecriture que
+    /// l'utilisateur reconnait, et celle qu'il doit retrouver dans le refus.
+    pub deja: String,
+    pub cas: Emboitement,
+}
+
+/// Le premier dossier surveille qui s'oppose a l'ajout du dossier choisi.
+///
+/// `surveilles` porte les deux ecritures de chaque racine : celle de la
+/// configuration - qui sert a NOMMER le coupable - et la meme, `~` deplie - qui
+/// sert a JUGER. Les separer est ce qui permet de refuser en disant
+/// « ~/Developer » plutot que « /Users/lea/Developer », que l'utilisateur n'a
+/// jamais ecrit.
+///
+/// Le premier, et non le plus proche : la configuration est une liste ordonnee,
+/// et en nommer un seul suffit a expliquer le refus. Un refus qui les
+/// enumererait tous en dirait plus long sans rien ajouter au geste a faire.
+pub fn deja_surveille(surveilles: &[(String, PathBuf)], choisi: &Path) -> Option<Conflit> {
+    let choisi = forme_comparable(choisi);
+    if choisi.as_os_str().is_empty() {
+        return None;
+    }
+
+    surveilles.iter().find_map(|(ecrit, deplie)| {
+        let surveille = forme_comparable(deplie);
+        // Une racine vide n'est pas un dossier : la laisser passer ferait
+        // d'elle le prefixe de tout, et plus rien ne serait jamais ajoutable.
+        if surveille.as_os_str().is_empty() {
+            return None;
+        }
+
+        emboitement(&choisi, &surveille).map(|cas| Conflit {
+            deja: ecrit.clone(),
+            cas,
+        })
+    })
+}
+
+/// Comment deux chemins deja normalises se rencontrent, ou `None` s'ils ne se
+/// rencontrent pas.
+///
+/// La comparaison porte sur les COMPOSANTS du chemin, jamais sur le texte :
+/// `~/Developer` ne contient pas `~/Developer-2`, alors qu'un prefixe de texte
+/// le dirait - et refuserait un dossier voisin parfaitement legitime.
+fn emboitement(choisi: &Path, surveille: &Path) -> Option<Emboitement> {
+    if choisi == surveille {
+        Some(Emboitement::Meme)
+    } else if choisi.starts_with(surveille) {
+        Some(Emboitement::Contenu)
+    } else if surveille.starts_with(choisi) {
+        Some(Emboitement::Contient)
+    } else {
+        None
+    }
+}
+
+/// Le chemin sous la forme qui juge : liens symboliques resolus, barre finale
+/// et `.` normalises.
+///
+/// POURQUOI passer par le disque : un meme dossier s'ecrit de plusieurs facons
+/// qui ne se ressemblent pas - `~/Developer`, `~/Developer/`, son chemin
+/// absolu, un lien symbolique pose ailleurs qui pointe dessus. Aucune
+/// comparaison de texte ne les rapproche ; seul le systeme sait qu'elles
+/// designent le meme endroit, et FR-075 demande de juger la.
+///
+/// Quand il ne sait pas repondre - le dossier n'existe pas, ou pas encore -, on
+/// s'en tient a une normalisation de composants : elle attrape la barre finale
+/// et les `.`, qui sont les cas courants, et ne pretend rien de plus. Un dossier
+/// surveille qui a ete renomme continue ainsi de s'opposer a lui-meme.
+fn forme_comparable(chemin: &Path) -> PathBuf {
+    std::fs::canonicalize(chemin).unwrap_or_else(|_| chemin.components().collect())
 }
 
 /// Le chemin choisi, ecrit comme l'utilisateur ecrit les siens.

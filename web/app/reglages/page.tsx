@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { baseInjoignable } from "@/lib/ecrans";
 import { createClient } from "@/lib/supabase/server";
 import { Deconnexion } from "../deconnexion";
-import { DerniereCartographie } from "./cartographie";
 import { Comptes, type Correspondance } from "./comptes";
 import { DossiersSurveilles } from "./dossiers";
 
@@ -22,7 +22,14 @@ export default async function PageReglages() {
   // `scanned_at` vient de la meme lecture : l'heure de la derniere cartographie
   // est en base, avec le catalogue, et pas sur le pont (FR-059). Chaque depot
   // porte la sienne ; l'ecran en fait un agregat (FR-086).
-  const { data: repos } = await supabase.from("repos").select("remote_owner,scanned_at");
+  //
+  // L'erreur est retenue, et pas seulement les lignes : une base qui n'a pas
+  // repondu ne rend pas « zero depot », elle ne rend rien. Sans elle, l'ecran
+  // conclurait « jamais cartographie » a un poste cartographie mille fois
+  // (FR-074, FR-085).
+  const { data: repos, error: erreurRepos } = await supabase
+    .from("repos")
+    .select("remote_owner,scanned_at");
 
   const { data: correspondances } = await supabase
     .from("account_mappings")
@@ -77,9 +84,7 @@ export default async function PageReglages() {
         d&apos;un de ces dossiers&nbsp;: rien de plus profond n&apos;est cartographié.
       </p>
 
-      <DerniereCartographie heures={heures} />
-
-      <DossiersSurveilles />
+      <DossiersSurveilles heures={heures} baseInjoignable={baseInjoignable(erreurRepos)} />
     </main>
   );
 }
