@@ -4,7 +4,6 @@ import { Connexion } from "./connexion";
 import { Machines, type Machine } from "./machines";
 import { Accueil, type Apercu } from "./accueil";
 import { Deconnexion } from "./deconnexion";
-import { Appairage } from "./appairage";
 import { DeclarationDeLaMachine } from "./declaration";
 import { PremierLancement } from "./premier-lancement";
 import { BaseInjoignable } from "./base-injoignable";
@@ -92,9 +91,10 @@ export default async function Page({
     return <EcranInjoignable raison={raisonInjoignable(sansReponse)} compte={user.email} />;
   }
 
-  // Premier lancement : tant qu'aucune machine n'est appairée, l'accueil cède la
-  // place à l'onboarding, qui explique le produit et se remplit tout seul dès
-  // qu'une machine répond (issue #12). `?demo=onboarding` le force en dev.
+  // Premier lancement : tant qu'aucune machine n'est déclarée, l'accueil cède la
+  // place à l'onboarding, qui dirige vers l'application de bureau et se remplit
+  // tout seul dès qu'une machine répond (issue #12, #83). `?demo=onboarding` le
+  // force en dev.
   if (montrerPremierLancement(machines.length, demoEcran)) {
     return (
       <main className="tableau">
@@ -144,8 +144,6 @@ export default async function Page({
       ) : (
         <Machines initiales={(data ?? []) as Machine[]} />
       )}
-
-      <Appairage />
     </main>
   );
 }

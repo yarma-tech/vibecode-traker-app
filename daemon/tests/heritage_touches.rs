@@ -22,16 +22,9 @@ use vibemap::DerniereTouche;
 
 /// Appaire une machine et rend son identite.
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
-    let code = ctx.creer_code().await;
-    vibemap::appairer(
-        &ctx.url,
-        &ctx.anon_key,
-        &code,
-        "MacBook Pro",
-        Some("darwin"),
-    )
-    .await
-    .expect("appairage")
+    vibemap::declarer(&ctx.url, &ctx.user_token, "MacBook Pro", Some("darwin"))
+        .await
+        .expect("declaration de la machine")
 }
 
 fn touche(

@@ -1,10 +1,11 @@
 //! Point d'entree du daemon.
 //!
-//!   vibemap pair <code>   relie cette machine au compte qui a affiche le code
 //!   vibemap               bat, cartographie et suit les agents
 //!   vibemap hook          poste un appel d'outil recu sur l'entree standard
 //!
-//! Les worktrees et le cout viennent ensuite.
+//! Ce binaire est le compagnon de l'application de bureau sur le meme Mac, et
+//! non plus une porte d'entree autonome (FR-082) : il ne relie aucune machine
+//! par lui-meme, il lit la configuration et le jeton que l'application a ecrits.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -20,7 +21,7 @@ async fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
 
     match arguments.first().map(String::as_str) {
-        Some("pair") => appairer(arguments.get(1).map(String::as_str)).await,
+        Some("pair") => pair_retire(),
         Some("hook") => hook().await,
         Some("--help" | "-h") => {
             aide();
@@ -45,10 +46,11 @@ fn version() {
 fn aide() {
     println!(
         "vibemap\n\n\
-           vibemap pair <code>   relie cette machine au compte qui a affiche le code\n\
            vibemap [config]      bat, cartographie et suit les agents\n\
            vibemap hook          poste l'appel d'outil recu sur l'entree standard\n\
            vibemap --version     affiche la version du paquet\n\n\
+         Compagnon de l'application de bureau Vibe Map sur ce Mac : c'est elle qui\n\
+         relie la machine et ecrit sa configuration, ce binaire ne fait que la lire.\n\n\
          Variables d'environnement :\n\
          \x20 VIBEMAP_SUPABASE_URL       racine de l'API (defaut : {URL_PAR_DEFAUT})\n\
          \x20 VIBEMAP_SUPABASE_ANON_KEY  cle publique du projet\n\
@@ -56,52 +58,20 @@ fn aide() {
     );
 }
 
-/// `vibemap pair <code>` : echange le code, range le jeton, ecrit la config.
-async fn appairer(code: Option<&str>) -> ExitCode {
-    let Some(code) = code else {
-        eprintln!("il manque le code : vibemap pair 7K4-M2Q");
-        return ExitCode::FAILURE;
-    };
-
-    let url = std::env::var("VIBEMAP_SUPABASE_URL").unwrap_or_else(|_| URL_PAR_DEFAUT.to_string());
-
-    let Ok(anon_key) = std::env::var("VIBEMAP_SUPABASE_ANON_KEY") else {
-        eprintln!(
-            "VIBEMAP_SUPABASE_ANON_KEY manquante. C'est la cle publique du projet, \
-             affichee par l'application web sur la page d'appairage."
-        );
-        return ExitCode::FAILURE;
-    };
-
-    let label = nom_de_la_machine();
-    let plateforme = std::env::consts::OS;
-
-    let identite = match vibemap::appairer(&url, &anon_key, code, &label, Some(plateforme)).await {
-        Ok(identite) => identite,
-        Err(erreur) => {
-            eprintln!("{erreur}");
-            return ExitCode::FAILURE;
-        }
-    };
-
-    if let Err(erreur) = vibemap::trousseau::ranger(&identite.machine_id, &identite.token) {
-        eprintln!("{erreur}");
-        return ExitCode::FAILURE;
-    }
-
-    let chemin = Config::chemin_par_defaut();
-    if let Err(erreur) = ecrire_config(&chemin, &url, &identite.machine_id, &identite.label) {
-        eprintln!("impossible d'ecrire {} : {erreur}", chemin.display());
-        return ExitCode::FAILURE;
-    }
-
-    println!(
-        "« {} » est reliee. Le jeton est au trousseau, la configuration dans {}.\n\
-         Lance `vibemap` pour commencer a battre.",
-        identite.label,
-        chemin.display()
+/// L'ancienne sous-commande d'appairage, retiree (FR-082).
+///
+/// POURQUOI un aiguillage plutot qu'un simple retrait : sans lui, `vibemap pair
+/// 7K4-M2Q` retomberait sur la boucle, qui prendrait « pair » pour un chemin de
+/// configuration. L'utilisateur lirait une erreur sur un fichier introuvable au
+/// lieu de la raison. Cet aiguillage ne relie rien : il nomme ce qui a change et
+/// dit ou aller.
+fn pair_retire() -> ExitCode {
+    eprintln!(
+        "`vibemap pair` n'existe plus. C'est l'application de bureau Vibe Map qui relie \
+         cette machine et ecrit sa configuration : installe-la, ouvre-la sur ce Mac, \
+         puis relance `vibemap`."
     );
-    ExitCode::SUCCESS
+    ExitCode::FAILURE
 }
 
 /// `vibemap` : la boucle.
@@ -205,40 +175,4 @@ async fn poster_le_hook(charge: &str) -> Result<(), String> {
     }
 
     Ok(())
-}
-
-fn nom_de_la_machine() -> String {
-    std::process::Command::new("scutil")
-        .args(["--get", "ComputerName"])
-        .output()
-        .ok()
-        .filter(|sortie| sortie.status.success())
-        .map(|sortie| String::from_utf8_lossy(&sortie.stdout).trim().to_string())
-        .filter(|nom| !nom.is_empty())
-        .or_else(|| std::env::var("HOSTNAME").ok())
-        .unwrap_or_else(|| "machine sans nom".to_string())
-}
-
-fn ecrire_config(
-    chemin: &PathBuf,
-    url: &str,
-    machine_id: &str,
-    label: &str,
-) -> std::io::Result<()> {
-    if let Some(dossier) = chemin.parent() {
-        std::fs::create_dir_all(dossier)?;
-    }
-
-    // Aucun secret ici : le jeton est au trousseau.
-    std::fs::write(
-        chemin,
-        format!(
-            "supabase_url = \"{url}\"\n\
-             machine_id = \"{machine_id}\"\n\
-             label = \"{label}\"\n\
-             interval_seconds = 30\n\
-             scan_seconds = 300\n\
-             roots = [\"~/Developer\"]\n"
-        ),
-    )
 }

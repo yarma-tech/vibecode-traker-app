@@ -5,7 +5,7 @@
  * réponse.
  *
  * La règle est simple et se décide sans réseau : l'accueil bascule en onboarding
- * tant qu'aucune machine n'est appairée ; le plan d'un repo montre l'état sans
+ * tant qu'aucune machine n'est déclarée ; le plan d'un repo montre l'état sans
  * activité quand il n'a ni module coloré ni ligne au journal. Un paramètre de
  * développement (`?demo=`) force chaque écran, pour les atteindre sans provoquer
  * la vraie panne (critère 6). Ces fonctions pures portent cette bascule, une
@@ -33,7 +33,7 @@ export function demoDemande(param: string | undefined): EcranDemo | null {
 
 /**
  * L'accueil doit-il montrer le premier lancement ? Oui tant qu'aucune machine
- * n'est appairée, oui aussi quand le dev le force. La bascule se défait toute
+ * n'est déclarée, oui aussi quand le dev le force. La bascule se défait toute
  * seule dès qu'une machine répond : `nbMachines` repasse au-dessus de zéro.
  */
 export function montrerPremierLancement(nbMachines: number, demo: EcranDemo | null): boolean {

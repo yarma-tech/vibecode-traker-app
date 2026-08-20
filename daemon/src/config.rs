@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error(
-        "aucune configuration a {0}. \
-         Lance `vibemap pair <code>` avec le code affiche par l'application web pour la creer."
+        "aucune configuration a {0}. C'est l'application de bureau Vibe Map qui l'ecrit : \
+         installe-la et ouvre-la sur ce Mac, puis relance."
     )]
     Introuvable(PathBuf),
 
@@ -28,9 +28,9 @@ pub enum ConfigError {
     },
 
     #[error(
-        "un jeton est ecrit en clair dans {0}. Depuis l'appairage, le jeton vit dans le \
-         trousseau du systeme : retire la ligne `token` du fichier et relance \
-         `vibemap pair <code>` pour relier cette machine."
+        "un jeton est ecrit en clair dans {0}. Le jeton vit desormais dans le trousseau \
+         du systeme : retire la ligne `token` du fichier, puis ouvre l'application de \
+         bureau Vibe Map, qui y range celui de cette machine."
     )]
     JetonEnClair(PathBuf),
 }
@@ -89,7 +89,7 @@ pub struct Config {
     /// Racine de l'API Supabase.
     pub supabase_url: String,
 
-    /// Reste d'une configuration d'avant l'appairage. Sa presence est une
+    /// Reste d'une configuration d'avant le trousseau. Sa presence est une
     /// erreur : le jeton n'a plus rien a faire dans un fichier.
     #[serde(default)]
     token: Option<String>,

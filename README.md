@@ -99,17 +99,13 @@ Puis, dans un autre terminal :
 cd daemon && cargo build
 ```
 
-Ouvre <http://localhost:3000>, connecte-toi, demande un code d'appairage, et
-relie la machine :
+Ouvre <http://localhost:3000> et connecte-toi. C'est l'application de bureau qui
+relie la machine : le binaire n'a plus de sous-commande d'appairage (PRD-002,
+FR-082). Lance-la donc une fois (voir plus bas) ; elle déclare la machine, range
+son jeton dans le trousseau du système et écrit
+`~/.config/vibemap/config.toml`.
 
-```sh
-VIBEMAP_SUPABASE_URL=http://127.0.0.1:54321 \
-VIBEMAP_SUPABASE_ANON_KEY=<cle anon de `supabase status`> \
-  ./daemon/target/debug/vibemap pair ABC-DEFG
-```
-
-Le jeton va dans le trousseau du système, la configuration dans
-`~/.config/vibemap/config.toml`. Ensuite :
+Le binaire lit ensuite cette même configuration :
 
 ```sh
 ./daemon/target/debug/vibemap
@@ -151,6 +147,15 @@ VIBEMAP_TEST_ANON_KEY=<anon> \
   cargo test
 ```
 
+L'application de bureau en a un aussi, qui rejoue un lancement complet - reprise
+d'un poste déjà appairé, machine révoquée, identité perdue - avec les mêmes clés :
+
+```sh
+cd bureau
+VIBEMAP_TEST_SERVICE_KEY=<service_role> VIBEMAP_TEST_ANON_KEY=<anon> \
+  cargo test --test identite
+```
+
 Côté web :
 
 ```sh
@@ -167,8 +172,9 @@ lancent à la main avant chaque fusion.
   signature du binaire change et le système redemande l'autorisation, sans rien
   afficher. Passe `VIBEMAP_TOKEN=<jeton>` pour t'en dispenser pendant le
   développement.
-- **`supabase db reset` efface les comptes.** Il faut se reconnecter et
-  réappairer la machine : le `machine_id` de la configuration devient invalide.
+- **`supabase db reset` efface les comptes.** Il faut se reconnecter et rouvrir
+  l'application de bureau, qui redéclare la machine : le `machine_id` de la
+  configuration devient invalide.
 - **Le temps réel Supabase est un signal, pas une source de vérité.** Ses
   charges utiles arrivent incomplètes ; on relit toujours par l'API.
 

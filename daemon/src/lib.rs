@@ -17,7 +17,7 @@ pub mod trousseau;
 pub mod verrou;
 mod worktree;
 
-pub use appairage::{appairer, AppairageError, Identite};
+pub use appairage::Identite;
 pub use commits::{branche_courante, commits_depuis, head, CommitLocal};
 pub use config::{Config, ConfigError};
 pub use declaration::{declarer, DansLaBase, DeclarationError};
@@ -138,7 +138,7 @@ pub enum ApiError {
     #[error(
         "la machine {0} n'a pas accepte l'ecriture. Elle a peut-etre ete revoquee \
          ou supprimee depuis l'application web, ou ce jeton ne lui correspond plus. \
-         Relance `vibemap pair <code>` avec un nouveau code pour la relier a nouveau."
+         Ouvre l'application de bureau Vibe Map sur ce Mac pour la relier a nouveau."
     )]
     MachineInconnue(String),
 }

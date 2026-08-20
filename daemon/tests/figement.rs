@@ -12,16 +12,9 @@
 mod common;
 
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
-    let code = ctx.creer_code().await;
-    vibemap::appairer(
-        &ctx.url,
-        &ctx.anon_key,
-        &code,
-        "MacBook Pro",
-        Some("darwin"),
-    )
-    .await
-    .expect("appairage")
+    vibemap::declarer(&ctx.url, &ctx.user_token, "MacBook Pro", Some("darwin"))
+        .await
+        .expect("declaration de la machine")
 }
 
 const ARBRE: &[&str] = &["src", "src/core", "docs"];
@@ -87,11 +80,10 @@ async fn chaque_repo_porte_la_presence_de_sa_propre_machine() {
     let ctx = common::TestContext::new().await;
     let vivante = machine_reliee(&ctx).await;
 
-    // Une seconde machine du même utilisateur, reliée par un second appairage.
-    let code = ctx.creer_code().await;
-    let muette = vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "Mac mini", Some("darwin"))
+    // Une seconde machine du même utilisateur, déclarée à son tour.
+    let muette = vibemap::declarer(&ctx.url, &ctx.user_token, "Mac mini", Some("darwin"))
         .await
-        .expect("appairage de la seconde machine");
+        .expect("declaration de la seconde machine");
 
     let repo_vivant = ctx.creer_repo(&vivante.machine_id, ARBRE).await;
     let repo_muet = ctx.creer_repo(&muette.machine_id, ARBRE).await;

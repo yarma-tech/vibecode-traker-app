@@ -32,7 +32,7 @@ fn charge_une_configuration_complete() {
 }
 
 /// Le jeton ne vit plus dans le fichier : il est au trousseau (issue #9).
-/// Un fichier qui en contient encore un vient d'avant l'appairage, et le dire
+/// Un fichier qui en contient encore un vient d'avant ce changement, et le dire
 /// vaut mieux que de faire semblant de rien.
 #[test]
 fn refuse_un_jeton_ecrit_en_clair() {
@@ -54,8 +54,8 @@ fn refuse_un_jeton_ecrit_en_clair() {
         "le message doit renvoyer vers le trousseau, obtenu : {message}"
     );
     assert!(
-        message.contains("vibemap pair"),
-        "le message doit dire comment refaire l'appairage, obtenu : {message}"
+        message.contains("application de bureau"),
+        "le message doit renvoyer vers l'application de bureau, obtenu : {message}"
     );
 }
 
@@ -157,8 +157,8 @@ fn dit_ou_il_a_cherche_quand_le_fichier_manque() {
         "le message doit donner le chemin cherche, obtenu : {message}"
     );
     assert!(
-        message.contains("vibemap pair"),
-        "le message doit dire comment creer la configuration, obtenu : {message}"
+        message.contains("application de bureau"),
+        "le message doit dire qui ecrit la configuration, obtenu : {message}"
     );
 }
 
