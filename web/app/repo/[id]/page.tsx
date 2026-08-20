@@ -11,10 +11,30 @@ import {
 } from "./direct";
 import { type Module } from "./plan";
 import { SqueletteRepo } from "./squelette";
-import { demoDemande } from "@/lib/ecrans";
+import { BaseInjoignable } from "@/app/base-injoignable";
+import { baseInjoignable, demoDemande, raisonInjoignable } from "@/lib/ecrans";
 
 /** Combien d'événements le journal reçoit au premier rendu. */
 const LIGNES_DU_JOURNAL = 60;
+
+/**
+ * Le plan d'un repo quand la base ne répond pas (FR-085). Sans elle, on ne sait
+ * rien de ce repo - ni s'il existe, ni ce qu'il porte : conclure « introuvable »
+ * et servir un 404 accuserait le repo d'une absence qui est celle du réseau.
+ */
+function EcranInjoignable({ raison }: { raison: string }) {
+  return (
+    <main className="tableau">
+      <header className="entete">
+        <Link className="lien" href="/">
+          ← tous les repos
+        </Link>
+      </header>
+
+      <BaseInjoignable raison={raison} />
+    </main>
+  );
+}
 
 export default async function PageRepo({
   params,
@@ -33,20 +53,35 @@ export default async function PageRepo({
     return <SqueletteRepo />;
   }
 
+  // Base injoignable, atteignable en dev sans couper le réseau pour de vrai
+  // (issue #12, critère 6 ; FR-085).
+  if (demoEcran === "injoignable") {
+    return <EcranInjoignable raison={raisonInjoignable(null)} />;
+  }
+
   const supabase = await createClient();
 
   const {
     data: { user },
+    error: erreurAuth,
   } = await supabase.auth.getUser();
+
+  if (baseInjoignable(erreurAuth)) {
+    return <EcranInjoignable raison={raisonInjoignable(erreurAuth)} />;
+  }
 
   if (!user) notFound();
 
   // La RLS suffit à garantir que ce repo appartient bien à cet utilisateur.
-  const { data: repo } = await supabase
+  const { data: repo, error: erreurRepo } = await supabase
     .from("repos")
     .select("id,name,remote_owner,current_branch,loc_total,file_count,scanned_at,machine_id")
     .eq("id", id)
     .maybeSingle();
+
+  if (baseInjoignable(erreurRepo)) {
+    return <EcranInjoignable raison={raisonInjoignable(erreurRepo)} />;
+  }
 
   if (!repo) notFound();
 

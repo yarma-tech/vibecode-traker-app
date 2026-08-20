@@ -6,8 +6,35 @@ import { Accueil, type Apercu } from "./accueil";
 import { Deconnexion } from "./deconnexion";
 import { Appairage } from "./appairage";
 import { PremierLancement } from "./premier-lancement";
-import { demoDemande, montrerPremierLancement } from "@/lib/ecrans";
+import { BaseInjoignable } from "./base-injoignable";
+import {
+  baseInjoignable,
+  demoDemande,
+  montrerPremierLancement,
+  premiereInjoignable,
+  raisonInjoignable,
+} from "@/lib/ecrans";
 import Link from "next/link";
+
+/**
+ * L'accueil quand la base ne répond pas. La fenêtre garde son entête - elle est
+ * servie depuis la machine, elle ne dépend de rien - et ne porte plus que
+ * l'annonce et son recours : ni liste de repos vide, ni squelette qui attend.
+ * Ni lien vers les réglages ni bouton de déconnexion, qui passent tous deux par
+ * la base : n'offrir que ce qui peut aboutir.
+ */
+function EcranInjoignable({ raison, compte }: { raison: string; compte?: string }) {
+  return (
+    <main className="tableau">
+      <header className="entete">
+        <span className="marque">Vibe Map</span>
+        {compte && <span className="compte">{compte}</span>}
+      </header>
+
+      <BaseInjoignable raison={raison} />
+    </main>
+  );
+}
 
 export default async function Page({
   searchParams,
@@ -27,7 +54,16 @@ export default async function Page({
 
   const {
     data: { user },
+    error: erreurAuth,
   } = await supabase.auth.getUser();
+
+  // Sans réponse de la base, on ne sait pas s'il y a une session : on sait
+  // seulement qu'on n'a pas pu le demander. Le dire, plutôt que de conclure
+  // « personne » et de présenter un écran de connexion qui ne mènerait nulle
+  // part (FR-085).
+  if (baseInjoignable(erreurAuth)) {
+    return <EcranInjoignable raison={raisonInjoignable(erreurAuth)} />;
+  }
 
   if (!user) {
     return <Connexion erreur={erreur} />;
@@ -42,10 +78,18 @@ export default async function Page({
 
   // L'apercu rend tous les repos deja tries par activite, avec leur bande
   // d'etat et leur badge de compte : l'ecran lit cette seule fonction.
-  const { data: repos } = await supabase.rpc("apercu_repos");
+  const { data: repos, error: erreurRepos } = await supabase.rpc("apercu_repos");
 
   const machines = (data ?? []) as Machine[];
   const demoEcran = demoDemande(demo);
+
+  // Il suffit qu'une des deux lectures soit restée sans réponse : le compte de
+  // machines vaudrait alors zéro sans que personne ne l'ait dit, et l'accueil
+  // basculerait en premier lancement chez un utilisateur qui en a trois.
+  const sansReponse = premiereInjoignable([error, erreurRepos]);
+  if (demoEcran === "injoignable" || sansReponse) {
+    return <EcranInjoignable raison={raisonInjoignable(sansReponse)} compte={user.email} />;
+  }
 
   // Premier lancement : tant qu'aucune machine n'est appairée, l'accueil cède la
   // place à l'onboarding, qui explique le produit et se remplit tout seul dès

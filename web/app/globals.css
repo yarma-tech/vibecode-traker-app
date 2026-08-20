@@ -305,6 +305,34 @@ code {
   margin: 0;
 }
 
+/* ---------- la base est injoignable (FR-085, issue #59) ---------- */
+
+/* Reprend le cadre de `.vide` : c'est un etat d'ecran de plus, pas un gabarit
+   de plus. La trame en tirets disparait au profit d'un bord ambre - un vide
+   raconte une absence connue, celui-ci ne raconte rien du tout, faute de
+   reponse. Pas de rouge : le rouge reste l'alarme des conflits. */
+.injoignable {
+  margin-top: 2.25rem;
+  padding: 1.6rem 1.5rem;
+  text-align: left;
+  border-style: solid;
+  border-left: 3px solid var(--edit);
+  background-image: none;
+  background: var(--edit-f);
+}
+
+/* Le gris des `.vide-suite` est cale pour le fond papier ; sur le fond ambre il
+   tombe sous AA. La phrase reprend donc l'encre pleine : c'est elle qui porte
+   la raison, elle doit se lire dans les deux themes. */
+.injoignable .vide-suite {
+  color: var(--ink);
+  max-width: 48ch;
+}
+
+.injoignable-reessayer {
+  margin-top: 1.25rem;
+}
+
 /* ---------- appairage d'une machine ---------- */
 
 .appairage {
