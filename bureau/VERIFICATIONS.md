@@ -6,7 +6,8 @@ chaque fusion touchant `bureau/`**. Elle s'allonge avec les tranches ; #57 l'a
 commencée, #58 y ajoute la géométrie de la fenêtre, #61 le lecteur embarqué,
 #62 son état affiché et sa relance, #68 l'ouverture du pont à l'interface, #70
 l'ajout d'un dossier au sélecteur du système, #63 l'entrée avec GitHub, #86
-l'application publiée et son premier lancement.
+l'application publiée et son premier lancement, #87 l'interface embarquée dans
+le paquet.
 
 Ce qui est déjà couvert par les tests automatiques - la sonde de disponibilité,
 l'URL fixe de la fenêtre, la lecture et l'écriture de la géométrie, la prise et
@@ -301,19 +302,50 @@ celui qui l'a compilé.
   macOS Apple Silicon présentes avec leurs sommes de contrôle, aucun artefact
   Linux.
 
-## Point ouvert : l'interface n'est pas encore dans le paquet (FR-069)
+## L'interface embarquée dans le paquet (#87)
 
-**À traiter avant toute publication annoncée à un utilisateur.** Le paquet
-embarque bien le lecteur - il est compilé dans le même binaire - mais pas le
-service d'interface. `bureau/src/service.rs` lance encore l'interface par le
-`npm` du système, dans le `web/` du dépôt, à un chemin fixé à la compilation :
-sur un Mac qui n'a ni le dépôt ni Node, l'application s'ouvre sur sa page
-d'indisponibilité au lieu de la carte.
+Ces points ne se jouent **que hors du dépôt** : c'est tout leur objet. Le paquet
+porte désormais l'interface et l'exécutable Node qui la fait tourner, dans
+`Contents/Resources/service` ; `bureau/embarquer-le-service.sh` les y dépose à
+l'empaquetage (il télécharge Node la première fois, donc le réseau est requis
+pour construire - jamais pour lancer).
 
-C'est le dernier morceau qui manque à FR-069 (« aucun morceau ne DOIT être
-téléchargé au premier lancement ») et aux deux critères d'acceptation de #86 qui
-parlent d'un Mac neuf. Il demande sa propre tranche : sortie `standalone` de
-Next.js, exécutable Node embarqué dans le paquet, et résolution du chemin par
-`resource_dir()` plutôt que par `CARGO_MANIFEST_DIR`. Le commentaire en tête de
-`service.rs` le prévoit déjà : tout est derrière la seule fonction `lancer`, et
-ni la sonde, ni la fenêtre, ni la page d'indisponibilité n'en sauront rien.
+```sh
+cd bureau
+npx @tauri-apps/cli build --target aarch64-apple-darwin --bundles app
+essai=$(mktemp -d)
+ditto "target/aarch64-apple-darwin/release/bundle/macos/Vibe Map.app" \
+      "$essai/Vibe Map.app"
+open "$essai/Vibe Map.app"
+```
+
+- [ ] **La carte s'affiche depuis ailleurs que le dépôt.** L'application ouverte
+      depuis `$essai` montre la carte, pas la page d'indisponibilité.
+- [ ] **C'est bien l'interface du paquet qui sert.**
+      `ps -o command= -p "$(lsof -nP -iTCP:51789 -sTCP:LISTEN -t)"` nomme un
+      exécutable et un `server.js` sous `Vibe Map.app/Contents/Resources/service`
+      - rien qui vienne du dépôt.
+- [ ] **Tout ce qu'il faut est dedans.**
+      `ls -a "$essai/Vibe Map.app/Contents/Resources/service"` montre `node`,
+      `server.js`, `.next`, `node_modules` et `public`, et
+      `otool -L "$essai/Vibe Map.app/Contents/Resources/service/node"` ne cite
+      que `/usr/lib` et `/System` : l'exécutable embarqué n'emprunte rien au
+      poste.
+- [ ] **Rien ne survit.** Application quittée,
+      `lsof -nP -iTCP:51789 -sTCP:LISTEN` ne rend rien, et
+      `pgrep -f "Contents/Resources/service"` non plus.
+- [ ] **Un paquet amputé le dit.** Sur la copie seulement,
+      `rm "$essai/Vibe Map.app/Contents/Resources/service/server.js"` puis
+      réouverture : la fenêtre annonce une interface embarquée incomplète et
+      invite à retélécharger - elle ne renvoie jamais vers un dépôt que le poste
+      n'a pas.
+- [ ] **La voie de développement tient toujours.** Dans le dépôt,
+      `cd web && npm run build` puis `cd ../bureau && cargo run` ouvre la carte
+      comme avant, et `ps` montre cette fois le service lancé par le `npm` du
+      dépôt.
+
+Le paquet pèse environ 161 Mo décompressé - dont 113 Mo pour le seul exécutable
+Node - et 53 Mo une fois archivé, c'est-à-dire à télécharger.
+C'est le prix de « aucun morceau téléchargé au premier lancement » (FR-069) :
+l'interface est un serveur, pas un dossier de fichiers, et il lui faut de quoi
+tourner.

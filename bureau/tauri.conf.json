@@ -3,7 +3,8 @@
   "productName": "Vibe Map",
   "identifier": "fr.yarma.vibemap.bureau",
   "build": {
-    "frontendDist": "interface"
+    "frontendDist": "interface",
+    "beforeBuildCommand": "sh bureau/embarquer-le-service.sh"
   },
   "app": {
     "withGlobalTauri": true,
@@ -15,6 +16,9 @@
   "bundle": {
     "active": true,
     "targets": ["app"],
+    "resources": {
+      "service-embarque": "service"
+    },
     "category": "DeveloperTool",
     "copyright": "MIT - yarma-tech",
     "shortDescription": "La carte de tes codebases",
