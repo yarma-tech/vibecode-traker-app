@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { decouper } from "@/lib/treemap";
 import { heureFigement } from "@/lib/figement";
 import { ecrirePlanCache } from "@/lib/squelette";
-import { indexerTouches, touchesDeLaZone, type Touche } from "@/lib/touches";
+import {
+  datesEnMots,
+  datesEnMotsSeparees,
+  indexerTouches,
+  touchesDeLaZone,
+  type Touche,
+} from "@/lib/touches";
 import type { Etat, Worktree } from "./direct";
 
 export type Module = {
@@ -35,6 +41,19 @@ const SEUIL_ABSORPTION = 0.7;
  */
 const LARGEUR_LISIBLE = 9;
 const HAUTEUR_LISIBLE = 7;
+
+/**
+ * Les deux dates disent bien plus long que le nom ou le poids, et leur seuil
+ * de lisibilité à elles ne se mesure pas en pourcentage du plan : « modifié il
+ * y a 2 j » occupe un nombre de PIXELS fixe, qu'un plan de 340 px de large sur
+ * un téléphone n'offrirait pas là où un plan de 800 px l'offre. Ce seuil vit
+ * donc en CSS, dans une requête de conteneur sur `.parcelle` (`globals.css`),
+ * seul endroit qui connaisse la largeur réelle de la parcelle.
+ *
+ * En deçà, les dates ne se tronquent pas : elles ne paraissent pas, et restent
+ * atteignables au survol (FR-063). Une date coupée en plein mot apprendrait
+ * moins qu'une date absente, et ferait douter du reste de l'écran.
+ */
 
 function nom(chemin: string): string {
   // Les parcelles en « /. » portent les fichiers poses directement dans un
@@ -208,14 +227,25 @@ export function Plan({
         {parcelles.map(({ donnee, x, y, largeur, hauteur }) => {
           const peutDescendre = descendable(donnee);
           const etat = parModule.get(donnee.path);
-          // Les deux dates arrivent sur la parcelle, brutes et séparées. Leur
-          // mise en mots (« modifié il y a 2 j, relu il y a 20 min », FR-041 et
-          // FR-042) est la tranche suivante : elle partira d'ici, sans avoir à
-          // retoucher ni la base ni le chemin de données.
+          // Les deux dates de la zone, mises en mots (FR-041, FR-042). Tant que
+          // l'horloge du navigateur n'a pas démarré, on ne peut juger l'âge de
+          // rien : la ligne reste vide plutôt que d'annoncer un « rien de
+          // récent » qui serait faux dès la seconde suivante.
           const touche = touchesDeLaZone(parTouche, donnee.path);
+          const membresDates =
+            maintenant !== null ? datesEnMotsSeparees(touche, maintenant) : [];
+          const dates = maintenant !== null ? datesEnMots(touche, maintenant) : "";
           const dit = etat ? DIT[etat.etat] : "inactif";
           const surimpression = sousWorktree ? `, worktree ${branches.join(", ")}` : "";
-          const etiquette = `${nom(donnee.path)}, ${lignes(donnee.loc)}, ${dit}${surimpression}`;
+          // Les dates entrent dans l'étiquette lue à voix haute comme dans
+          // l'infobulle : une parcelle trop petite pour les porter en clair ne
+          // doit pas les faire disparaître pour autant (FR-063).
+          const etiquette =
+            `${nom(donnee.path)}, ${lignes(donnee.loc)}, ${dit}${surimpression}` +
+            (dates ? `, ${dates}` : "");
+          const infobulle =
+            `${donnee.path} · ${lignes(donnee.loc)} · ${donnee.file_count} fichiers` +
+            (dates ? ` · ${dates}` : "");
 
           return (
             <button
@@ -231,9 +261,7 @@ export function Plan({
               }}
               onClick={() => peutDescendre && setOuvert(donnee.path)}
               disabled={!peutDescendre}
-              data-derniere-ecriture={touche.ecriture ?? undefined}
-              data-derniere-lecture={touche.lecture ?? undefined}
-              title={`${donnee.path} · ${lignes(donnee.loc)} · ${donnee.file_count} fichiers`}
+              title={infobulle}
               aria-label={
                 peutDescendre ? `${etiquette}, ouvrir` : etiquette
               }
@@ -241,12 +269,29 @@ export function Plan({
               {largeur >= LARGEUR_LISIBLE && hauteur >= HAUTEUR_LISIBLE && (
                 <>
                   <span className="parcelle-nom">{nom(donnee.path)}</span>
-                  {etat && (
-                    <span className="parcelle-fait">
-                      {dit}
-                      {maintenant ? `, ${depuis(etat.dernier_evenement, maintenant)}` : ""}
-                    </span>
-                  )}
+                  {/* La ligne de l'activité vivante garde sa place même au
+                      repos (FR-077) : aucune date ne vient l'occuper, et la
+                      parcelle ne se réorganise pas sous l'œil au moment où un
+                      agent s'y met. */}
+                  <span className="parcelle-fait">
+                    {etat && (
+                      <>
+                        {dit}
+                        {maintenant ? `, ${depuis(etat.dernier_evenement, maintenant)}` : ""}
+                      </>
+                    )}
+                  </span>
+                  <span className="parcelle-dates">
+                    {/* Chaque date reste d'un bloc : quand la parcelle est trop
+                        étroite pour les deux, le repli se fait ENTRE elles,
+                        jamais au milieu de « il y a 20 min ». */}
+                    {membresDates.map((membre, rang) => (
+                      <span key={membre} className="parcelle-date">
+                        {membre}
+                        {rang < membresDates.length - 1 ? "," : ""}
+                      </span>
+                    ))}
+                  </span>
                   <span className="parcelle-poids">{lignes(donnee.loc)}</span>
                 </>
               )}

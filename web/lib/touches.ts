@@ -31,7 +31,16 @@
  * couleurs de la carte (FR-044), qui reste celui de `etat_modules` sur sa
  * fenêtre glissante. C'est pourquoi elles voyagent dans un canal à part de
  * `Etat`, jamais fondues dedans.
+ *
+ * La mise en mots vit ici aussi (issue #77, FR-041 et FR-042), et pas dans
+ * l'écran : elle se juge sur un `maintenant` reçu en paramètre, jamais sur
+ * l'horloge du poste - un test qui lirait l'heure réelle deviendrait rouge un
+ * jour sans que rien n'ait changé (même discipline que `figement.ts` et
+ * `fraicheur.ts`). L'arrondi, lui, se réutilise : `dureeTexte` est la seule
+ * formule d'ancienneté du produit.
  */
+
+import { dureeTexte } from "./figement";
 
 /** Une ligne de `touches_modules`, telle que la base la rend. */
 export type Touche = {
@@ -92,4 +101,94 @@ export function touchesDeLaZone(
   chemin: string,
 ): DatesZone {
   return parZone.get(chemin) ?? AUCUNE_TOUCHE;
+}
+
+/** FR-042 : au-delà de trente jours, une date ne dit plus rien d'utile. */
+export const SEUIL_RIEN_DE_RECENT_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Ce que dit une date qui a passé le seuil, ou qu'on n'a jamais eue. */
+const RIEN_DE_RECENT = "rien de récent";
+
+/**
+ * L'âge d'une date TANT QU'ELLE COMPTE, `null` dès qu'elle ne dit plus rien :
+ * inconnue, illisible, ou passé les trente jours. Un seul endroit tranche
+ * FR-042, pour les deux dates et pour les deux usages (le mot, et la simple
+ * question « est-elle récente ? ») - deux seuils écrits deux fois finiraient
+ * par diverger.
+ *
+ * Une date « du futur » (horloges désynchronisées entre le poste qui a écrit
+ * et le navigateur qui lit) donne un âge négatif : elle reste la plus récente
+ * possible, jamais une raison de dire qu'il ne s'est rien passé. `dureeTexte`
+ * la ramène ensuite à un écart nul.
+ */
+function ageSiRecente(date: string | null, maintenant: number): number | null {
+  if (!date) return null;
+
+  const instant = Date.parse(date);
+  if (Number.isNaN(instant)) return null;
+
+  const ecoule = maintenant - instant;
+  return ecoule > SEUIL_RIEN_DE_RECENT_MS ? null : ecoule;
+}
+
+/**
+ * FR-042 : cette date compte-t-elle encore ? Jugée SEULE, sans jamais regarder
+ * l'autre - une zone écrite il y a quarante jours mais relue il y a vingt
+ * minutes a une date morte et une date vivante, pas deux du même bord.
+ *
+ * Exactement trente jours compte encore : le seuil est « plus de 30 jours ».
+ */
+export function estRecente(date: string | null, maintenant: number): boolean {
+  return ageSiRecente(date, maintenant) !== null;
+}
+
+/** Une date en mots, seule : « modifié il y a 2 j » ou « rien de récent en … ». */
+function uneDateEnMots(
+  date: string | null,
+  maintenant: number,
+  verbe: string,
+  matiere: string,
+): string {
+  const ecoule = ageSiRecente(date, maintenant);
+  return ecoule === null
+    ? `${RIEN_DE_RECENT} en ${matiere}`
+    : `${verbe} il y a ${dureeTexte(ecoule)}`;
+}
+
+/**
+ * FR-041 et FR-042 : les deux dates d'une zone, en clair, membre par membre -
+ * `["modifié il y a 2 j", "relu il y a 20 min"]`.
+ *
+ * Chaque date est jugée séparément : celle qui a passé les trente jours dit
+ * « rien de récent en écriture » (ou « en lecture ») pendant que l'autre
+ * s'affiche normalement. QUAND les deux sont dans ce cas, la zone entière dit
+ * « rien de récent », et rend UN seul membre : deux dates muettes ne valent pas
+ * deux mentions d'une absence, elles valent une phrase, sans aucune date.
+ *
+ * L'ordre écriture puis lecture ne varie pas : sur une carte, deux parcelles
+ * voisines se comparent d'un coup d'œil, elles ne se relisent pas.
+ *
+ * Rendues séparées, et pas seulement collées, parce qu'une parcelle de treemap
+ * est étroite : l'écran doit pouvoir passer à la ligne ENTRE les deux dates
+ * plutôt qu'au milieu de l'une d'elles.
+ */
+export function datesEnMotsSeparees(dates: DatesZone, maintenant: number): string[] {
+  const ecriture = estRecente(dates.ecriture, maintenant);
+  const lecture = estRecente(dates.lecture, maintenant);
+
+  if (!ecriture && !lecture) return [RIEN_DE_RECENT];
+
+  return [
+    uneDateEnMots(dates.ecriture, maintenant, "modifié", "écriture"),
+    uneDateEnMots(dates.lecture, maintenant, "relu", "lecture"),
+  ];
+}
+
+/**
+ * Les mêmes deux dates d'un seul tenant - « modifié il y a 2 j, relu il y a
+ * 20 min » : la forme de FR-041, celle que porte l'infobulle et celle que lit
+ * une synthèse vocale, où rien ne passe à la ligne.
+ */
+export function datesEnMots(dates: DatesZone, maintenant: number): string {
+  return datesEnMotsSeparees(dates, maintenant).join(", ");
 }

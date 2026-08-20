@@ -539,6 +539,12 @@ code {
 
 .parcelle {
   position: absolute;
+  /* La parcelle est un conteneur de requete : ses deux dates ne tiennent qu'a
+     partir d'une certaine largeur EN PIXELS, que le pourcentage du treemap ne
+     dit pas - un meme pourcentage porte le texte sur un plan de 800 px et le
+     couperait sur un plan de 340 px. Largeur et hauteur sont toutes deux
+     imposees en ligne, donc `size` ne peut pas se replier sur le contenu. */
+  container-type: size;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -585,13 +591,54 @@ code {
   overflow: hidden;
 }
 
-/* Ce que l'agent est en train de faire, sous le nom du dossier. */
+/* Ce que l'agent est en train de faire, sous le nom du dossier. La hauteur est
+   tenue meme quand la ligne est vide (FR-077) : au repos, la place reste
+   ouverte au lieu d'etre comblee par la ligne suivante, et rien ne saute quand
+   un agent se met au travail. */
 .parcelle-fait {
   font-family: var(--mono);
   font-size: 0.625rem;
+  line-height: 1.3;
+  min-height: 1.3em;
   color: var(--ink-2);
   white-space: nowrap;
   overflow: hidden;
+}
+
+/* Les deux dernieres touches de la zone, en mots (FR-041). Elles n'allument
+   aucune couleur (FR-044) : le fond de la parcelle reste celui de son etat, et
+   ce sont les mots seuls qui datent la zone.
+   ink-2 comme le poids, et pas le ton plus clair : ces dates se posent aussi
+   sur les fonds teintes (lu, ecrit, conflit), ou ink-3 tombe sous AA. */
+.parcelle-dates {
+  display: flex;
+  flex-wrap: wrap;
+  /* 1ch = la chasse d'une espace du monospace : sur une seule ligne, les deux
+     dates se lisent exactement comme la phrase de l'infobulle. */
+  column-gap: 1ch;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  line-height: 1.3;
+  color: var(--ink-2);
+  overflow: hidden;
+}
+
+/* Une date ne se coupe jamais en deux : sur une parcelle trop etroite pour les
+   porter cote a cote, le repli tombe entre les deux dates. */
+.parcelle-date {
+  white-space: nowrap;
+}
+
+/* Le seuil de lisibilite des dates (FR-063). En dessous, elles seraient
+   coupees en plein mot, ou repousseraient le nom hors de la parcelle : elles
+   se retirent, et l'infobulle les porte seule.
+   - 11.5rem : la plus longue des deux dates prise seule (« rien de recent en
+     ecriture, ») une fois repliee sur sa ligne ;
+   - 5.2rem : les quatre lignes de la parcelle, les dates comptant pour deux. */
+@container (max-width: 11.5rem) or (max-height: 5.2rem) {
+  .parcelle-dates {
+    display: none;
+  }
 }
 
 /* Les etats du plan. La couleur ne dit qu'un etat : le rouge est la seule
