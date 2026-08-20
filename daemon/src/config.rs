@@ -187,7 +187,23 @@ impl Config {
 }
 
 /// Remplace le `~` de tete par le dossier personnel.
+///
+/// De tete, et seulement de tete : un `~` peut vivre au milieu d'un vrai
+/// chemin - `/Volumes/Disque~2/code` existe - et le remplacer la mutilerait le
+/// dossier au lieu de le trouver. Depuis que l'application ouvre le selecteur
+/// du systeme, le chemin ne vient plus d'un fichier ecrit a la main : il vient
+/// du disque, tel qu'il est.
+///
+/// `~autre/x` designe en shell le dossier d'un autre compte. On ne sait pas le
+/// resoudre, donc on n'y touche pas : rendre le chemin tel quel echouera en
+/// nommant ce qu'on cherchait, la ou une resolution inventee echouerait en
+/// nommant autre chose.
 fn deplier(brut: &str) -> PathBuf {
+    let reste = match brut.strip_prefix('~') {
+        Some(reste) if reste.is_empty() || reste.starts_with('/') => reste,
+        _ => return PathBuf::from(brut),
+    };
+
     let maison = std::env::var("HOME").unwrap_or_default();
-    PathBuf::from(brut.replacen('~', &maison, 1))
+    PathBuf::from(format!("{maison}{reste}"))
 }
