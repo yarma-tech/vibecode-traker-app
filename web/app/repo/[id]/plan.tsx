@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { decouper } from "@/lib/treemap";
 import { heureFigement } from "@/lib/figement";
 import { ecrirePlanCache } from "@/lib/squelette";
+import { indexerTouches, touchesDeLaZone, type Touche } from "@/lib/touches";
 import type { Etat, Worktree } from "./direct";
 
 export type Module = {
@@ -62,6 +63,7 @@ export function Plan({
   modules,
   locTotal,
   etats,
+  touches,
   worktrees,
   fige,
   dernierBattement,
@@ -70,6 +72,7 @@ export function Plan({
   modules: Module[];
   locTotal: number;
   etats: Etat[];
+  touches: Touche[];
   worktrees: Worktree[];
   fige: boolean;
   dernierBattement: string | null;
@@ -92,6 +95,12 @@ export function Plan({
     () => new Map(etats.map((etat) => [etat.module_path, etat])),
     [etats],
   );
+
+  // Les deux dates de dernière touche, héritage des sous-dossiers compris - la
+  // base l'a déjà calculé pour chaque zone (`touches_modules`, FR-043). Canal
+  // strictement séparé de `parModule` : ces dates se lisent, elles n'entrent
+  // pas dans la couleur de la parcelle (FR-044).
+  const parTouche = useMemo(() => indexerTouches(touches), [touches]);
 
   const enfants = useMemo(
     () => modules.filter((m) => (m.parent_path ?? "") === ouvert),
@@ -199,6 +208,11 @@ export function Plan({
         {parcelles.map(({ donnee, x, y, largeur, hauteur }) => {
           const peutDescendre = descendable(donnee);
           const etat = parModule.get(donnee.path);
+          // Les deux dates arrivent sur la parcelle, brutes et séparées. Leur
+          // mise en mots (« modifié il y a 2 j, relu il y a 20 min », FR-041 et
+          // FR-042) est la tranche suivante : elle partira d'ici, sans avoir à
+          // retoucher ni la base ni le chemin de données.
+          const touche = touchesDeLaZone(parTouche, donnee.path);
           const dit = etat ? DIT[etat.etat] : "inactif";
           const surimpression = sousWorktree ? `, worktree ${branches.join(", ")}` : "";
           const etiquette = `${nom(donnee.path)}, ${lignes(donnee.loc)}, ${dit}${surimpression}`;
@@ -217,6 +231,8 @@ export function Plan({
               }}
               onClick={() => peutDescendre && setOuvert(donnee.path)}
               disabled={!peutDescendre}
+              data-derniere-ecriture={touche.ecriture ?? undefined}
+              data-derniere-lecture={touche.lecture ?? undefined}
               title={`${donnee.path} · ${lignes(donnee.loc)} · ${donnee.file_count} fichiers`}
               aria-label={
                 peutDescendre ? `${etiquette}, ouvrir` : etiquette

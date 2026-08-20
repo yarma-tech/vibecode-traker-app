@@ -13,6 +13,7 @@ import { type Module } from "./plan";
 import { SqueletteRepo } from "./squelette";
 import { BaseInjoignable } from "@/app/base-injoignable";
 import { baseInjoignable, demoDemande, raisonInjoignable } from "@/lib/ecrans";
+import { type Touche } from "@/lib/touches";
 
 /** Combien d'événements le journal reçoit au premier rendu. */
 const LIGNES_DU_JOURNAL = 60;
@@ -96,7 +97,7 @@ export default async function PageRepo({
 
   // La fenêtre d'activité est un réglage de la base : l'écran la lit, il ne la
   // décide pas. Ainsi une seule valeur gouverne les couleurs et ce qu'on en dit.
-  const [modules, etats, evenements, conflits, agents, releve, worktrees, fenetre] =
+  const [modules, etats, touches, evenements, conflits, agents, releve, worktrees, fenetre] =
     await Promise.all([
       supabase
         .from("modules")
@@ -104,6 +105,11 @@ export default async function PageRepo({
         .eq("repo_id", id)
         .order("loc", { ascending: false }),
       supabase.rpc("etat_modules", { p_repo_id: id }),
+      // Canal séparé de `etat_modules`, et non une colonne de plus dedans : ces
+      // deux dates se lisent, elles n'allument aucune couleur (FR-044). Leur
+      // héritage vers les zones parentes est déjà calculé ici, en base
+      // (FR-043) - l'écran n'a plus qu'à le montrer.
+      supabase.rpc("touches_modules", { p_repo_id: id }),
       supabase
         .from("activity_events")
         .select("id,session_id,module_path,file_path,kind,occurred_at")
@@ -122,6 +128,7 @@ export default async function PageRepo({
   // (issue #12, critère 6). En vrai, un repo neuf est déjà dans cet état.
   const sansActivite = demoEcran === "sans-activite";
   const etatsInitiaux = sansActivite ? [] : ((etats.data ?? []) as Etat[]);
+  const touchesInitiales = sansActivite ? [] : ((touches.data ?? []) as Touche[]);
   const evenementsInitiaux = sansActivite ? [] : ((evenements.data ?? []) as Evenement[]);
   const conflitsInitiaux = sansActivite ? [] : ((conflits.data ?? []) as Conflit[]);
   const agentsInitiaux = sansActivite ? 0 : ((agents.data as number | null) ?? 0);
@@ -164,6 +171,7 @@ export default async function PageRepo({
         modules={(modules.data ?? []) as Module[]}
         locTotal={repo.loc_total}
         etatsInitiaux={etatsInitiaux}
+        touchesInitiales={touchesInitiales}
         evenementsInitiaux={evenementsInitiaux}
         conflitsInitiaux={conflitsInitiaux}
         agentsInitiaux={agentsInitiaux}

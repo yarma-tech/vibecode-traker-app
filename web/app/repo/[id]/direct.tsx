@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { depuisTexte, estFige } from "@/lib/figement";
 import { repoSansActivite } from "@/lib/ecrans";
+import { type Touche } from "@/lib/touches";
 import { Bandeau } from "./bandeau";
 import { Journal } from "./journal";
 import { Plan, type Module } from "./plan";
@@ -85,6 +86,7 @@ export function Direct({
   modules,
   locTotal,
   etatsInitiaux,
+  touchesInitiales,
   evenementsInitiaux,
   conflitsInitiaux,
   agentsInitiaux,
@@ -98,6 +100,7 @@ export function Direct({
   modules: Module[];
   locTotal: number;
   etatsInitiaux: Etat[];
+  touchesInitiales: Touche[];
   evenementsInitiaux: Evenement[];
   conflitsInitiaux: Conflit[];
   agentsInitiaux: number;
@@ -107,6 +110,7 @@ export function Direct({
   dernierBattementInitial: string | null;
 }) {
   const [etats, setEtats] = useState(etatsInitiaux);
+  const [touches, setTouches] = useState(touchesInitiales);
   const [evenements, setEvenements] = useState(evenementsInitiaux);
   const [conflits, setConflits] = useState(conflitsInitiaux);
   const [presents, setPresents] = useState(agentsInitiaux);
@@ -132,8 +136,9 @@ export function Direct({
   const relire = useCallback(async () => {
     const supabase = createClient();
 
-    const [etat, journal, alarmes, agents, bilan, arbres, battement] = await Promise.all([
+    const [etat, marques, journal, alarmes, agents, bilan, arbres, battement] = await Promise.all([
       supabase.rpc("etat_modules", { p_repo_id: repoId }),
+      supabase.rpc("touches_modules", { p_repo_id: repoId }),
       supabase
         .from("activity_events")
         .select("id,session_id,module_path,file_path,kind,occurred_at")
@@ -148,6 +153,11 @@ export function Direct({
     ]);
 
     if (etat.data) setEtats(etat.data as Etat[]);
+    // Contrairement aux couleurs, ces dates ne s'éteignent pas d'elles-mêmes :
+    // elles ne dépendent d'aucune fenêtre glissante. Une liste vide reste
+    // pourtant une réponse légitime - un dépôt effacé puis recartographié
+    // n'aurait plus rien à dire, et garder l'ancienne serait mentir.
+    if (marques.data) setTouches(marques.data as Touche[]);
     if (journal.data) setEvenements(journal.data as Evenement[]);
     if (alarmes.data) setConflits(alarmes.data as Conflit[]);
     if (typeof agents.data === "number") setPresents(agents.data);
@@ -253,6 +263,7 @@ export function Direct({
             modules={modules}
             locTotal={locTotal}
             etats={etats}
+            touches={touches}
             worktrees={worktrees}
             fige={fige}
             dernierBattement={dernierBattement}
