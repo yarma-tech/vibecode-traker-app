@@ -2321,3 +2321,210 @@ code {
   flex-basis: 100%;
   margin: 0;
 }
+
+/* ---------- reglages : les dossiers surveilles (issue #68) ---------- */
+
+/* L'heure de la derniere cartographie (FR-030, FR-086). Elle vient de la base,
+   pas du pont : elle reste donc affichee dans un navigateur ordinaire, la ou
+   la liste des dossiers cede la place a une mention. */
+.cartographie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0 0 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.cartographie-quoi {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Le point median separe les trois temps de la ligne - ce que c'est, quand,
+   depuis combien - sans y ajouter de ponctuation dans le texte lui-meme. */
+.cartographie-quand::before,
+.cartographie-jamais::before,
+.cartographie-age::before {
+  content: "\00b7";
+  margin-right: 0.4rem;
+  color: var(--rule-2);
+}
+
+.cartographie-quand {
+  color: var(--ink-2);
+  font-weight: 620;
+}
+
+/* « jamais » n'est pas une heure manquante : c'est un fait, et il se lit comme
+   tel plutot que comme un blanc dans la ligne. */
+.cartographie-jamais {
+  color: var(--ink-2);
+  font-weight: 620;
+  font-style: italic;
+}
+
+.dossiers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.dossier {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.dossier-chemin {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  font-weight: 620;
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dossier-compte {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Une ligne a signaler (FR-029). Meme charpente que `.emplacement-disparu` sur
+   la carte : une pastille bordee, le meme ambre, et le texte porte le sens a
+   lui seul - la couleur ne fait que le souligner. */
+.dossier-signal {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--edit);
+  border: 1px solid var(--edit);
+  border-radius: 20px;
+  padding: 0.02rem 0.45rem;
+  white-space: nowrap;
+}
+
+/* Le chemin s'estompe avec le dossier : un second signal, jamais la couleur
+   seule. */
+.dossier-illisible .dossier-chemin {
+  color: var(--ink-2);
+}
+
+/* Barre reservee a ce qui n'est plus la. Un dossier dont l'acces est refuse
+   existe toujours : le barrer dirait le contraire de ce qu'il faut corriger. */
+.dossier-absent .dossier-chemin {
+  text-decoration: line-through;
+  text-decoration-color: var(--rule-2);
+}
+
+/* Le temps de savoir s'il y a un pont. Une ligne discrete plutot qu'un vide :
+   la section ne doit ni sauter, ni afficher une mention qu'elle retirerait. */
+.dossiers-attente {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+}
+
+/* FR-060 : hors de l'application, cette seule section devient une mention.
+   Jamais une liste vide - qui se lirait « rien n'est surveille » -, jamais une
+   erreur : il n'y a rien de casse, il y a un endroit ou ces reglages vivent. */
+.hors-application {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px dashed var(--rule-2);
+  border-radius: 4px;
+  background: var(--paper-2);
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  max-width: 52ch;
+}
+
+/* ---------- le lecteur, par-dessus l'interface (FR-009, FR-010) ---------- */
+
+/* Il ne parle que quand ca cloche, et alors il precede tout le reste : plus
+   rien ne remonte de cette machine, et la carte affichee ne le dit pas.
+   L'ambre des avertissements, jamais le rouge des conflits. */
+.bandeau-lecteur {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 0.6rem 1.25rem;
+  background: var(--edit-f);
+  border-bottom: 1px solid var(--edit);
+  color: var(--ink);
+}
+
+/* Le fond va d'un bord a l'autre - c'est un bandeau -, mais son contenu
+   s'aligne sur la colonne des ecrans, sinon il flotterait seul dans la marge
+   gauche. La plus large des deux (le plan d'un repo) : une phrase qui s'aligne
+   sur la plus etroite sauterait d'un ecran a l'autre. */
+.bandeau-lecteur-corps {
+  max-width: 70rem;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* La phrase prend la place qui reste et se replie sur elle-meme : c'est elle
+   qui doit s'adapter, pas le bouton, qui doit rester atteignable sur la
+   premiere ligne. */
+.bandeau-lecteur-dit {
+  flex: 1 1 20rem;
+  min-width: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.bandeau-lecteur-titre {
+  font-weight: 700;
+}
+
+/* L'encre pleine, jamais le gris des textes secondaires : il est cale pour le
+   fond papier et tombe sous AA sur ce fond ambre. */
+.bandeau-lecteur-suite {
+  color: var(--ink);
+}
+
+.bandeau-lecteur-relancer {
+  margin-left: auto;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--paper);
+  background: var(--ink);
+  border: 0;
+  border-radius: 5px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+
+.bandeau-lecteur-relancer:hover {
+  opacity: 0.88;
+}
+
+.bandeau-lecteur-relancer:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .bandeau-lecteur-relancer {
+    margin-left: 0;
+  }
+}

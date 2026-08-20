@@ -7,6 +7,7 @@
 //! il ne repond pas, le lecteur qu'elle embarque, et ou l'utilisateur avait
 //! laisse sa fenetre.
 
+pub mod dossiers;
 pub mod geometrie;
 pub mod lecteur;
 pub mod service;

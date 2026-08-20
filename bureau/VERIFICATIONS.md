@@ -4,13 +4,15 @@ Une fenêtre, un menu, une barre d'adresse absente : rien de tout cela ne se
 vérifie sans un écran. Cette liste est ce que le PRD-002 impose de jouer **avant
 chaque fusion touchant `bureau/`**. Elle s'allonge avec les tranches ; #57 l'a
 commencée, #58 y ajoute la géométrie de la fenêtre, #61 le lecteur embarqué,
-#62 son état affiché et sa relance.
+#62 son état affiché et sa relance, #68 l'ouverture du pont à l'interface.
 
 Ce qui est déjà couvert par les tests automatiques - la sonde de disponibilité,
 l'URL fixe de la fenêtre, la lecture et l'écriture de la géométrie, la prise et
 la libération du verrou du poste par le lecteur embarqué, le refus d'un second
 lecteur et sa mise en mots, l'état montré à chaque lecture, la relance après un
-arrêt - n'a pas à être rejoué ici : `cargo test` dans `bureau/` s'en charge.
+arrêt, les origines auxquelles le pont s'ouvre et ce qu'il rend des dossiers
+surveillés - n'a pas à être rejoué ici : `cargo test` dans `bureau/` s'en
+charge.
 
 ## Avant de commencer
 
@@ -101,7 +103,42 @@ le tient.
 - [ ] **Le pont ne répond qu'à la fenêtre.** Ouvrir
       `http://127.0.0.1:51789` dans Safari, puis dans la console :
       `window.__TAURI__` est `undefined`, et aucune commande du pont n'est
-      joignable.
+      joignable. L'origine est la même que celle de la fenêtre, et c'est bien
+      cela qu'il faut vérifier : le pont s'ouvre à une origine **dans le
+      webview de l'application**, jamais à un navigateur qui charge la même
+      adresse.
+
+## Le pont, l'écran Réglages et le bandeau (#68)
+
+Ces vérifications demandent une machine reliée, une pile Supabase joignable et
+une cartographie déjà passée. La configuration du lecteur vit à
+`~/.config/vibemap/config.toml` ; ses `roots` sont les dossiers surveillés.
+
+- [ ] **Les dossiers surveillés s'affichent.** Dans la fenêtre, ouvrir
+      Réglages : chaque dossier de `roots` est listé, avec le nombre de dépôts
+      trouvés. Le compte doit être celui des enfants **directs** portant un
+      `.git` - `ls -d ~/Developer/*/.git | wc -l` donne le même nombre.
+- [ ] **Un dossier renommé se signale.** Renommer un dossier surveillé
+      (`mv ~/Developer ~/Developer-renomme`), rouvrir Réglages : sa ligne porte
+      « Dossier introuvable », sans compte, et les autres dossiers restent
+      affichés normalement. Remettre le nom ensuite.
+- [ ] **Le même écran dans Safari.** Ouvrir `http://127.0.0.1:51789/reglages`
+      dans Safari : la section des dossiers est remplacée par la mention
+      « Ces réglages n'existent que dans l'application Vibe Map », les comptes
+      s'affichent normalement, l'heure de la dernière cartographie aussi - et
+      aucune erreur ni liste vide n'apparaît.
+- [ ] **Rien ne sort de la machine.** Dans l'inspecteur web de la fenêtre,
+      onglet Réseau, en ouvrant Réglages : aucune requête ne porte un chemin de
+      dossier ni un compte de dépôts. Les seuls appels sortants sont ceux de la
+      base, pour les comptes et `repos`.
+- [ ] **Le bandeau du lecteur par-dessus la carte.** L'application ouverte sur
+      la carte, lancer `vibemap` au terminal après avoir arrêté le lecteur de
+      l'application (ou tuer sa boucle) : un bandeau ambre apparaît en haut de
+      n'importe quel écran, dit ce qui cloche, et « Relancer le lecteur » le
+      remet en marche sans quitter l'application. Le bandeau disparaît seul.
+- [ ] **Pas de bandeau dans Safari.** Le même écran dans Safari n'affiche jamais
+      ce bandeau, quel que soit l'état du lecteur : hors de l'application, il
+      n'y a pas de pont, et l'interface ne prétend rien savoir du poste.
 
 ## Ce que cette liste ne peut pas jouer (#62)
 
@@ -114,9 +151,7 @@ se voie à la lecture suivante, et qu'un bouton la relance - est éprouvé par
 `cargo test --test lecteur`, et la relance se joue à la main ci-dessus depuis un
 poste tenu et depuis un trousseau refusé.
 
-**L'état du lecteur pendant que la carte est affichée.** La fenêtre le montre
-tant qu'elle est sur la page de l'application ; une fois la carte chargée, c'est
-`web/` qui occupe la fenêtre, et le pont ne lui est pas ouvert. Signaler là un
-lecteur qui s'arrête demande une tranche côté `web/` : exposer le pont à
-l'origine locale et y afficher le bandeau. Rien de tout cela ne vit dans
-`bureau/`.
+**L'état du lecteur pendant que la carte est affichée.** Ce point est levé par
+#68 : le pont est désormais ouvert à l'origine que la fenêtre charge, et `web/`
+affiche le bandeau de FR-009 et FR-010 par-dessus n'importe quel écran. Il se
+joue ci-dessus, dans « Le pont, l'écran Réglages et le bandeau ».

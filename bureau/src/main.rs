@@ -7,12 +7,22 @@
 //
 // Elle se rouvre la ou on l'a laissee (FR-005) : sa geometrie se note a chaque
 // deplacement et s'ecrit en quittant.
+//
+// Le pont des commandes locales lui est ouvert sur ses DEUX pages : la page
+// d'attente que l'application sert elle-meme, et l'interface servie sur
+// `127.0.0.1:51789` - voir `capabilities/default.json`. Ce n'est pas une
+// ouverture au dehors : cette origine est celle de l'application, qui sert sa
+// propre interface depuis la machine, et c'est pour cela que cette architecture
+// a ete choisie plutot qu'une page distante. Sans cette ouverture, l'interface
+// ne pourrait rien dire des faits du poste - dossiers surveilles, lecteur
+// arrete -, que la base ne porte pas.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use bureau::dossiers::Surveillance;
 use bureau::geometrie::{self, Geometrie, Position, HAUTEUR_MINIMALE, LARGEUR_MINIMALE};
 use bureau::lecteur::{EtatLecteur, LecteurEmbarque};
 use bureau::service::Service;
@@ -83,6 +93,7 @@ fn main() {
             etat_de_l_interface,
             etat_du_lecteur,
             relancer_le_lecteur,
+            dossiers_surveilles,
             reessayer
         ])
         .setup(|app| {
@@ -365,6 +376,22 @@ fn etat_du_lecteur(etat: State<EtatCourant>) -> EtatLecteur {
         lecteur.as_ref().map(LecteurEmbarque::tourne_encore),
         &dernier,
     )
+}
+
+/// « Lister les dossiers surveilles » : pour chacun, son chemin, son compte de
+/// depots, sa lisibilite et son etat d'autorisation (FR-027 a FR-029).
+///
+/// Des faits du poste, que la base ne porte pas et ne portera pas (FR-059) : le
+/// catalogue sait quels depots ont ete cartographies, jamais depuis quels
+/// dossiers ni ce que ces dossiers sont devenus depuis. Ils ne sortent pas de
+/// la machine : cette commande repond dans la fenetre et nulle part ailleurs.
+///
+/// Elle ne recoit rien - pas de chemin, pas de filtre. C'est la borne du pont :
+/// un geste nomme, jamais un acces au disque (PRD-002, decisions
+/// d'implementation).
+#[tauri::command]
+fn dossiers_surveilles() -> Surveillance {
+    bureau::dossiers::dossiers_du_poste()
 }
 
 /// « Relancer le lecteur » : le remet en marche sans quitter l'application
