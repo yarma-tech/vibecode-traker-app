@@ -4,7 +4,8 @@ Une fenêtre, un menu, une barre d'adresse absente : rien de tout cela ne se
 vérifie sans un écran. Cette liste est ce que le PRD-002 impose de jouer **avant
 chaque fusion touchant `bureau/`**. Elle s'allonge avec les tranches ; #57 l'a
 commencée, #58 y ajoute la géométrie de la fenêtre, #61 le lecteur embarqué,
-#62 son état affiché et sa relance, #68 l'ouverture du pont à l'interface.
+#62 son état affiché et sa relance, #68 l'ouverture du pont à l'interface, #70
+l'ajout d'un dossier au sélecteur du système.
 
 Ce qui est déjà couvert par les tests automatiques - la sonde de disponibilité,
 l'URL fixe de la fenêtre, la lecture et l'écriture de la géométrie, la prise et
@@ -139,6 +140,41 @@ une cartographie déjà passée. La configuration du lecteur vit à
 - [ ] **Pas de bandeau dans Safari.** Le même écran dans Safari n'affiche jamais
       ce bandeau, quel que soit l'état du lecteur : hors de l'application, il
       n'y a pas de pont, et l'interface ne prétend rien savoir du poste.
+
+## Ajouter un dossier au sélecteur du Mac (#70)
+
+Le sélecteur de fichiers est une fenêtre du système : personne ne clique dedans
+dans un test. Ce qui suit le choix - l'écriture dans la configuration, la liste
+rendue, la reprise du lecteur - est éprouvé par `cargo test --test ajout` ; ce
+qui se joue ici est le geste lui-même, du clic au dépôt qui apparaît.
+
+- [ ] **Le sélecteur s'ouvre.** Dans Réglages, cliquer sur « Ajouter un
+      dossier » : le sélecteur de dossiers de macOS s'ouvre par-dessus la
+      fenêtre, et l'application continue de répondre pendant qu'il est ouvert.
+      Le bouton dit « Sélecteur ouvert… » et ne réagit plus.
+- [ ] **Refermer ne fait rien.** Annuler le sélecteur : aucun message
+      n'apparaît, la liste ne bouge pas, et `~/.config/vibemap/config.toml` n'a
+      pas gagné de ligne.
+- [ ] **Le dossier choisi est surveillé.** Choisir `~/Sites` (ou tout dossier
+      contenant au moins un dépôt) : sa ligne apparaît aussitôt avec son compte
+      de dépôts, et le message nomme le dossier. Rien n'a été ouvert d'autre que
+      le sélecteur (FR-036).
+- [ ] **Le fichier a gagné une ligne, et rien perdu.** `cat
+      ~/.config/vibemap/config.toml` : le nouveau dossier y est, écrit `~/…`,
+      à côté des anciens ; `supabase_url`, `machine_id`, `label` et les cadences
+      sont intacts, commentaires compris.
+- [ ] **Les dépôts arrivent en moins d'une minute.** Sans rien fermer ni
+      relancer, l'accueil montre les dépôts du dossier ajouté dans la minute
+      (FR-034). Le terminal d'où l'application a été lancée montre un nouveau
+      « vibemap surveille depuis… » suivi d'une ligne de cartographie : c'est le
+      lecteur qui vient de repartir avec la nouvelle liste.
+- [ ] **Le poste n'est pas perdu au passage.** Juste après l'ajout,
+      `lsof ~/.config/vibemap/lecteur.lock` nomme toujours l'application, et la
+      machine reste vue il y a moins de 90 secondes depuis un autre appareil.
+- [ ] **Aucun bouton dans Safari.** `http://127.0.0.1:51789/reglages` dans
+      Safari : la mention de FR-060 s'affiche, et il n'y a **aucun** bouton
+      « Ajouter un dossier » - hors de l'application, il n'y a pas de sélecteur
+      à ouvrir.
 
 ## Ce que cette liste ne peut pas jouer (#62)
 

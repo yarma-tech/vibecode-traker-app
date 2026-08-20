@@ -170,6 +170,69 @@ export function compteDepots(depots: number): string {
   return depots === 1 ? "1 dépôt" : `${depots} dépôts`;
 }
 
+/* ---------- ajouter un dossier (FR-031, FR-034, FR-036) ---------- */
+
+/**
+ * Ce que le pont rend après « ajouter un dossier »
+ * (`bureau/src/dossiers.rs`).
+ *
+ * Le chemin ne part jamais d'ici : c'est l'application qui ouvre le sélecteur
+ * du système et demande à l'utilisateur quel dossier il désigne. L'écran
+ * demande un geste, il ne désigne rien.
+ *
+ * `null` dit qu'il n'y avait pas de pont à qui demander - hors de
+ * l'application, le bouton n'existe pas.
+ */
+export type ReponseAjout =
+  | { issue: "ajoute"; chemin: string; surveillance: Surveillance }
+  | { issue: "annule" }
+  | { issue: "echoue"; raison: string }
+  | null;
+
+/** Ce que l'écran annonce après un ajout, ou rien. */
+export type Annonce = { ton: "succes" | "echec"; texte: string };
+
+/**
+ * Ce que l'écran fait de la réponse : ce qu'il annonce, et la liste qu'il
+ * affiche désormais.
+ *
+ * `surveillance` vaut `null` quand la liste ne bouge pas - un sélecteur refermé
+ * ou une écriture refusée laissent l'écran exactement tel qu'il était. La
+ * remplacer par une liste vide dirait « plus rien n'est surveillé », ce qui
+ * serait faux.
+ */
+export type SuiteAjout = { annonce: Annonce | null; surveillance: Surveillance | null };
+
+export function suiteDeLAjout(reponse: ReponseAjout): SuiteAjout {
+  // Pas de pont, ou un sélecteur refermé sans choix : il ne s'est rien passé,
+  // et un écran qui annoncerait quelque chose ferait passer un geste repris
+  // pour un incident.
+  if (reponse === null || reponse.issue === "annule") {
+    return { annonce: null, surveillance: null };
+  }
+
+  if (reponse.issue === "echoue") {
+    return {
+      annonce: {
+        ton: "echec",
+        texte: `Le dossier n'a pas pu être ajouté : ${reponse.raison}`,
+      },
+      surveillance: null,
+    };
+  }
+
+  // FR-034 : le dossier est cartographié sans attendre le tour suivant. Le dire
+  // est ce qui évite d'aller vérifier dans un fichier, ou de recommencer parce
+  // que les dépôts ne sont pas déjà là.
+  return {
+    annonce: {
+      ton: "succes",
+      texte: `« ${reponse.chemin} » est surveillé. Ses dépôts apparaissent d'ici une minute.`,
+    },
+    surveillance: reponse.surveillance,
+  };
+}
+
 /* ---------- l'heure de la dernière cartographie (FR-030, FR-086) ---------- */
 
 /**

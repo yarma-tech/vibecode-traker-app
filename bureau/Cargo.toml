@@ -15,8 +15,15 @@ path = "src/main.rs"
 
 [dependencies]
 tauri = { version = "2", features = [] }
+# Le selecteur de fichiers du systeme (FR-031). Il s'ouvre depuis le Rust, et
+# non depuis la fenetre : celle-ci demande un geste et ne fournit aucun chemin.
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# La liste des dossiers surveilles s'ajoute DANS le fichier de configuration
+# existant, sans le reecrire : un document edite garde les autres champs, leur
+# mise en page et les commentaires que l'utilisateur y a mis (FR-036).
+toml_edit = "0.25"
 libc = "0.2"
 
 # Le lecteur, embarque comme bibliotheque et jamais recopie (PRD-002) :

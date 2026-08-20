@@ -15,7 +15,11 @@
 import { invocateur, pontOuvert } from "@/lib/poste";
 
 /** Les commandes que le pont expose, nommées une fois. */
-export type CommandeLocale = "dossiers_surveilles" | "etat_du_lecteur" | "relancer_le_lecteur";
+export type CommandeLocale =
+  | "dossiers_surveilles"
+  | "ajouter_un_dossier"
+  | "etat_du_lecteur"
+  | "relancer_le_lecteur";
 
 type Invoquer = (commande: CommandeLocale) => Promise<unknown>;
 

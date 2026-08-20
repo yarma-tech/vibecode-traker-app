@@ -6,7 +6,9 @@ import {
   ligneDossier,
   pontOuvert,
   sectionDossiers,
+  suiteDeLAjout,
   type DossierSurveille,
+  type Surveillance,
 } from "./poste";
 
 // Le partage des sources de FR-059 est ce que ce fichier éprouve : ce qui vient
@@ -128,6 +130,51 @@ describe("compteDepots - une phrase, pas une case de tableau", () => {
 
   it("plusieurs dépôts", () => {
     expect(compteDepots(7)).toBe("7 dépôts");
+  });
+});
+
+// Ajouter un dossier (FR-031, FR-034, FR-036). Le sélecteur du système ne se
+// teste pas ici - il n'y a pas de fenêtre du système dans un test -, mais tout
+// ce que l'écran fait de la réponse, si : c'est là que se décide ce que
+// l'utilisateur lit, et s'il doit recommencer ou non.
+
+describe("suiteDeLAjout - ce que l'écran fait d'un ajout", () => {
+  const liste: Surveillance = {
+    etat: "lue",
+    dossiers: [dossier(), dossier({ chemin: "~/Sites", emplacement: "/Users/moi/Sites", depots: 2 })],
+  };
+
+  it("un sélecteur refermé sans choix ne dit rien et ne change rien", () => {
+    expect(suiteDeLAjout({ issue: "annule" })).toEqual({ annonce: null, surveillance: null });
+  });
+
+  it("un dossier ajouté est nommé, et l'écran affiche la liste rendue", () => {
+    const suite = suiteDeLAjout({ issue: "ajoute", chemin: "~/Sites", surveillance: liste });
+    expect(suite.surveillance).toBe(liste);
+    expect(suite.annonce?.ton).toBe("succes");
+    expect(suite.annonce?.texte).toContain("~/Sites");
+  });
+
+  it("l'annonce dit quand les dépôts arrivent : sinon on recommence, ou on va voir le fichier", () => {
+    const suite = suiteDeLAjout({ issue: "ajoute", chemin: "~/Sites", surveillance: liste });
+    expect(suite.annonce?.texte).toMatch(/minute/);
+  });
+
+  it("un refus dit la raison, et ne se fait pas passer pour un succès", () => {
+    const suite = suiteDeLAjout({
+      issue: "echoue",
+      raison: "aucune configuration a /Users/moi/.config/vibemap/config.toml",
+    });
+    expect(suite.annonce?.ton).toBe("echec");
+    expect(suite.annonce?.texte).toContain("/Users/moi/.config/vibemap/config.toml");
+  });
+
+  it("un refus ne remplace pas la liste affichée : rien n'a bougé sur le poste", () => {
+    expect(suiteDeLAjout({ issue: "echoue", raison: "disque plein" }).surveillance).toBeNull();
+  });
+
+  it("sans pont, il n'y a rien à annoncer : le bouton n'existe pas là-bas (FR-060)", () => {
+    expect(suiteDeLAjout(null)).toEqual({ annonce: null, surveillance: null });
   });
 });
 

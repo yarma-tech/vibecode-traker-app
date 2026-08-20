@@ -22,7 +22,7 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use bureau::dossiers::Surveillance;
+use bureau::dossiers::{Ajout, Surveillance};
 use bureau::geometrie::{self, Geometrie, Position, HAUTEUR_MINIMALE, LARGEUR_MINIMALE};
 use bureau::lecteur::{EtatLecteur, LecteurEmbarque};
 use bureau::service::Service;
@@ -32,6 +32,7 @@ use tauri::{
     AppHandle, LogicalPosition, LogicalSize, Manager, RunEvent, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
 };
+use tauri_plugin_dialog::DialogExt;
 
 const FENETRE: &str = "principale";
 
@@ -89,11 +90,17 @@ impl Default for EtatCourant {
 fn main() {
     tauri::Builder::default()
         .manage(EtatCourant::default())
+        // Le selecteur de fichiers du systeme (FR-031). Il n'est ouvert que
+        // depuis le Rust, par la commande `ajouter_un_dossier` : la fenetre n'a
+        // aucune permission de l'ouvrir elle-meme, et ne recoit donc jamais de
+        // chemin a nous rendre.
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             etat_de_l_interface,
             etat_du_lecteur,
             relancer_le_lecteur,
             dossiers_surveilles,
+            ajouter_un_dossier,
             reessayer
         ])
         .setup(|app| {
@@ -317,6 +324,25 @@ fn ouvrir_en_arriere_plan(app: AppHandle) {
 /// trousseau peut ouvrir une boite de dialogue du systeme, et une application
 /// qui cesse de repondre pendant son demarrage se fait tuer.
 fn relancer_le_lecteur_en_arriere_plan(app: AppHandle) {
+    remettre_le_lecteur_en_marche(app, bureau::lecteur::relancer_le_lecteur);
+}
+
+/// Fait repartir le lecteur pour qu'il relise sa configuration, meme s'il
+/// tourne (FR-033, FR-034).
+///
+/// Appele apres un ajout de dossier, et seulement la : c'est le depart du
+/// lecteur qui relit la liste des dossiers surveilles, et sa premiere
+/// cartographie qui parcourt le dossier ajoute sans attendre l'intervalle.
+fn reprendre_le_lecteur_en_arriere_plan(app: AppHandle) {
+    remettre_le_lecteur_en_marche(app, bureau::lecteur::reprendre_la_configuration);
+}
+
+/// Le fond commun des deux : le demarrage se fait en arriere-plan et l'etat
+/// suit, quelle que soit la porte par laquelle on remet le lecteur en marche.
+fn remettre_le_lecteur_en_marche(
+    app: AppHandle,
+    demarrage: fn(&mut Option<LecteurEmbarque>) -> EtatLecteur,
+) {
     // Note avant de partir, et non depuis le fil : la fenetre doit voir le
     // demarrage des le clic qui l'a demande, et non au passage d'apres.
     *app.state::<EtatCourant>()
@@ -328,7 +354,7 @@ fn relancer_le_lecteur_en_arriere_plan(app: AppHandle) {
         let etat: State<EtatCourant> = app.state();
         let mut lecteur = etat.lecteur.lock().expect("lecteur en cours");
 
-        let resultat = bureau::lecteur::relancer_le_lecteur(&mut lecteur);
+        let resultat = demarrage(&mut lecteur);
         if let EtatLecteur::EnEchec(echec) = &resultat {
             // La fenetre dit deja ce qui cloche ; cette trace le repete la ou
             // on lance l'application au terminal pour la mettre au point.
@@ -392,6 +418,53 @@ fn etat_du_lecteur(etat: State<EtatCourant>) -> EtatLecteur {
 #[tauri::command]
 fn dossiers_surveilles() -> Surveillance {
     bureau::dossiers::dossiers_du_poste()
+}
+
+/// « Ajouter un dossier » : ouvre le selecteur du systeme, inscrit le dossier
+/// choisi dans la liste des dossiers surveilles, et fait repartir le lecteur
+/// pour qu'il le prenne en compte tout de suite (FR-031, FR-033, FR-034).
+///
+/// La borne du pont tient : la fenetre ne fournit AUCUN chemin. Elle demande un
+/// geste, et c'est l'application qui va demander a l'utilisateur, dans le
+/// selecteur du systeme, quel dossier il designe. Une page qui appellerait
+/// cette commande n'obtiendrait donc pas d'acces au disque : elle ferait
+/// apparaitre une fenetre de choix devant l'utilisateur, et rien d'autre.
+///
+/// Elle rend la liste entiere plutot que le seul dossier ajoute, pour que
+/// l'ecran se remette a jour d'un seul tenant - et le fichier de configuration
+/// n'a jamais eu a etre ouvert (FR-036).
+#[tauri::command]
+async fn ajouter_un_dossier(app: AppHandle) -> Ajout {
+    let Some(choisi) = choisir_un_dossier(app.clone()).await else {
+        // Selecteur ferme sans choix : rien n'est ecrit, et il n'y a rien a
+        // annoncer. Un geste repris n'est pas un echec.
+        return Ajout::Annule;
+    };
+
+    let ajout = bureau::dossiers::ajouter_au_poste(&choisi);
+
+    // Le lecteur repart seulement si quelque chose a ete ecrit : couper le
+    // battement de la machine apres un ajout qui n'a pas eu lieu le couperait
+    // pour rien.
+    if let Ajout::Ajoute { .. } = ajout {
+        reprendre_le_lecteur_en_arriere_plan(app);
+    }
+
+    ajout
+}
+
+/// Le dossier que l'utilisateur designe dans le selecteur du systeme, ou rien
+/// s'il le referme.
+///
+/// Sur un fil dedie : le selecteur est modal et retient le fil qui l'ouvre
+/// aussi longtemps que l'utilisateur cherche son dossier. Sur celui de la
+/// fenetre, l'application cesserait de repondre et le systeme la tuerait.
+async fn choisir_un_dossier(app: AppHandle) -> Option<PathBuf> {
+    tauri::async_runtime::spawn_blocking(move || app.dialog().file().blocking_pick_folder())
+        .await
+        .ok()
+        .flatten()
+        .and_then(|choix| choix.into_path().ok())
 }
 
 /// « Relancer le lecteur » : le remet en marche sans quitter l'application

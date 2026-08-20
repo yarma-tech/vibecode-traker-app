@@ -280,6 +280,40 @@ pub fn relancer(
         return EtatLecteur::EnMarche;
     }
 
+    reprendre(lecteur, chemin_config, chemin_du_verrou)
+}
+
+/// Fait repartir le lecteur de zero pour qu'il relise sa configuration, meme
+/// s'il tourne encore (FR-033, FR-034).
+///
+/// POURQUOI un depart de zero et non un reglage a chaud : le lecteur lit sa
+/// configuration - les dossiers surveilles compris - au moment de se preparer,
+/// et une seule fois. Rien, dans sa boucle, ne va la relire. Le faire repartir
+/// est donc ce qui fait qu'un dossier ajoute est surveille TOUT DE SUITE, sans
+/// que l'application ait a se fermer.
+///
+/// Et la cartographie suit : elle a lieu des le demarrage du lecteur, avant sa
+/// premiere boucle. Le dossier ajoute est donc parcouru dans la foulee, sans
+/// attendre les cinq minutes de la cartographie periodique - c'est ce qui tient
+/// la promesse de la minute (FR-034).
+///
+/// A n'appeler que quand la configuration a change : reprendre un lecteur en
+/// marche pour rien couperait le battement de la machine le temps du
+/// remplacement.
+pub fn reprendre_la_configuration(lecteur: &mut Option<LecteurEmbarque>) -> EtatLecteur {
+    reprendre(
+        lecteur,
+        &Config::chemin_par_defaut(),
+        &Verrou::chemin_par_defaut(),
+    )
+}
+
+/// Le meme depart de zero, sur des emplacements donnes.
+pub fn reprendre(
+    lecteur: &mut Option<LecteurEmbarque>,
+    chemin_config: &Path,
+    chemin_du_verrou: &Path,
+) -> EtatLecteur {
     // Celui d'avant est laisse tomber d'abord, et jusqu'au bout : c'est lui qui
     // tient le verrou du poste, et le suivant se le refuserait a lui-meme.
     lecteur.take();

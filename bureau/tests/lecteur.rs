@@ -272,15 +272,20 @@ fn une_relance_apres_un_arret_rend_un_lecteur_en_marche() {
     );
     Verrou::prendre(&verrou, "vibemap").expect_err("le lecteur relance tient le poste");
 
-    // Un second clic sur un lecteur qui tourne ne le remplace pas : c'est le
-    // meme, a la meme adresse, qui tient toujours le poste.
-    let avant = std::ptr::from_ref(lecteur.as_ref().expect("un lecteur en marche"));
+    // Un second clic sur un lecteur qui tourne ne le remplace pas. La preuve
+    // ne peut pas etre l'adresse de la valeur - elle vit dans la meme case, et
+    // serait la meme apres un remplacement -, elle est dans ce que ferait un
+    // remplacement : redemarrer, c'est relire la configuration, et une
+    // configuration disparue ferait echouer ce demarrage-la. Le lecteur reste
+    // en marche : il n'a donc pas ete repris.
+    let mis_de_cote = std::fs::read_to_string(&config).expect("configuration relisible");
+    std::fs::remove_file(&config).expect("configuration mise de cote");
     assert_eq!(
         bureau::lecteur::relancer(&mut lecteur, &config, &verrou),
-        EtatLecteur::EnMarche
+        EtatLecteur::EnMarche,
+        "un lecteur qui tourne n'est pas relance"
     );
-    let apres = std::ptr::from_ref(lecteur.as_ref().expect("un lecteur en marche"));
-    assert_eq!(avant, apres, "un lecteur qui tourne n'est pas relance");
+    std::fs::write(&config, mis_de_cote).expect("configuration remise en place");
 
     // L'arret, tel que l'application le subit : la valeur disparait, et le poste
     // redevient libre.

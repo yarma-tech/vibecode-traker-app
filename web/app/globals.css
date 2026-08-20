@@ -2492,6 +2492,58 @@ code {
   max-width: 52ch;
 }
 
+/* Le geste que la section attendait (FR-031, issue #70). Il precede la liste :
+   c'est ce qu'on vient faire ici quand un depot manque a l'appel, et la liste
+   est ce qu'on lit ensuite pour verifier. */
+.dossiers-geste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin: 0 0 0.9rem;
+}
+
+.ajouter-dossier {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--paper);
+  background: var(--ink);
+  border: 0;
+  border-radius: 5px;
+  padding: 0.35rem 0.7rem;
+}
+
+.ajouter-dossier:hover {
+  opacity: 0.88;
+}
+
+/* Le selecteur du systeme est modal : le bouton ne repond plus tant qu'il est
+   ouvert. Il le dit avec son texte - la palissure seule laisserait croire a un
+   bouton casse. */
+.ajouter-dossier:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Ce que l'ajout a donne. Le texte porte le sens a lui seul ; la couleur ne
+   fait que le souligner, et le filet ambre est celui des avertissements. */
+.annonce-ajout {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  border-left: 2px solid var(--rule-2);
+  padding-left: 0.6rem;
+}
+
+.annonce-echec {
+  color: var(--ink);
+  font-weight: 600;
+  border-left-color: var(--edit);
+}
+
 /* ---------- le lecteur, par-dessus l'interface (FR-009, FR-010) ---------- */
 
 /* Il ne parle que quand ca cloche, et alors il precede tout le reste : plus
