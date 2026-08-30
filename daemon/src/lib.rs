@@ -3,20 +3,25 @@
 //! Il observe ce que font les agents sur le poste et pousse des metadonnees
 //! vers Supabase. Aucun contenu de fichier ne sort jamais d'ici.
 
-mod appairage;
 pub mod commits;
 mod config;
+pub mod declaration;
+pub mod depouillement;
 pub mod journal;
+pub mod lecteur;
 mod plan;
 pub mod prd;
 pub mod reprise;
 pub mod trousseau;
+pub mod verrou;
 mod worktree;
 
-pub use appairage::{appairer, AppairageError, Identite};
 pub use commits::{branche_courante, commits_depuis, head, CommitLocal};
 pub use config::{Config, ConfigError};
+pub use declaration::Identite;
+pub use declaration::{declarer, DansLaBase, DeclarationError};
 pub use plan::{empreinte, identite, normaliser_distant, scanner, Module, Plan, ScanError};
+pub use verrou::{Marque, Tenant, Verrou, VerrouError};
 pub use worktree::{worktrees, Worktree};
 
 use chrono::{DateTime, Utc};
@@ -34,6 +39,64 @@ pub struct Activite {
     /// « read » ou « write ».
     pub kind: &'static str,
     pub occurred_at: DateTime<Utc>,
+}
+
+/// Les deux dates de derniere touche d'une zone, pretes a partir.
+///
+/// Liste fermee : un chemin de dossier relatif a la racine du depot, et jusqu'a
+/// deux horodatages. Aucun chemin absolu, aucun nom de fichier, aucune session,
+/// aucun nom d'agent (FR-045) - la structure n'a pas de champ ou les loger.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DerniereTouche {
+    /// Dossier relatif a la racine du depot. La racine porte la chaine vide.
+    pub chemin: String,
+    pub derniere_ecriture: Option<DateTime<Utc>>,
+    pub derniere_lecture: Option<DateTime<Utc>>,
+}
+
+impl DerniereTouche {
+    /// Ramene un lot d'appels d'outils a une touche par zone.
+    ///
+    /// Une ecriture ne renseigne que la date d'ecriture, une lecture que celle
+    /// de lecture : c'est ce qui fait que l'une ne chasse jamais l'autre
+    /// (FR-039, FR-040). L'ordre d'arrivee des evenements n'a pas d'importance,
+    /// on ne garde que la date la plus recente de chaque nature.
+    pub fn depuis_activites(evenements: &[Activite]) -> Vec<Self> {
+        let mut par_zone: BTreeMap<&str, Self> = BTreeMap::new();
+
+        for evenement in evenements {
+            let touche = par_zone
+                .entry(&evenement.module_path)
+                .or_insert_with(|| Self {
+                    chemin: evenement.module_path.clone(),
+                    derniere_ecriture: None,
+                    derniere_lecture: None,
+                });
+            let date = match evenement.kind {
+                "write" => &mut touche.derniere_ecriture,
+                _ => &mut touche.derniere_lecture,
+            };
+            *date = Some(match *date {
+                Some(connue) => connue.max(evenement.occurred_at),
+                None => evenement.occurred_at,
+            });
+        }
+
+        par_zone.into_values().collect()
+    }
+
+    /// Ce qui part sur le reseau pour cette zone, et rien de plus.
+    ///
+    /// Le seul endroit ou la charge utile est construite : un champ qui
+    /// s'ajouterait ailleurs ne partirait pas, et un champ ajoute ici tombe
+    /// sous le test qui compte les cles.
+    pub fn charge(&self) -> serde_json::Value {
+        json!({
+            "chemin":  self.chemin,
+            "ecrit_a": self.derniere_ecriture,
+            "lu_a":    self.derniere_lecture,
+        })
+    }
 }
 
 /// La consommation d'une session, agregee et prete a partir.
@@ -74,7 +137,7 @@ pub enum ApiError {
     #[error(
         "la machine {0} n'a pas accepte l'ecriture. Elle a peut-etre ete revoquee \
          ou supprimee depuis l'application web, ou ce jeton ne lui correspond plus. \
-         Relance `vibemap pair <code>` avec un nouveau code pour la relier a nouveau."
+         Ouvre l'application de bureau Vibe Map sur ce Mac pour la relier a nouveau."
     )]
     MachineInconnue(String),
 }
@@ -110,14 +173,13 @@ impl Supabase {
     }
 
     /// Signale que la machine est vivante a l'instant donne.
-    pub async fn announce(
-        &self,
-        machine_id: &str,
-        at: DateTime<Utc>,
-    ) -> Result<(), ApiError> {
+    pub async fn announce(&self, machine_id: &str, at: DateTime<Utc>) -> Result<(), ApiError> {
         let reponse = self
             .http
-            .patch(format!("{}/rest/v1/machines?id=eq.{}", self.url, machine_id))
+            .patch(format!(
+                "{}/rest/v1/machines?id=eq.{}",
+                self.url, machine_id
+            ))
             .header("apikey", &self.token)
             .bearer_auth(&self.token)
             .header("Content-Type", "application/json")
@@ -132,7 +194,10 @@ impl Supabase {
         let code = reponse.status();
         if !code.is_success() {
             let corps = reponse.text().await.unwrap_or_default();
-            return Err(ApiError::Refuse { code: code.as_u16(), corps });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps,
+            });
         }
 
         let lignes: serde_json::Value = reponse.json().await?;
@@ -197,7 +262,10 @@ impl Supabase {
         // peut pas laisser de dossier fantome derriere lui.
         let effacement = self
             .http
-            .delete(format!("{}/rest/v1/modules?repo_id=eq.{}", self.url, repo_id))
+            .delete(format!(
+                "{}/rest/v1/modules?repo_id=eq.{}",
+                self.url, repo_id
+            ))
             .header("apikey", &self.token)
             .bearer_auth(&self.token)
             .send()
@@ -271,7 +339,10 @@ impl Supabase {
     ) -> Result<Option<serde_json::Value>, ApiError> {
         let reponse = self
             .http
-            .patch(format!("{}/rest/v1/repos?identity=eq.{identite_locale}", self.url))
+            .patch(format!(
+                "{}/rest/v1/repos?identity=eq.{identite_locale}",
+                self.url
+            ))
             .header("apikey", &self.token)
             .bearer_auth(&self.token)
             .header("Content-Type", "application/json")
@@ -294,7 +365,10 @@ impl Supabase {
         let texte = reponse.text().await.unwrap_or_default();
 
         if !code.is_success() {
-            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps: texte,
+            });
         }
 
         let lignes: serde_json::Value =
@@ -317,7 +391,10 @@ impl Supabase {
     pub async fn repo_par_identite(&self, identity: &str) -> Result<Option<String>, ApiError> {
         let reponse = self
             .http
-            .get(format!("{}/rest/v1/repos?identity=eq.{identity}&select=id", self.url))
+            .get(format!(
+                "{}/rest/v1/repos?identity=eq.{identity}&select=id",
+                self.url
+            ))
             .header("apikey", &self.token)
             .bearer_auth(&self.token)
             .send()
@@ -327,7 +404,10 @@ impl Supabase {
         let texte = reponse.text().await.unwrap_or_default();
 
         if !code.is_success() {
-            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps: texte,
+            });
         }
 
         let lignes: serde_json::Value = serde_json::from_str(&texte).unwrap_or_default();
@@ -401,7 +481,46 @@ impl Supabase {
             )
             .await?;
 
+        // Les evenements bruts sont purges a sept jours : les deux dates de
+        // derniere touche se posent maintenant ou jamais. On les tient meme
+        // quand aucune ligne n'a ete creee - un lot deja connu, rejoue par la
+        // file d'attente, n'a rien a poser mais rien a defaire non plus.
+        self.pousser_dernieres_touches(repo_id, &DerniereTouche::depuis_activites(evenements))
+            .await?;
+
         Ok(poses.as_array().map(Vec::len).unwrap_or(0))
+    }
+
+    /// Tient les deux dates de derniere touche des zones d'un depot, et rend le
+    /// nombre de zones ecrites.
+    ///
+    /// Canal partage : la lecture vivante des journaux passe par ici, et le
+    /// depouillement du passe (F9) y passera. Aucun des deux n'a besoin de
+    /// savoir ce qui est deja en base : la monotonie est tenue cote agregat,
+    /// une date plus ancienne que celle en place est ignoree sans erreur.
+    pub async fn pousser_dernieres_touches(
+        &self,
+        repo_id: &str,
+        touches: &[DerniereTouche],
+    ) -> Result<usize, ApiError> {
+        if touches.is_empty() {
+            return Ok(0);
+        }
+
+        let lignes: Vec<_> = touches.iter().map(DerniereTouche::charge).collect();
+
+        let reponse = self
+            .envoyer(
+                "rpc/noter_dernieres_touches",
+                None,
+                json!({
+                    "p_repo_id": repo_id,
+                    "p_touches": lignes,
+                }),
+            )
+            .await?;
+
+        Ok(reponse.as_u64().unwrap_or(0) as usize)
     }
 
     /// Annonce la consommation de chaque session, jetons et modele compris.
@@ -494,7 +613,10 @@ impl Supabase {
         let texte = reponse.text().await.unwrap_or_default();
 
         if !code.is_success() {
-            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps: texte,
+            });
         }
 
         let lignes: serde_json::Value = serde_json::from_str(&texte).unwrap_or_default();
@@ -517,7 +639,10 @@ impl Supabase {
         let code = reponse.status();
         if !code.is_success() {
             let corps = reponse.text().await.unwrap_or_default();
-            return Err(ApiError::Refuse { code: code.as_u16(), corps });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps,
+            });
         }
 
         Ok(())
@@ -665,7 +790,10 @@ impl Supabase {
         let texte = reponse.text().await.unwrap_or_default();
 
         if !code.is_success() {
-            return Err(ApiError::Refuse { code: code.as_u16(), corps: texte });
+            return Err(ApiError::Refuse {
+                code: code.as_u16(),
+                corps: texte,
+            });
         }
 
         Ok(serde_json::from_str(&texte).unwrap_or(serde_json::Value::Null))

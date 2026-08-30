@@ -203,7 +203,14 @@ fn lire_usage_une_ligne(ligne: &str) -> Option<Usage> {
         .or_else(|| entree.pointer("/message/id").and_then(Value::as_str))
         .map(str::to_string)
         .unwrap_or_else(|| {
-            empreinte_usage(session_id, instant, input, output, cache_read, cache_creation)
+            empreinte_usage(
+                session_id,
+                instant,
+                input,
+                output,
+                cache_read,
+                cache_creation,
+            )
         });
 
     Some(Usage {
@@ -300,8 +307,14 @@ pub fn depuis_hook(charge: &str) -> Option<Evenement> {
     let (brut, dossier) = cible(outil, entree)?;
 
     Some(Evenement {
-        session_id: charge.get("session_id").and_then(Value::as_str)?.to_string(),
-        tool_use_id: charge.get("tool_use_id").and_then(Value::as_str)?.to_string(),
+        session_id: charge
+            .get("session_id")
+            .and_then(Value::as_str)?
+            .to_string(),
+        tool_use_id: charge
+            .get("tool_use_id")
+            .and_then(Value::as_str)?
+            .to_string(),
         // Le hook parle au moment ou l'outil vient de rendre la main.
         instant: Utc::now(),
         cwd: cwd.to_string(),
@@ -502,7 +515,11 @@ fn cle_idempotence(ids: &[String]) -> String {
 ///
 /// Compare segment par segment : « atelier-bis » ne descend pas de « atelier »,
 /// meme si la chaine commence pareil.
-fn repo_de<'a>(
+///
+/// Ouverte au crate parce que le depouillement du passe (`depouillement.rs`)
+/// doit rattacher ses evenements exactement comme le direct : deux barrieres
+/// differentes finiraient par diverger.
+pub(crate) fn repo_de<'a>(
     cwd: &str,
     repos: &'a std::collections::BTreeMap<PathBuf, String>,
 ) -> Option<(&'a Path, &'a String)> {
@@ -513,12 +530,21 @@ fn repo_de<'a>(
         .map(|(racine, id)| (racine.as_path(), id))
 }
 
+/// Le nom du fichier ou vit la position de lecture du direct.
+///
+/// La marque du depouillement en arriere vit dans un fichier different
+/// (`depouillement::NOM_DE_LA_MARQUE`) : les deux avancent a leur rythme et
+/// aucune n'ecrit dans l'autre (FR-084).
+pub const NOM_DES_OFFSETS: &str = "offsets.json";
+
 /// Ou en est la lecture de chaque journal.
 ///
 /// Les journaux ne font que grandir : retenir un decalage par fichier evite de
-/// relire des megaoctets a chaque tour. Un fichier vu pour la premiere fois
-/// n'apporte que ce qui est plus recent que l'horizon, sans quoi le premier
-/// demarrage rejouerait des semaines d'activite.
+/// relire des megaoctets a chaque tour. Quel que soit le journal - jamais vu ou
+/// deja connu -, un tour n'apporte que ce qui est plus recent que l'horizon,
+/// sans quoi le premier demarrage rejouerait des semaines d'activite, et une
+/// reprise apres une longue fermeture rejouerait tout le passe accumule depuis
+/// la position enregistree (FR-089).
 ///
 /// Ces decalages se persistent sur disque (`enregistrer`) : sans cela, un
 /// redemarrage repartait a zero et recomptait la fenetre de rattrapage — les
@@ -600,6 +626,21 @@ impl Suivi {
         std::fs::rename(&temporaire, chemin)
     }
 
+    /// Ce que les journaux ont a dire depuis le dernier tour, borne a l'horizon.
+    ///
+    /// POURQUOI la borne vaut pour tous les journaux et pas seulement pour ceux
+    /// qu'on decouvre : la position enregistree survit a la fermeture de
+    /// l'application. Reprendre a une position vieille d'une semaine ferait
+    /// partir en direct une semaine de travail - journal direct et sessions
+    /// ressuscitees - alors que le direct ne dit que le maintenant (FR-089).
+    /// Ce passe n'est pas perdu pour autant : le depouillement en arriere
+    /// (`depouillement.rs`) en tire les deux dates de chaque zone, sans jamais
+    /// ecrire d'activite. Les deux canaux ont des regles opposees, et c'est
+    /// voulu.
+    ///
+    /// La reprise courte, elle, ne perd rien : l'horizon se compte en minutes,
+    /// et tout ce qu'un lecteur arrete quelques instants n'avait pas encore lu
+    /// est plus recent que lui.
     pub fn nouveaux(&mut self, racine: &Path, horizon: DateTime<Utc>) -> Lecture {
         let mut lecture = Lecture::default();
 
@@ -609,9 +650,11 @@ impl Suivi {
             };
             let taille = infos.len();
 
-            let premiere_vue = !self.decalages.contains_key(&chemin);
-            if premiere_vue && !touche_depuis(&infos, horizon) {
-                // Journal dormant : rien a en tirer, on se place a sa fin.
+            if !touche_depuis(&infos, horizon) {
+                // Journal dormant : rien de ce qu'il porte n'est plus recent que
+                // l'horizon, donc rien n'en sortirait de toute facon. On se place
+                // a sa fin sans le lire - ce qui evite aussi de relire des
+                // megaoctets de journaux endormis a la reouverture.
                 self.decalages.insert(chemin, taille);
                 continue;
             }
@@ -631,15 +674,13 @@ impl Suivi {
             };
             self.decalages.insert(chemin, depart + avance);
 
-            lecture.evenements.extend(
-                lire(&texte)
-                    .into_iter()
-                    .filter(|e| !premiere_vue || e.instant >= horizon),
-            );
+            lecture
+                .evenements
+                .extend(lire(&texte).into_iter().filter(|e| e.instant >= horizon));
             lecture.usages.extend(
                 lire_usage(&texte)
                     .into_iter()
-                    .filter(|u| !premiere_vue || u.instant >= horizon),
+                    .filter(|u| u.instant >= horizon),
             );
         }
 
@@ -674,7 +715,10 @@ fn morceau(chemin: &Path, depart: u64) -> Option<(String, u64)> {
 }
 
 /// Tous les `.jsonl` sous la racine, quelle que soit leur profondeur.
-fn journaux(racine: &Path) -> Vec<PathBuf> {
+///
+/// Ouverte au crate pour la meme raison que `repo_de` : le depouillement du
+/// passe parcourt les memes fichiers que le direct.
+pub(crate) fn journaux(racine: &Path) -> Vec<PathBuf> {
     let mut trouves = Vec::new();
     let mut a_visiter = vec![racine.to_path_buf()];
 
@@ -687,9 +731,7 @@ fn journaux(racine: &Path) -> Vec<PathBuf> {
             let chemin = entree.path();
             match entree.file_type() {
                 Ok(sorte) if sorte.is_dir() => a_visiter.push(chemin),
-                Ok(_) if chemin.extension().is_some_and(|e| e == "jsonl") => {
-                    trouves.push(chemin)
-                }
+                Ok(_) if chemin.extension().is_some_and(|e| e == "jsonl") => trouves.push(chemin),
                 _ => {}
             }
         }

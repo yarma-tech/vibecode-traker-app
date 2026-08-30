@@ -12,10 +12,9 @@
 mod common;
 
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
-    let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
+    vibemap::declarer(&ctx.url, &ctx.user_token, "MacBook Pro", Some("darwin"))
         .await
-        .expect("appairage")
+        .expect("declaration de la machine")
 }
 
 const ARBRE: &[&str] = &["src", "src/core", "docs"];
@@ -51,7 +50,8 @@ async fn l_apercu_porte_l_heure_du_dernier_battement() {
     let repo = ctx.creer_repo(&machine.machine_id, ARBRE).await;
 
     let battement = "2020-01-01T00:00:00Z";
-    ctx.poser_derniere_presence(&machine.machine_id, battement).await;
+    ctx.poser_derniere_presence(&machine.machine_id, battement)
+        .await;
 
     let apercu = ctx.apercu_repos(600).await;
     let ligne = apercu
@@ -80,17 +80,17 @@ async fn chaque_repo_porte_la_presence_de_sa_propre_machine() {
     let ctx = common::TestContext::new().await;
     let vivante = machine_reliee(&ctx).await;
 
-    // Une seconde machine du même utilisateur, reliée par un second appairage.
-    let code = ctx.creer_code().await;
-    let muette = vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "Mac mini", Some("darwin"))
+    // Une seconde machine du même utilisateur, déclarée à son tour.
+    let muette = vibemap::declarer(&ctx.url, &ctx.user_token, "Mac mini", Some("darwin"))
         .await
-        .expect("appairage de la seconde machine");
+        .expect("declaration de la seconde machine");
 
     let repo_vivant = ctx.creer_repo(&vivante.machine_id, ARBRE).await;
     let repo_muet = ctx.creer_repo(&muette.machine_id, ARBRE).await;
 
     let recent = chrono::Utc::now().to_rfc3339();
-    ctx.poser_derniere_presence(&vivante.machine_id, &recent).await;
+    ctx.poser_derniere_presence(&vivante.machine_id, &recent)
+        .await;
     ctx.poser_derniere_presence(&muette.machine_id, "2020-01-01T00:00:00Z")
         .await;
 

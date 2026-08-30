@@ -20,6 +20,20 @@
 # A chaque release : mettre a jour `version`, les `url` et les `sha256` avec les
 # valeurs des archives et de leurs fichiers `.sha256` publies. Les sommes
 # ci-dessous sont celles de la release v0.1.0.
+#
+# Une seule plateforme, et pourquoi
+# ---------------------------------
+# Cette formule ne sert plus que macOS Apple Silicon. Son volet Linux x86_64 a
+# ete retire par la tranche #86 (PRD-002, FR-079) : la publication ne produit
+# plus cette archive, et le volet aurait pointe un lien mort. La raison n'est
+# pas la compilation mais l'entree : le chemin d'appairage par code disparait
+# (FR-082), le binaire ne fait plus que lire la configuration et le jeton que
+# l'application de bureau macOS a ecrits sur le poste, et un poste Linux neuf
+# n'a donc plus aucune porte d'entree.
+#
+# C'est un retrait de PORTEE, dont la ratification par le PM est encore
+# attendue. La marche a suivre pour le defaire, si elle est refusee, est en
+# tete de `.github/workflows/release.yml`.
 class Vibemap < Formula
   desc "Daemon local de Vibe Map qui observe les agents pour Supabase"
   homepage "https://github.com/yarma-tech/vibecode-traker-app"
@@ -30,13 +44,6 @@ class Vibemap < Formula
     on_arm do
       url "https://github.com/yarma-tech/vibecode-traker-app/releases/download/v#{version}/vibemap-#{version}-aarch64-apple-darwin.tar.gz"
       sha256 "6cf3a87e04d2cf156736a9a3581d14a0b9480649661316aa756b8ffada147a5b"
-    end
-  end
-
-  on_linux do
-    on_intel do
-      url "https://github.com/yarma-tech/vibecode-traker-app/releases/download/v#{version}/vibemap-#{version}-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "310a581ce50520d147046426fd1a0b171304c6b1d9030ee4651452b8b0135a73"
     end
   end
 

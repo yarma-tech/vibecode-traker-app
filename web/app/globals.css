@@ -305,66 +305,80 @@ code {
   margin: 0;
 }
 
-/* ---------- appairage d'une machine ---------- */
+/* ---------- la base est injoignable (FR-085, issue #59) ---------- */
 
-.appairage {
+/* Reprend le cadre de `.vide` : c'est un etat d'ecran de plus, pas un gabarit
+   de plus. La trame en tirets disparait au profit d'un bord ambre - un vide
+   raconte une absence connue, celui-ci ne raconte rien du tout, faute de
+   reponse. Pas de rouge : le rouge reste l'alarme des conflits. */
+.injoignable {
   margin-top: 2.25rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--rule);
+  padding: 1.6rem 1.5rem;
+  text-align: left;
+  border-style: solid;
+  border-left: 3px solid var(--edit);
+  background-image: none;
+  background: var(--edit-f);
 }
 
+/* Le gris des `.vide-suite` est cale pour le fond papier ; sur le fond ambre il
+   tombe sous AA. La phrase reprend donc l'encre pleine : c'est elle qui porte
+   la raison, elle doit se lire dans les deux themes. */
+.injoignable .vide-suite {
+  color: var(--ink);
+  max-width: 48ch;
+}
+
+.injoignable-reessayer {
+  margin-top: 1.25rem;
+}
+
+/* ---------- installer l'application de bureau (issue #83) ---------- */
+
+/* Ce qui remplace le code d'appairage et sa commande a recopier : un encart,
+   un lien, et rien qui demande un terminal (FR-023, FR-024). */
+.telechargement {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper-2);
+}
+
+.telechargement-quoi {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.telechargement-precision {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+}
+
+.telechargement-lien {
+  text-decoration: none;
+}
+
+.telechargement-suite {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+/* Une consigne courte au-dessus de ce qu'elle annonce. Sert aux Reglages, qui
+   l'ont heritee de l'ecran d'appairage retire par #83. */
 .etape {
   font-size: 0.8125rem;
   color: var(--ink-2);
   margin: 0 0 0.6rem;
-}
-
-.commande {
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  line-height: 1.65;
-  margin: 0 0 0.75rem;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  background: var(--paper-2);
-  overflow-x: auto;
-  white-space: pre;
-  word-break: normal;
-}
-
-.commande .invite {
-  color: var(--ink-3);
-  user-select: none;
-  margin-right: 0.4rem;
-}
-
-.attente {
-  display: flex;
-  align-items: baseline;
-  gap: 0.45rem;
-  font-family: var(--mono);
-  font-size: 0.6875rem;
-  color: var(--ink-2);
-  margin: 0;
-}
-
-/* Le seul mouvement de l'ecran : il dit qu'on attend vraiment quelque chose. */
-.pastille {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--edit);
-  animation: battement 2s ease-in-out infinite;
-}
-
-@keyframes battement {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.25; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pastille { animation: none; }
 }
 
 /* Une machine revoquee reste visible : elle raconte ce qui a ete coupe. */
@@ -511,6 +525,12 @@ code {
 
 .parcelle {
   position: absolute;
+  /* La parcelle est un conteneur de requete : ses deux dates ne tiennent qu'a
+     partir d'une certaine largeur EN PIXELS, que le pourcentage du treemap ne
+     dit pas - un meme pourcentage porte le texte sur un plan de 800 px et le
+     couperait sur un plan de 340 px. Largeur et hauteur sont toutes deux
+     imposees en ligne, donc `size` ne peut pas se replier sur le contenu. */
+  container-type: size;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -526,12 +546,14 @@ code {
 }
 
 /* Une parcelle sans enfant n'est pas cliquable : elle ne doit pas le laisser
-   croire. */
-.parcelle:disabled {
+   croire. Le refus passe par aria-disabled et non par l'attribut disabled, qui
+   sortirait la parcelle du parcours de tabulation - ses deux dates ne se
+   joindraient plus au clavier (FR-083). */
+.parcelle[aria-disabled="true"] {
   cursor: default;
 }
 
-.parcelle:not(:disabled):hover {
+.parcelle:not([aria-disabled="true"]):hover {
   background: var(--paper);
   border-color: var(--ink-3);
 }
@@ -557,13 +579,92 @@ code {
   overflow: hidden;
 }
 
-/* Ce que l'agent est en train de faire, sous le nom du dossier. */
+/* Ce que l'agent est en train de faire, sous le nom du dossier. La hauteur est
+   tenue meme quand la ligne est vide (FR-077) : au repos, la place reste
+   ouverte au lieu d'etre comblee par la ligne suivante, et rien ne saute quand
+   un agent se met au travail. */
 .parcelle-fait {
   font-family: var(--mono);
   font-size: 0.625rem;
+  line-height: 1.3;
+  min-height: 1.3em;
   color: var(--ink-2);
   white-space: nowrap;
   overflow: hidden;
+}
+
+/* Les deux dernieres touches de la zone, en mots (FR-041). Elles n'allument
+   aucune couleur (FR-044) : le fond de la parcelle reste celui de son etat, et
+   ce sont les mots seuls qui datent la zone.
+   ink-2 comme le poids, et pas le ton plus clair : ces dates se posent aussi
+   sur les fonds teintes (lu, ecrit, conflit), ou ink-3 tombe sous AA. */
+.parcelle-dates {
+  display: flex;
+  flex-wrap: wrap;
+  /* 1ch = la chasse d'une espace du monospace : sur une seule ligne, les deux
+     dates se lisent exactement comme la phrase de l'infobulle. */
+  column-gap: 1ch;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  line-height: 1.3;
+  color: var(--ink-2);
+  overflow: hidden;
+}
+
+/* Une date ne se coupe jamais en deux : sur une parcelle trop etroite pour les
+   porter cote a cote, le repli tombe entre les deux dates. */
+.parcelle-date {
+  white-space: nowrap;
+}
+
+/* Le seuil de lisibilite des dates (FR-063). En dessous, elles seraient
+   coupees en plein mot, ou repousseraient le nom hors de la parcelle : elles
+   se retirent, et l'infobulle les porte seule.
+   - 11.5rem : la plus longue des deux dates prise seule (« rien de recent en
+     ecriture, ») une fois repliee sur sa ligne ;
+   - 5.2rem : les quatre lignes de la parcelle, les dates comptant pour deux. */
+@container (max-width: 11.5rem) or (max-height: 5.2rem) {
+  .parcelle-dates {
+    display: none;
+  }
+}
+
+/* L'infobulle de la parcelle (FR-063, FR-083). Elle remplace l'attribut `title`
+   du navigateur, qui ne paraissait qu'au survol : une parcelle trop petite pour
+   porter ses dates restait alors muette pour qui n'a pas de souris.
+   Elle est SOEUR de sa parcelle, jamais son enfant : la parcelle coupe ce qui
+   deborde (`overflow: hidden`, impose par la requete de conteneur des dates), et
+   une bulle posee dedans serait rognee a rien. Le bord auquel elle s'accroche est
+   calcule par `ancrerInfobulle` et pose en style en ligne, pour qu'une parcelle
+   du bord droit ou du bas ne l'ouvre pas hors du plan. */
+.parcelle-bulle {
+  display: none;
+  position: absolute;
+  z-index: 3;
+  /* Elle passe par-dessus les parcelles voisines : elle ne doit jamais leur
+     voler le survol, sans quoi elle clignoterait sous le curseur. */
+  pointer-events: none;
+  max-width: min(100%, 24rem);
+  padding: 0.3rem 0.5rem;
+  background: var(--paper);
+  border: 1px solid var(--ink-2);
+  border-radius: 3px;
+  box-shadow: 0 2px 10px oklch(0 0 0 / 0.18);
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--ink);
+  /* La bulle est etroite : le repli tombe entre les mots, jamais au milieu du
+     chemin, qu'on doit pouvoir relire d'un bloc. */
+  overflow-wrap: break-word;
+}
+
+/* Au survol ET au focus clavier : c'est exactement ce que `title` ne savait pas
+   faire. `:focus-visible` et non `:focus` - un clic de souris a deja le survol,
+   et n'a pas besoin qu'on lui repete la bulle. */
+.parcelle:hover + .parcelle-bulle,
+.parcelle:focus-visible + .parcelle-bulle {
+  display: block;
 }
 
 /* Les etats du plan. La couleur ne dit qu'un etat : le rouge est la seule
@@ -1314,10 +1415,10 @@ code {
   font-weight: 400;
 }
 
-/* ---------- premier lancement, aucune machine appairee (issue #12) ---------- */
+/* ---------- premier lancement, aucune machine declaree (issue #12, #83) ---------- */
 
-/* Trois etapes a gauche, code d'appairage a droite. La page se remplit toute
-   seule des qu'une machine repond : aucun bouton « continuer » n'est offert. */
+/* Trois etapes a gauche, le telechargement de l'application a droite. La page se
+   remplit toute seule des qu'une machine repond : aucun bouton « continuer ». */
 .demarrage {
   margin-top: 2rem;
 }
@@ -1341,8 +1442,8 @@ code {
 
 .demarrage-corps {
   display: grid;
-  /* minmax(0, …) : sans quoi la longue commande d'appairage (une clé d'un seul
-     tenant) imposerait sa largeur minimale et écraserait la colonne des étapes. */
+  /* minmax(0, …) : une colonne qui refuse de se réduire sous son contenu
+     écraserait l'autre. Les étapes gardent ainsi leur part, quoi qu'il arrive. */
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 2.5rem;
   align-items: start;
@@ -1397,12 +1498,18 @@ code {
   font-weight: 640;
 }
 
-/* Le code d'appairage n'a pas ici le filet superieur qu'il porte sur l'accueil
-   normal : il est deja isole dans sa colonne. */
-.demarrage-appairage .appairage {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
+/* Le geste a faire reste sous les yeux pendant qu'on lit les etapes : la
+   colonne des etapes peut depasser l'encart, jamais l'inverse. Sur une seule
+   colonne, coller n'aurait plus de sens - l'encart y precede ou suit le texte. */
+.demarrage-telechargement {
+  position: sticky;
+  top: 1.5rem;
+}
+
+@media (max-width: 720px) {
+  .demarrage-telechargement {
+    position: static;
+  }
 }
 
 /* ---------- repo cartographie sans activite (issue #12) ---------- */
@@ -1571,6 +1678,14 @@ code {
   border-left: 3px solid var(--edit);
   background-image: none;
   background: var(--edit-f);
+}
+
+/* Meme raison que pour `.injoignable` : le gris des `.vide-suite` est cale pour
+   le fond papier et tombe sous AA des que le fond se colore. Ces deux etats-la
+   portent un fond, leur phrase reprend donc l'encre pleine. */
+.vide-acheve .vide-suite,
+.vide-muet .vide-suite {
+  color: var(--ink);
 }
 
 /* Le formulaire de creation, seule ecriture de cette issue : un rang de
@@ -2237,4 +2352,418 @@ code {
 .issue-form .echec {
   flex-basis: 100%;
   margin: 0;
+}
+
+/* ---------- reglages : les dossiers surveilles (issue #68) ---------- */
+
+/* L'heure de la derniere cartographie (FR-030, FR-086). Elle vient de la base,
+   pas du pont : elle reste donc affichee dans un navigateur ordinaire, la ou
+   la liste des dossiers cede la place a une mention. */
+.cartographie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0 0 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.cartographie-quoi {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Le point median separe les trois temps de la ligne - ce que c'est, quand,
+   depuis combien - sans y ajouter de ponctuation dans le texte lui-meme. */
+.cartographie-quand::before,
+.cartographie-jamais::before,
+.cartographie-inconnue::before,
+.cartographie-pourquoi::before,
+.cartographie-en-cours::before,
+.cartographie-age::before {
+  content: "\00b7";
+  /* Marge des DEUX cotes : les elements de la ligne se suivent sans espace
+     dans le balisage - un saut de ligne entre deux elements n'en produit
+     aucune - donc sans marge a gauche le point collerait au mot precedent
+     tout en flottant loin du suivant. */
+  margin-inline: 0.4rem;
+  color: var(--rule-2);
+}
+
+.cartographie-quand {
+  color: var(--ink-2);
+  font-weight: 620;
+}
+
+/* « jamais » n'est pas une heure manquante : c'est un fait, et il se lit comme
+   tel plutot que comme un blanc dans la ligne. */
+.cartographie-jamais {
+  color: var(--ink-2);
+  font-weight: 620;
+  font-style: italic;
+}
+
+/* Base injoignable (FR-085) : on ne SAIT pas, et cela ne se lit pas comme
+   « jamais ». L'ambre des avertissements le distingue au premier coup d'oeil,
+   mais c'est le mot « inconnue » qui porte le sens - jamais la couleur seule. */
+.cartographie-inconnue {
+  color: var(--edit);
+  font-weight: 620;
+}
+
+.cartographie-pourquoi {
+  color: var(--ink-3);
+}
+
+/* FR-074 : une cartographie en cours se signale A COTE de l'heure connue,
+   jamais a sa place. D'ou une marque a part, en fin de ligne, et non un
+   remplacement du champ date. */
+.cartographie-en-cours {
+  color: var(--ink-2);
+  font-style: italic;
+}
+
+.dossiers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+
+/* La ligne peut porter une explication sous elle (FR-076) : le rang est donc
+   une colonne, et c'est `.dossier-ligne` qui tient le chemin et le compte aux
+   deux bords. */
+.dossier {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.dossier-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* FR-076 : pourquoi ce dossier ne rend aucun depot. Elle ne parait que sur un
+   compte nul, en retrait sous le chemin - c'est une note de bas de ligne, pas
+   un second titre. */
+.dossier-explication {
+  display: block;
+  margin-top: 0.25rem;
+  max-width: 62ch;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.dossier-chemin {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  font-weight: 620;
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dossier-compte {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Une ligne a signaler (FR-029). Meme charpente que `.emplacement-disparu` sur
+   la carte : une pastille bordee, le meme ambre, et le texte porte le sens a
+   lui seul - la couleur ne fait que le souligner. */
+.dossier-signal {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--edit);
+  border: 1px solid var(--edit);
+  border-radius: 20px;
+  padding: 0.02rem 0.45rem;
+  white-space: nowrap;
+}
+
+/* Le chemin s'estompe avec le dossier : un second signal, jamais la couleur
+   seule. */
+.dossier-illisible .dossier-chemin {
+  color: var(--ink-2);
+}
+
+/* Barre reservee a ce qui n'est plus la. Un dossier dont l'acces est refuse
+   existe toujours : le barrer dirait le contraire de ce qu'il faut corriger. */
+.dossier-absent .dossier-chemin {
+  text-decoration: line-through;
+  text-decoration-color: var(--rule-2);
+}
+
+/* Les gestes d'une ligne : retirer (issue #72), et redemander l'autorisation
+   quand elle manque (FR-061, issue #74). Sous le chemin plutot qu'a cote : la
+   ligne porte deja son compte ou son signal a droite, et trois choses aux deux
+   bords se disputeraient la place des le premier chemin un peu long. */
+.dossier-gestes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+/* Discrets : ce sont des gestes de reglage, pas l'action principale de l'ecran.
+   Le bouton plein est reserve a « Ajouter un dossier », qui est ce qu'on vient
+   faire ici. */
+.dossier-action {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: 5px;
+  padding: 0.2rem 0.55rem;
+}
+
+.dossier-action:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink-2);
+}
+
+/* Un seul geste a la fois : les trois ecrivent dans la meme liste. Les boutons
+   s'eteignent le temps de la reponse, et celui qu'on a presse dit ou il en est
+   plutot que de rester muet. */
+.dossier-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Le geste qui repare (FR-061). Il reprend l'ambre du signal auquel il repond,
+   pour qu'on lise la ligne d'un seul tenant - ce qui cloche, et quoi faire. Le
+   texte porte le sens a lui seul ; la couleur ne fait que le souligner. */
+.dossier-redemander {
+  color: var(--edit);
+  border-color: var(--edit);
+}
+
+.dossier-redemander:hover:not(:disabled) {
+  color: var(--edit);
+  border-color: var(--edit);
+  background: var(--edit-f);
+}
+
+/* Le temps de savoir s'il y a un pont. Une ligne discrete plutot qu'un vide :
+   la section ne doit ni sauter, ni afficher une mention qu'elle retirerait. */
+.dossiers-attente {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+}
+
+/* FR-060 : hors de l'application, cette seule section devient une mention.
+   Jamais une liste vide - qui se lirait « rien n'est surveille » -, jamais une
+   erreur : il n'y a rien de casse, il y a un endroit ou ces reglages vivent. */
+.hors-application {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px dashed var(--rule-2);
+  border-radius: 4px;
+  background: var(--paper-2);
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  max-width: 52ch;
+}
+
+/* Le geste que la section attendait (FR-031, issue #70). Il precede la liste :
+   c'est ce qu'on vient faire ici quand un depot manque a l'appel, et la liste
+   est ce qu'on lit ensuite pour verifier. */
+.dossiers-geste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin: 0 0 0.9rem;
+}
+
+.ajouter-dossier {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--paper);
+  background: var(--ink);
+  border: 0;
+  border-radius: 5px;
+  padding: 0.35rem 0.7rem;
+}
+
+.ajouter-dossier:hover {
+  opacity: 0.88;
+}
+
+/* Le selecteur du systeme est modal : le bouton ne repond plus tant qu'il est
+   ouvert. Il le dit avec son texte - la palissure seule laisserait croire a un
+   bouton casse. */
+.ajouter-dossier:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Ce que l'ajout a donne. Le texte porte le sens a lui seul ; la couleur ne
+   fait que le souligner, et le filet ambre est celui des avertissements. */
+.annonce-ajout {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  border-left: 2px solid var(--rule-2);
+  padding-left: 0.6rem;
+}
+
+.annonce-echec {
+  color: var(--ink);
+  font-weight: 600;
+  border-left-color: var(--edit);
+}
+
+/* ---------- le lecteur, par-dessus l'interface (FR-009, FR-010) ---------- */
+
+/* Il ne parle que quand ca cloche, et alors il precede tout le reste : plus
+   rien ne remonte de cette machine, et la carte affichee ne le dit pas.
+   L'ambre des avertissements, jamais le rouge des conflits. */
+.bandeau-lecteur {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 0.6rem 1.25rem;
+  background: var(--edit-f);
+  border-bottom: 1px solid var(--edit);
+  color: var(--ink);
+}
+
+/* Le fond va d'un bord a l'autre - c'est un bandeau -, mais son contenu
+   s'aligne sur la colonne des ecrans, sinon il flotterait seul dans la marge
+   gauche. La plus large des deux (le plan d'un repo) : une phrase qui s'aligne
+   sur la plus etroite sauterait d'un ecran a l'autre. */
+.bandeau-lecteur-corps {
+  max-width: 70rem;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* La phrase prend la place qui reste et se replie sur elle-meme : c'est elle
+   qui doit s'adapter, pas le bouton, qui doit rester atteignable sur la
+   premiere ligne. */
+.bandeau-lecteur-dit {
+  flex: 1 1 20rem;
+  min-width: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.bandeau-lecteur-titre {
+  font-weight: 700;
+}
+
+/* L'encre pleine, jamais le gris des textes secondaires : il est cale pour le
+   fond papier et tombe sous AA sur ce fond ambre. */
+.bandeau-lecteur-suite {
+  color: var(--ink);
+}
+
+.bandeau-lecteur-relancer {
+  margin-left: auto;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--paper);
+  background: var(--ink);
+  border: 0;
+  border-radius: 5px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+
+.bandeau-lecteur-relancer:hover {
+  opacity: 0.88;
+}
+
+.bandeau-lecteur-relancer:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .bandeau-lecteur-relancer {
+    margin-left: 0;
+  }
+}
+
+/* ---------- reglages : ce que cette machine sait d'elle-meme (#81, #85) ---------- */
+
+/* La version a cote du nom de la machine (FR-068), et l'avancement du
+   depouillement (FR-050). Meme facture que la ligne de la derniere
+   cartographie - meme famille de faits, meme place dans l'oeil : un constat
+   date, pas un reglage sur lequel agir. Ces faits-la viennent du pont, et non
+   de la base : hors de l'application, la section entiere s'efface (FR-060). */
+.poste-fait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0 0 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* La derniere ligne de la section ferme la page : sans cette marge, elle
+   collerait au bord bas du tableau. */
+.poste-fait:last-child {
+  margin-bottom: 1.2rem;
+}
+
+.poste-quoi {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Le point median separe les trois temps de la ligne - ce que c'est, sa valeur,
+   sa precision - sans ajouter de ponctuation au texte lui-meme. */
+.poste-valeur::before,
+.poste-precision::before {
+  content: "\00b7";
+  /* Meme raison que pour la ligne de cartographie : rien ne separe ces
+     elements dans le balisage, la marge doit donc venir des deux cotes. */
+  margin-inline: 0.4rem;
+  color: var(--rule-2);
+}
+
+.poste-valeur {
+  color: var(--ink-2);
+  font-weight: 620;
+}
+
+/* Un depouillement qui court n'est pas un fait acquis : l'italique le distingue
+   d'un compte arrete, comme « cartographie en cours » le fait de son heure. Le
+   texte porte le sens a lui seul - deux nombres qui bougent -, la forme ne fait
+   que le souligner. */
+.poste-en-cours {
+  font-style: italic;
+}
+
+.poste-precision {
+  color: var(--ink-3);
 }

@@ -27,6 +27,9 @@ jobs:
             daemon/target
           key: cargo-${{ hashFiles('daemon/Cargo.lock') }}
 
+      - name: Format
+        run: cargo fmt --check
+
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
 
@@ -35,7 +38,38 @@ jobs:
       # compte, et se lancent a la main avant chaque fusion (voir le README).
       # Ce qui tourne ici est tout ce qui n'a besoin de personne.
       - name: Tests hors reseau
-        run: cargo test --test journal --test config --test plan --test worktree --test reprise --test robustesse --test version
+        run: cargo test --test journal --test config --test plan --test worktree --test reprise --test robustesse --test version --test verrou --test lecteur --test depouillement
+
+  bureau:
+    name: Bureau (Tauri)
+    # L'application de bureau ne vise que macOS. La compiler ailleurs
+    # demanderait un moteur web qui n'y sert a rien, et ne dirait rien de plus.
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: bureau
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            bureau/target
+          key: cargo-bureau-${{ hashFiles('bureau/Cargo.lock') }}
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      # La sonde s'eprouve sur des ports que le systeme donne, sur la boucle
+      # locale : ces tests ne parlent a personne. La fenetre elle-meme, elle,
+      # ne se verifie qu'a la main (voir bureau/VERIFICATIONS.md).
+      - name: Tests hors reseau
+        run: cargo test --test ajout --test autorisation --test contexte --test doublon --test geometrie --test lecteur --test machine --test pont --test publication --test reautorisation --test retrait --test service --test sonde --test url
 
   web:
     name: Web (Next)

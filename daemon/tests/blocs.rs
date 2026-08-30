@@ -11,7 +11,8 @@ use serde_json::json;
 /// Appaire une machine et pose un repo a son nom, pour porter des blocs.
 async fn repo_de_test(ctx: &common::TestContext) -> String {
     let machine_id = ctx.create_machine("MacBook Pro").await;
-    ctx.creer_repo(&machine_id, &["web/app/checkout", "daemon/src"]).await
+    ctx.creer_repo(&machine_id, &["web/app/checkout", "daemon/src"])
+        .await
 }
 
 /// Tracer bullet : un bloc cree avec un titre et un emplacement arrive en
@@ -30,7 +31,10 @@ async fn creer_un_bloc_larrivee_en_a_faire_avec_une_reference() {
     assert_eq!(bloc["type"], json!("feature"));
     assert_eq!(bloc["chemin"], json!("web/app/landing"));
     assert_eq!(bloc["version"], json!(1));
-    assert!(bloc["ref"].as_i64().is_some(), "le bloc doit porter une reference entiere");
+    assert!(
+        bloc["ref"].as_i64().is_some(),
+        "le bloc doit porter une reference entiere"
+    );
 }
 
 /// La saisie libre d'un chemin de fichier est acceptee, pas seulement un
@@ -42,7 +46,12 @@ async fn un_chemin_de_fichier_saisi_librement_est_accepte() {
     let repo_id = repo_de_test(&ctx).await;
 
     let bloc = ctx
-        .creer_bloc(&repo_id, "Corriger le calcul de la TVA", "correction", "web/lib/tva.ts")
+        .creer_bloc(
+            &repo_id,
+            "Corriger le calcul de la TVA",
+            "correction",
+            "web/lib/tva.ts",
+        )
         .await;
 
     assert_eq!(bloc["chemin"], json!("web/lib/tva.ts"));
@@ -55,8 +64,12 @@ async fn deux_blocs_du_meme_depot_ont_des_references_distinctes() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let a = ctx.creer_bloc(&repo_id, "Premier travail", "feature", "web/app/a").await;
-    let b = ctx.creer_bloc(&repo_id, "Second travail", "feature", "web/app/b").await;
+    let a = ctx
+        .creer_bloc(&repo_id, "Premier travail", "feature", "web/app/a")
+        .await;
+    let b = ctx
+        .creer_bloc(&repo_id, "Second travail", "feature", "web/app/b")
+        .await;
 
     assert_ne!(a["ref"], b["ref"]);
 }
@@ -70,21 +83,36 @@ async fn une_reference_supprimee_nest_jamais_reattribuee() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let premier = ctx.creer_bloc(&repo_id, "VM-1", "feature", "web/app/a").await;
-    let second = ctx.creer_bloc(&repo_id, "VM-2, bientot supprime", "feature", "web/app/b").await;
-    let ref_supprimee = second["ref"].as_i64().expect("le second bloc a une reference");
+    let premier = ctx
+        .creer_bloc(&repo_id, "VM-1", "feature", "web/app/a")
+        .await;
+    let second = ctx
+        .creer_bloc(&repo_id, "VM-2, bientot supprime", "feature", "web/app/b")
+        .await;
+    let ref_supprimee = second["ref"]
+        .as_i64()
+        .expect("le second bloc a une reference");
 
-    ctx.supprimer_bloc(second["id"].as_str().expect("id du second bloc")).await;
+    ctx.supprimer_bloc(second["id"].as_str().expect("id du second bloc"))
+        .await;
 
-    let troisieme = ctx.creer_bloc(&repo_id, "VM-3, apres suppression", "feature", "web/app/c").await;
-    let nouvelle_ref = troisieme["ref"].as_i64().expect("le troisieme bloc a une reference");
+    let troisieme = ctx
+        .creer_bloc(&repo_id, "VM-3, apres suppression", "feature", "web/app/c")
+        .await;
+    let nouvelle_ref = troisieme["ref"]
+        .as_i64()
+        .expect("le troisieme bloc a une reference");
 
     assert_ne!(
         nouvelle_ref, ref_supprimee,
         "la reference du bloc supprime {ref_supprimee} n'a pas ete reattribuee"
     );
     assert!(
-        nouvelle_ref > second["ref"].as_i64().unwrap_or(0).max(premier["ref"].as_i64().unwrap_or(0)),
+        nouvelle_ref
+            > second["ref"]
+                .as_i64()
+                .unwrap_or(0)
+                .max(premier["ref"].as_i64().unwrap_or(0)),
         "le compteur doit continuer d'avancer, meme apres une suppression"
     );
 }
@@ -101,7 +129,9 @@ async fn un_compte_ne_voit_rien_du_tableau_dun_autre_compte() {
         .creer_bloc(&repo_id, "Travail prive", "feature", "web/app/prive")
         .await;
 
-    let vu_par_lintrus = intrus.lire_blocs_avec_jeton(&intrus.user_token, &repo_id).await;
+    let vu_par_lintrus = intrus
+        .lire_blocs_avec_jeton(&intrus.user_token, &repo_id)
+        .await;
     assert!(
         vu_par_lintrus.is_empty(),
         "un autre compte ne doit voir aucun bloc de ce depot, recu : {vu_par_lintrus:?}"
@@ -118,7 +148,13 @@ async fn un_compte_ne_peut_pas_creer_un_bloc_dans_le_depot_dun_autre() {
     let repo_id = repo_de_test(&proprietaire).await;
 
     let resultat = intrus
-        .creer_bloc_avec_jeton(&intrus.user_token, &repo_id, "Travail vole", "feature", "web/app/vole")
+        .creer_bloc_avec_jeton(
+            &intrus.user_token,
+            &repo_id,
+            "Travail vole",
+            "feature",
+            "web/app/vole",
+        )
         .await;
 
     assert!(
@@ -127,5 +163,8 @@ async fn un_compte_ne_peut_pas_creer_un_bloc_dans_le_depot_dun_autre() {
     );
 
     let blocs = proprietaire.lire_blocs(&repo_id).await;
-    assert!(blocs.is_empty(), "aucun bloc ne doit avoir ete cree malgre la tentative");
+    assert!(
+        blocs.is_empty(),
+        "aucun bloc ne doit avoir ete cree malgre la tentative"
+    );
 }

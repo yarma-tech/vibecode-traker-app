@@ -1,0 +1,52 @@
+[package]
+name = "bureau"
+version = "0.1.0"
+edition = "2021"
+description = "Application de bureau de Vibe Map : sert l'interface depuis la machine et l'affiche dans sa fenetre"
+license = "MIT"
+
+[lib]
+name = "bureau"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bureau"
+path = "src/main.rs"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# Le selecteur de fichiers du systeme (FR-031). Il s'ouvre depuis le Rust, et
+# non depuis la fenetre : celle-ci demande un geste et ne fournit aucun chemin.
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# La liste des dossiers surveilles s'ajoute DANS le fichier de configuration
+# existant, sans le reecrire : un document edite garde les autres champs, leur
+# mise en page et les commentaires que l'utilisateur y a mis (FR-036).
+toml_edit = "0.25"
+libc = "0.2"
+
+# Le lecteur, embarque comme bibliotheque et jamais recopie (PRD-002) :
+# l'application et le binaire en ligne de commande font tourner le meme code.
+vibemap = { path = "../daemon" }
+# Le lecteur est asynchrone ; l'application lui donne sa propre machinerie
+# d'execution, sur un fil a part de celui de la fenetre.
+tokio = { version = "1", features = ["rt-multi-thread", "time", "net"] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+# Les tests d'integration sont des programmes a part : ils ne voient pas les
+# dependances de la bibliotheque. `bureau/tests/publication.rs` lit les
+# manifestes du depot - celui du paquet, celui du lecteur, celui de l'interface -
+# pour verifier qu'ils annoncent tous la meme version, d'ou ces deux lecteurs de
+# format ici aussi.
+[dev-dependencies]
+serde_json = "1"
+toml_edit = "0.25"
+# `bureau/tests/identite.rs` rejoue le parcours complet d'un lancement contre la
+# vraie pile Supabase locale : il lui faut de quoi ouvrir une session de test et
+# relire la liste des machines. Ce test ne tourne pas dans l'integration
+# continue, faute de base - voir son en-tete.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

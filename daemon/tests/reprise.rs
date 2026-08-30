@@ -65,5 +65,9 @@ fn un_succes_remet_le_backoff_a_son_pas_de_depart() {
 
     backoff.reset();
 
-    assert_eq!(backoff.prochain(), Duration::from_secs(1), "apres un succes on repart doucement");
+    assert_eq!(
+        backoff.prochain(),
+        Duration::from_secs(1),
+        "apres un succes on repart doucement"
+    );
 }

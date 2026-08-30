@@ -23,7 +23,14 @@ use vibemap::Plan;
 
 /// Un document minimal, en-tete + une section de features libre. Les tests
 /// qui n'ont besoin que de l'en-tete passent une chaine vide pour `corps`.
-fn document(id: &str, statut: &str, date: &str, repo: &str, titre: Option<&str>, corps: &str) -> String {
+fn document(
+    id: &str,
+    statut: &str,
+    date: &str,
+    repo: &str,
+    titre: Option<&str>,
+    corps: &str,
+) -> String {
     let ligne_titre = titre.map(|t| format!("titre: {t}\n")).unwrap_or_default();
     format!("---\nid: {id}\nstatut: {statut}\ndate: {date}\nrepo: {repo}\n{ligne_titre}---\n\n{corps}\n")
 }
@@ -41,7 +48,14 @@ fn section_feature(numero: u32, titre: &str, priorite: &str, corps_section: &str
 /// FR-036 : un en-tete qui porte les quatre champs requis est reconnu.
 #[test]
 fn un_entete_conforme_est_reconnu() {
-    let texte = document("PRD-042", "draft", "2026-08-12", "atelier", Some("Un cadrage"), "");
+    let texte = document(
+        "PRD-042",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some("Un cadrage"),
+        "",
+    );
     let doc = analyser(&texte).expect("l'en-tete est conforme, il doit etre reconnu");
 
     assert_eq!(doc.entete.id, "PRD-042");
@@ -157,12 +171,20 @@ fn les_priorites_p0_a_p3_et_au_dela_sont_toutes_reconnues() {
 /// `None`.
 #[test]
 fn une_priorite_hors_de_la_forme_pn_nest_pas_transmise() {
-    let corps = section_feature(1, "F", "Extremement important, a faire avant tout le reste", "");
+    let corps = section_feature(
+        1,
+        "F",
+        "Extremement important, a faire avant tout le reste",
+        "",
+    );
     let texte = document("PRD-9", "validé", "2026-08-12", "atelier", None, &corps);
     let doc = analyser(&texte).expect("en-tete conforme");
 
     assert_eq!(doc.features.len(), 1, "la feature reste creee");
-    assert_eq!(doc.features[0].priorite, None, "mais sa priorite hors-forme n'est pas gardee");
+    assert_eq!(
+        doc.features[0].priorite, None,
+        "mais sa priorite hors-forme n'est pas gardee"
+    );
 }
 
 /// Meme regle, cas limite : une priorite vide (`(Priorité : )`) n'est pas
@@ -184,12 +206,20 @@ fn une_feature_marquee_a_clarifier_est_distinguee_de_ses_voisines() {
     let corps = format!(
         "{}{}",
         section_feature(1, "Claire", "P1", "Rien a signaler."),
-        section_feature(2, "A eclaircir", "P2", "- **[À CLARIFIER]** : on ne sait pas encore."),
+        section_feature(
+            2,
+            "A eclaircir",
+            "P2",
+            "- **[À CLARIFIER]** : on ne sait pas encore."
+        ),
     );
     let texte = document("PRD-9", "draft", "2026-08-12", "atelier", None, &corps);
     let doc = analyser(&texte).expect("en-tete conforme");
 
-    assert!(!doc.features[0].a_clarifier, "la premiere section ne porte pas le marqueur");
+    assert!(
+        !doc.features[0].a_clarifier,
+        "la premiere section ne porte pas le marqueur"
+    );
     assert!(doc.features[1].a_clarifier, "la seconde le porte");
 }
 
@@ -241,15 +271,30 @@ fn la_feature_extraite_ne_transporte_ni_user_story_ni_exigences_ni_criteres() {
         "Critères d'acceptation",
         "Hors scope",
     ] {
-        assert!(!feature.cle.contains(interdit), "{interdit} ne doit pas fuiter dans la cle");
-        assert!(!feature.titre.contains(interdit), "{interdit} ne doit pas fuiter dans le titre");
         assert!(
-            !feature.priorite.as_deref().unwrap_or_default().contains(interdit),
+            !feature.cle.contains(interdit),
+            "{interdit} ne doit pas fuiter dans la cle"
+        );
+        assert!(
+            !feature.titre.contains(interdit),
+            "{interdit} ne doit pas fuiter dans le titre"
+        );
+        assert!(
+            !feature
+                .priorite
+                .as_deref()
+                .unwrap_or_default()
+                .contains(interdit),
             "{interdit} ne doit pas fuiter dans la priorite"
         );
     }
     let debug = format!("{doc:?}");
-    for interdit in ["User story", "Exigences", "FR-999", "Critères d'acceptation"] {
+    for interdit in [
+        "User story",
+        "Exigences",
+        "FR-999",
+        "Critères d'acceptation",
+    ] {
         assert!(
             !debug.contains(interdit),
             "{interdit} ne doit apparaitre nulle part dans le document analyse, meme en Debug"
@@ -261,7 +306,8 @@ fn la_feature_extraite_ne_transporte_ni_user_story_ni_exigences_ni_criteres() {
 /// cadratin des PRD existants ou par un simple tiret : les deux sont lus.
 #[test]
 fn le_titre_cadratin_et_le_tiret_simple_sont_tous_deux_acceptes() {
-    let corps = "### F1 — Avec cadratin (Priorité : P1)\n\n### F2 - Avec tiret simple (Priorité : P2)\n\n";
+    let corps =
+        "### F1 — Avec cadratin (Priorité : P1)\n\n### F2 - Avec tiret simple (Priorité : P2)\n\n";
     let texte = document("PRD-9", "draft", "2026-08-12", "atelier", None, corps);
     let doc = analyser(&texte).expect("en-tete conforme");
 
@@ -274,7 +320,14 @@ fn le_titre_cadratin_et_le_tiret_simple_sont_tous_deux_acceptes() {
 /// premier `:` rencontre.
 #[test]
 fn un_titre_avec_deux_points_est_lu_en_entier() {
-    let texte = document("PRD-1", "draft", "2026-08-12", "atelier", Some("Kanban: le retour"), "");
+    let texte = document(
+        "PRD-1",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some("Kanban: le retour"),
+        "",
+    );
     let doc = analyser(&texte).expect("en-tete conforme");
     assert_eq!(doc.entete.titre, "Kanban: le retour");
 }
@@ -284,11 +337,18 @@ fn un_titre_avec_deux_points_est_lu_en_entier() {
 /// recursion, aucun regex a retour arriere catastrophique dans ce parseur.
 #[test]
 fn un_tres_gros_document_sanalyse_sans_probleme() {
-    let paragraphe = "Du texte de remplissage qui ne ressemble a aucun en-tete de feature.\n".repeat(20_000);
-    let corps = format!("{paragraphe}{}", section_feature(1, "La seule vraie feature", "P1", "Corps."));
+    let paragraphe =
+        "Du texte de remplissage qui ne ressemble a aucun en-tete de feature.\n".repeat(20_000);
+    let corps = format!(
+        "{paragraphe}{}",
+        section_feature(1, "La seule vraie feature", "P1", "Corps.")
+    );
     let texte = document("PRD-1", "draft", "2026-08-12", "atelier", None, &corps);
 
-    assert!(texte.len() > 1_000_000, "le document doit vraiment etre gros pour ce test");
+    assert!(
+        texte.len() > 1_000_000,
+        "le document doit vraiment etre gros pour ce test"
+    );
 
     let doc = analyser(&texte).expect("en-tete conforme");
     assert_eq!(doc.features.len(), 1);
@@ -299,7 +359,10 @@ fn un_tres_gros_document_sanalyse_sans_probleme() {
 /// de son identite normalisee, pas par le nom (renommable) de son dossier.
 #[test]
 fn nom_logique_avec_distant_prend_le_dernier_segment_de_lidentite() {
-    let plan = plan_simple("dossier-renomme", "github.com/yarma-tech/vibecode-traker-app");
+    let plan = plan_simple(
+        "dossier-renomme",
+        "github.com/yarma-tech/vibecode-traker-app",
+    );
     assert_eq!(nom_logique(&plan), "vibecode-traker-app");
 }
 
@@ -354,10 +417,9 @@ fn ecrire(racine: &Path, chemin_relatif: &str, contenu: &str) {
 /// Appaire une machine et rend son identite, comme le ferait le daemon
 /// (meme helper que `commits.rs`).
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
-    let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
+    vibemap::declarer(&ctx.url, &ctx.user_token, "MacBook Pro", Some("darwin"))
         .await
-        .expect("appairage")
+        .expect("declaration de la machine")
 }
 
 /// Un repo Supabase et le client daemon qui parle avec le jeton de sa
@@ -380,7 +442,14 @@ async fn un_prd_draft_de_douze_features_pose_un_bloc_exploration_et_zero_feature
     let corps: String = (1..=12)
         .map(|n| section_feature(n, &format!("Feature {n}"), "P1", "Un peu de texte."))
         .collect();
-    let texte = document("PRD-100", "draft", "2026-08-12", "atelier", Some("Grand chantier"), &corps);
+    let texte = document(
+        "PRD-100",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some("Grand chantier"),
+        &corps,
+    );
     ecrire(&racine, "docs/prd/PRD-100-grand-chantier.md", &texte);
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
@@ -388,14 +457,27 @@ async fn un_prd_draft_de_douze_features_pose_un_bloc_exploration_et_zero_feature
     assert!(resume.sans_feature_reconnue.is_empty());
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs.len(), 1, "un seul bloc, quel que soit le nombre de features du document");
+    assert_eq!(
+        blocs.len(),
+        1,
+        "un seul bloc, quel que soit le nombre de features du document"
+    );
     assert_eq!(blocs[0]["type"], serde_json::json!("exploration"));
-    assert_eq!(blocs[0]["titre"], serde_json::json!("cadrage Grand chantier"));
-    assert_eq!(blocs[0]["chemin"], serde_json::json!("docs/prd/PRD-100-grand-chantier.md"));
+    assert_eq!(
+        blocs[0]["titre"],
+        serde_json::json!("cadrage Grand chantier")
+    );
+    assert_eq!(
+        blocs[0]["chemin"],
+        serde_json::json!("docs/prd/PRD-100-grand-chantier.md")
+    );
     assert_eq!(blocs[0]["prd_cle"], serde_json::json!("2026-08-12/PRD-100"));
     assert_eq!(blocs[0]["prd_statut"], serde_json::json!("draft"));
     assert_eq!(blocs[0]["statut"], serde_json::json!("todo"));
-    assert!(blocs[0]["ref"].as_i64().is_some(), "le bloc d'exploration porte une reference VM-n");
+    assert!(
+        blocs[0]["ref"].as_i64().is_some(),
+        "le bloc d'exploration porte une reference VM-n"
+    );
 }
 
 /// Idempotence : relire le meme document ne cree rien de neuf (l'unique
@@ -422,10 +504,17 @@ async fn relire_le_meme_document_ne_cree_rien_de_neuf() {
     let seconde = traiter(&client, &racine, &repo_id, &plan).await;
 
     assert_eq!(premiere.blocs_poses, 1);
-    assert_eq!(seconde.blocs_poses, 1, "le second passage retrouve le meme bloc, il n'en cree pas un autre");
+    assert_eq!(
+        seconde.blocs_poses, 1,
+        "le second passage retrouve le meme bloc, il n'en cree pas un autre"
+    );
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs.len(), 1, "toujours un seul bloc apres deux lectures du meme document");
+    assert_eq!(
+        blocs.len(),
+        1,
+        "toujours un seul bloc apres deux lectures du meme document"
+    );
 }
 
 /// FR-036 : un markdown sans en-tete conforme ne peuple rien.
@@ -436,7 +525,11 @@ async fn un_document_sans_entete_conforme_ne_peuple_rien() {
     let racine = depot_git_temporaire("sans-entete");
     let plan = plan_simple("atelier", "local:x");
 
-    ecrire(&racine, "NOTES.md", "# Des notes de reunion\n\nRien a voir avec un PRD.\n");
+    ecrire(
+        &racine,
+        "NOTES.md",
+        "# Des notes de reunion\n\nRien a voir avec un PRD.\n",
+    );
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
     assert_eq!(resume.blocs_poses, 0);
@@ -453,7 +546,14 @@ async fn un_repo_different_ne_peuple_pas_le_tableau_courant() {
     let racine = depot_git_temporaire("autre-depot");
     let plan = plan_simple("atelier", "local:x");
 
-    let texte = document("PRD-1", "draft", "2026-08-12", "un-autre-projet", None, &section_feature(1, "F", "P1", ""));
+    let texte = document(
+        "PRD-1",
+        "draft",
+        "2026-08-12",
+        "un-autre-projet",
+        None,
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, "docs/prd/PRD-1.md", &texte);
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
@@ -489,17 +589,30 @@ async fn un_prd_valide_des_sa_premiere_lecture_cree_ses_features_sans_exploratio
     ecrire(&racine, "docs/prd/PRD-1.md", &texte);
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
-    assert_eq!(resume.blocs_poses, 0, "aucune exploration n'a jamais existe pour ce document");
+    assert_eq!(
+        resume.blocs_poses, 0,
+        "aucune exploration n'a jamais existe pour ce document"
+    );
     assert_eq!(resume.features_creees, 1);
 
     let blocs = ctx.lire_blocs(&repo_id).await;
     assert_eq!(blocs.len(), 1);
     assert_eq!(blocs[0]["type"], serde_json::json!("feature"));
-    assert_eq!(blocs[0]["statut"], serde_json::json!("todo"), "une feature arrive toujours en A faire");
-    assert_eq!(blocs[0]["prd_cle"], serde_json::json!("2026-08-12/PRD-1/F1"));
+    assert_eq!(
+        blocs[0]["statut"],
+        serde_json::json!("todo"),
+        "une feature arrive toujours en A faire"
+    );
+    assert_eq!(
+        blocs[0]["prd_cle"],
+        serde_json::json!("2026-08-12/PRD-1/F1")
+    );
     assert_eq!(blocs[0]["prd_priorite"], serde_json::json!("P1"));
     assert_eq!(blocs[0]["prd_absent"], serde_json::json!(false));
-    assert!(blocs[0]["ref"].as_i64().is_some(), "une feature porte une reference VM-n comme tout travail suivi");
+    assert!(
+        blocs[0]["ref"].as_i64().is_some(),
+        "une feature porte une reference VM-n comme tout travail suivi"
+    );
 }
 
 /// Le critere d'acceptation central de l'issue #37 : un PRD `draft` de douze
@@ -507,7 +620,8 @@ async fn un_prd_valide_des_sa_premiere_lecture_cree_ses_features_sans_exploratio
 /// et fait disparaitre le bloc d'exploration - dans cet ordre, comme le vivra
 /// vraiment le daemon (300 s de cadence, deux passages successifs).
 #[tokio::test]
-async fn un_prd_draft_de_douze_features_passe_en_valide_peuple_douze_features_et_retire_lexploration() {
+async fn un_prd_draft_de_douze_features_passe_en_valide_peuple_douze_features_et_retire_lexploration(
+) {
     let ctx = common::TestContext::new().await;
     let (client, repo_id) = repo_de_test(&ctx).await;
     let racine = depot_git_temporaire("conversion-douze");
@@ -521,28 +635,55 @@ async fn un_prd_draft_de_douze_features_passe_en_valide_peuple_douze_features_et
     // Premier passage : brouillon, l'exploration seule (comme #36 le prouve
     // deja) - on part d'un etat reel plutot que de fabriquer l'exploration a
     // la main, pour eprouver le VRAI enchainement des deux lectures.
-    let brouillon = document("PRD-100", "draft", "2026-08-12", "atelier", Some("Grand chantier"), &corps);
+    let brouillon = document(
+        "PRD-100",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some("Grand chantier"),
+        &corps,
+    );
     ecrire(&racine, chemin_fichier, &brouillon);
     let premier = traiter(&client, &racine, &repo_id, &plan).await;
     assert_eq!(premier.blocs_poses, 1);
     assert_eq!(ctx.lire_blocs(&repo_id).await.len(), 1);
 
     // Second passage : le meme document, valide.
-    let valide = document("PRD-100", "validé", "2026-08-12", "atelier", Some("Grand chantier"), &corps);
+    let valide = document(
+        "PRD-100",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        Some("Grand chantier"),
+        &corps,
+    );
     ecrire(&racine, chemin_fichier, &valide);
     let second = traiter(&client, &racine, &repo_id, &plan).await;
 
     assert_eq!(second.features_creees, 12);
-    assert_eq!(second.blocs_poses, 0, "aucune nouvelle exploration ne se pose sur un document valide");
+    assert_eq!(
+        second.blocs_poses, 0,
+        "aucune nouvelle exploration ne se pose sur un document valide"
+    );
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs.len(), 12, "douze features, plus aucun bloc d'exploration");
+    assert_eq!(
+        blocs.len(),
+        12,
+        "douze features, plus aucun bloc d'exploration"
+    );
     assert!(
-        blocs.iter().all(|b| b["type"] == serde_json::json!("feature")),
+        blocs
+            .iter()
+            .all(|b| b["type"] == serde_json::json!("feature")),
         "le bloc d'exploration vierge a bien ete retire"
     );
-    assert!(blocs.iter().all(|b| b["statut"] == serde_json::json!("todo")));
-    assert!(blocs.iter().all(|b| b["prd_priorite"] == serde_json::json!("P1")));
+    assert!(blocs
+        .iter()
+        .all(|b| b["statut"] == serde_json::json!("todo")));
+    assert!(blocs
+        .iter()
+        .all(|b| b["prd_priorite"] == serde_json::json!("P1")));
 }
 
 /// Idempotence, cote `validé` cette fois (le cas `draft` est deja eprouve
@@ -566,25 +707,43 @@ async fn relire_le_meme_prd_valide_sans_changement_ne_cree_rien_de_neuf() {
     assert_eq!(premiere.features_creees, 2);
 
     let blocs_apres_premiere = ctx.lire_blocs(&repo_id).await;
-    let ids_avant: std::collections::BTreeSet<_> =
-        blocs_apres_premiere.iter().map(|b| b["id"].as_str().unwrap().to_string()).collect();
+    let ids_avant: std::collections::BTreeSet<_> = blocs_apres_premiere
+        .iter()
+        .map(|b| b["id"].as_str().unwrap().to_string())
+        .collect();
 
     let seconde = traiter(&client, &racine, &repo_id, &plan).await;
-    assert_eq!(seconde.features_creees, 0, "les deux features existent deja, rien de neuf a creer");
-    assert_eq!(seconde.features_absentes, 0, "rien n'a disparu du document entre les deux lectures");
+    assert_eq!(
+        seconde.features_creees, 0,
+        "les deux features existent deja, rien de neuf a creer"
+    );
+    assert_eq!(
+        seconde.features_absentes, 0,
+        "rien n'a disparu du document entre les deux lectures"
+    );
 
     let blocs_apres_seconde = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs_apres_seconde.len(), 2, "toujours deux blocs, jamais quatre");
-    let ids_apres: std::collections::BTreeSet<_> =
-        blocs_apres_seconde.iter().map(|b| b["id"].as_str().unwrap().to_string()).collect();
-    assert_eq!(ids_avant, ids_apres, "ce sont exactement les memes lignes, pas des doublons");
+    assert_eq!(
+        blocs_apres_seconde.len(),
+        2,
+        "toujours deux blocs, jamais quatre"
+    );
+    let ids_apres: std::collections::BTreeSet<_> = blocs_apres_seconde
+        .iter()
+        .map(|b| b["id"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        ids_avant, ids_apres,
+        "ce sont exactement les memes lignes, pas des doublons"
+    );
 }
 
 /// FR-039, la moitie qui protege du travail humain : un bloc d'exploration
 /// qui porte une issue ajoutee a la main n'est PAS vierge - il est conserve
 /// et marque converti, jamais supprime, meme quand le PRD passe `validé`.
 #[tokio::test]
-async fn un_bloc_dexploration_portant_une_issue_ajoutee_a_la_main_est_conserve_et_marque_converti() {
+async fn un_bloc_dexploration_portant_une_issue_ajoutee_a_la_main_est_conserve_et_marque_converti()
+{
     let ctx = common::TestContext::new().await;
     let (client, repo_id) = repo_de_test(&ctx).await;
     let racine = depot_git_temporaire("exploration-non-vierge");
@@ -607,7 +766,8 @@ async fn un_bloc_dexploration_portant_une_issue_ajoutee_a_la_main_est_conserve_e
     let id_exploration = blocs_apres_brouillon[0]["id"].as_str().unwrap().to_string();
 
     // Une issue ajoutee a la main : l'exploration n'est plus vierge.
-    ctx.creer_issue(&id_exploration, "Un detail note pendant le cadrage", None).await;
+    ctx.creer_issue(&id_exploration, "Un detail note pendant le cadrage", None)
+        .await;
 
     let valide = document(
         "PRD-7",
@@ -623,11 +783,19 @@ async fn un_bloc_dexploration_portant_une_issue_ajoutee_a_la_main_est_conserve_e
     assert_eq!(resume.features_creees, 1);
 
     let exploration = ctx.lire_bloc(&id_exploration).await;
-    assert_eq!(exploration["type"], serde_json::json!("exploration"), "elle n'est jamais retypee de force");
+    assert_eq!(
+        exploration["type"],
+        serde_json::json!("exploration"),
+        "elle n'est jamais retypee de force"
+    );
     assert_eq!(exploration["prd_converti"], serde_json::json!(true));
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs.len(), 2, "l'exploration conservee, plus la feature creee - jamais fusionnees ni supprimees");
+    assert_eq!(
+        blocs.len(),
+        2,
+        "l'exploration conservee, plus la feature creee - jamais fusionnees ni supprimees"
+    );
 }
 
 /// FR-040, la preuve : un titre qui change SANS que la cle change (meme
@@ -641,7 +809,14 @@ async fn un_titre_de_feature_qui_change_sans_que_la_cle_change_met_a_jour_le_mem
     let plan = plan_simple("atelier", "local:x");
     let chemin_fichier = "docs/prd/PRD-1.md";
 
-    let v1 = document("PRD-1", "validé", "2026-08-12", "atelier", None, &section_feature(1, "Ancien titre", "P1", ""));
+    let v1 = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        None,
+        &section_feature(1, "Ancien titre", "P1", ""),
+    );
     ecrire(&racine, chemin_fichier, &v1);
     traiter(&client, &racine, &repo_id, &plan).await;
 
@@ -649,15 +824,29 @@ async fn un_titre_de_feature_qui_change_sans_que_la_cle_change_met_a_jour_le_mem
     assert_eq!(blocs_v1.len(), 1);
     let id_bloc = blocs_v1[0]["id"].as_str().unwrap().to_string();
 
-    let v2 = document("PRD-1", "validé", "2026-08-12", "atelier", None, &section_feature(1, "Nouveau titre", "P1", ""));
+    let v2 = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        None,
+        &section_feature(1, "Nouveau titre", "P1", ""),
+    );
     ecrire(&racine, chemin_fichier, &v2);
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
 
-    assert_eq!(resume.features_creees, 0, "la cle n'a pas change, rien de neuf");
+    assert_eq!(
+        resume.features_creees, 0,
+        "la cle n'a pas change, rien de neuf"
+    );
 
     let blocs_v2 = ctx.lire_blocs(&repo_id).await;
     assert_eq!(blocs_v2.len(), 1, "toujours un seul bloc, pas un doublon");
-    assert_eq!(blocs_v2[0]["id"], serde_json::json!(id_bloc), "c'est bien le meme bloc");
+    assert_eq!(
+        blocs_v2[0]["id"],
+        serde_json::json!(id_bloc),
+        "c'est bien le meme bloc"
+    );
     assert_eq!(blocs_v2[0]["titre"], serde_json::json!("Nouveau titre"));
 }
 
@@ -676,7 +865,14 @@ async fn une_feature_retiree_du_document_est_marquee_prd_absent_jamais_supprimee
         section_feature(1, "Reste", "P1", "Texte."),
         section_feature(2, "Disparait", "P2", "Texte."),
     );
-    let v1 = document("PRD-1", "validé", "2026-08-12", "atelier", None, &corps_complet);
+    let v1 = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        None,
+        &corps_complet,
+    );
     ecrire(&racine, chemin_fichier, &v1);
     traiter(&client, &racine, &repo_id, &plan).await;
 
@@ -691,7 +887,14 @@ async fn une_feature_retiree_du_document_est_marquee_prd_absent_jamais_supprimee
         .to_string();
 
     // F2 disparait du document, F1 reste.
-    let v2 = document("PRD-1", "validé", "2026-08-12", "atelier", None, &section_feature(1, "Reste", "P1", "Texte."));
+    let v2 = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        None,
+        &section_feature(1, "Reste", "P1", "Texte."),
+    );
     ecrire(&racine, chemin_fichier, &v2);
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
 
@@ -700,13 +903,20 @@ async fn une_feature_retiree_du_document_est_marquee_prd_absent_jamais_supprimee
 
     let blocs_v2 = ctx.lire_blocs(&repo_id).await;
     assert_eq!(blocs_v2.len(), 2, "F2 est CONSERVE, jamais supprime");
-    let f2_apres = blocs_v2.iter().find(|b| b["id"] == serde_json::json!(id_f2)).unwrap();
+    let f2_apres = blocs_v2
+        .iter()
+        .find(|b| b["id"] == serde_json::json!(id_f2))
+        .unwrap();
     assert_eq!(f2_apres["prd_absent"], serde_json::json!(true));
     let f1_apres = blocs_v2
         .iter()
         .find(|b| b["prd_cle"] == serde_json::json!("2026-08-12/PRD-1/F1"))
         .unwrap();
-    assert_eq!(f1_apres["prd_absent"], serde_json::json!(false), "F1 n'est pas touchee par la disparition de F2");
+    assert_eq!(
+        f1_apres["prd_absent"],
+        serde_json::json!(false),
+        "F1 n'est pas touchee par la disparition de F2"
+    );
 }
 
 /// FR-042, cote base : la priorite lue dans le document ne se modifie pas
@@ -721,7 +931,14 @@ async fn la_priorite_dune_feature_ne_peut_pas_etre_modifiee_par_un_patch_direct(
     let racine = depot_git_temporaire("priorite-protegee");
     let plan = plan_simple("atelier", "local:x");
 
-    let texte = document("PRD-1", "validé", "2026-08-12", "atelier", None, &section_feature(1, "F", "P1", ""));
+    let texte = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        None,
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, "docs/prd/PRD-1.md", &texte);
     traiter(&client, &racine, &repo_id, &plan).await;
 
@@ -730,12 +947,23 @@ async fn la_priorite_dune_feature_ne_peut_pas_etre_modifiee_par_un_patch_direct(
     assert_eq!(bloc["prd_priorite"], serde_json::json!("P1"));
 
     let resultat = ctx
-        .patch_bloc_avec_jeton(&ctx.user_token, &id_bloc, serde_json::json!({ "prd_priorite": "P4" }))
+        .patch_bloc_avec_jeton(
+            &ctx.user_token,
+            &id_bloc,
+            serde_json::json!({ "prd_priorite": "P4" }),
+        )
         .await;
-    assert!(resultat.is_err(), "un PATCH direct sur prd_priorite doit etre refuse (FR-042)");
+    assert!(
+        resultat.is_err(),
+        "un PATCH direct sur prd_priorite doit etre refuse (FR-042)"
+    );
 
     let bloc_apres = ctx.lire_bloc(&id_bloc).await;
-    assert_eq!(bloc_apres["prd_priorite"], serde_json::json!("P1"), "la priorite n'a pas bouge");
+    assert_eq!(
+        bloc_apres["prd_priorite"],
+        serde_json::json!("P1"),
+        "la priorite n'a pas bouge"
+    );
 }
 
 /// FR-042, le schema plutot que le seul parseur (lecon de #30, releve en
@@ -745,31 +973,50 @@ async fn la_priorite_dune_feature_ne_peut_pas_etre_modifiee_par_un_patch_direct(
 /// protege la colonne pour TOUT chemin d'ecriture, y compris ceux que ce
 /// depot n'a pas encore imagines.
 #[tokio::test]
-async fn la_colonne_prd_priorite_refuse_toute_valeur_hors_de_la_forme_pn_meme_pour_la_cle_de_service() {
+async fn la_colonne_prd_priorite_refuse_toute_valeur_hors_de_la_forme_pn_meme_pour_la_cle_de_service(
+) {
     let ctx = common::TestContext::new().await;
     let (client, repo_id) = repo_de_test(&ctx).await;
     let racine = depot_git_temporaire("priorite-check-schema");
     let plan = plan_simple("atelier", "local:x");
 
-    let texte = document("PRD-1", "validé", "2026-08-12", "atelier", None, &section_feature(1, "F", "P1", ""));
+    let texte = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        None,
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, "docs/prd/PRD-1.md", &texte);
     traiter(&client, &racine, &repo_id, &plan).await;
 
     let bloc = ctx.lire_blocs(&repo_id).await.into_iter().next().unwrap();
     let id_bloc = bloc["id"].as_str().unwrap().to_string();
 
-    let refuse = ctx.tenter_poser_prd_priorite_service(&id_bloc, "Tres urgent").await;
-    assert!(refuse.is_err(), "la contrainte check doit refuser une priorite hors forme, meme pour service_role");
+    let refuse = ctx
+        .tenter_poser_prd_priorite_service(&id_bloc, "Tres urgent")
+        .await;
+    assert!(
+        refuse.is_err(),
+        "la contrainte check doit refuser une priorite hors forme, meme pour service_role"
+    );
 
     let accepte = ctx.tenter_poser_prd_priorite_service(&id_bloc, "P4").await;
-    assert!(accepte.is_ok(), "P4 respecte la forme P<chiffres> meme si le PRD ne va aujourd'hui qu'a P3");
+    assert!(
+        accepte.is_ok(),
+        "P4 respecte la forme P<chiffres> meme si le PRD ne va aujourd'hui qu'a P3"
+    );
 
     let vide_ok = ctx.tenter_poser_prd_priorite_service(&id_bloc, "").await;
     // Une chaine vide n'est ni `null` ni de la forme `P<chiffres>` : elle
     // n'a jamais ete produite par le parseur (`nullif` la transforme en
     // `null` avant d'ecrire), mais un appelant direct pourrait la tenter -
     // la contrainte doit la refuser au meme titre que tout texte hors forme.
-    assert!(vide_ok.is_err(), "une chaine vide n'est pas P<chiffres> non plus");
+    assert!(
+        vide_ok.is_err(),
+        "une chaine vide n'est pas P<chiffres> non plus"
+    );
 }
 
 /// Le pendant positif du test precedent : le nouveau garde-fou de FR-042 ne
@@ -785,16 +1032,27 @@ async fn une_feature_issue_dun_prd_reste_retypable_et_sortable_de_termine_normal
     let racine = depot_git_temporaire("prd-feature-retypable");
     let plan = plan_simple("atelier", "local:x");
 
-    let texte = document("PRD-1", "validé", "2026-08-12", "atelier", None, &section_feature(1, "F", "P1", ""));
+    let texte = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        None,
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, "docs/prd/PRD-1.md", &texte);
     traiter(&client, &racine, &repo_id, &plan).await;
 
     let bloc = ctx.lire_blocs(&repo_id).await.into_iter().next().unwrap();
     let id_bloc = bloc["id"].as_str().unwrap().to_string();
 
-    ctx.patch_bloc_avec_jeton(&ctx.user_token, &id_bloc, serde_json::json!({ "type": "correction" }))
-        .await
-        .expect("retyper une feature issue d'un PRD doit rester possible (FR-032)");
+    ctx.patch_bloc_avec_jeton(
+        &ctx.user_token,
+        &id_bloc,
+        serde_json::json!({ "type": "correction" }),
+    )
+    .await
+    .expect("retyper une feature issue d'un PRD doit rester possible (FR-032)");
 
     ctx.poser_statut_bloc(&id_bloc, "done").await;
     ctx.deplacer_bloc_avec_jeton(&ctx.user_token, &id_bloc, "doing")
@@ -804,7 +1062,11 @@ async fn une_feature_issue_dun_prd_reste_retypable_et_sortable_de_termine_normal
     let bloc_apres = ctx.lire_bloc(&id_bloc).await;
     assert_eq!(bloc_apres["type"], serde_json::json!("correction"));
     assert_eq!(bloc_apres["statut"], serde_json::json!("doing"));
-    assert_eq!(bloc_apres["prd_priorite"], serde_json::json!("P1"), "inchangee par ces deux ecritures");
+    assert_eq!(
+        bloc_apres["prd_priorite"],
+        serde_json::json!("P1"),
+        "inchangee par ces deux ecritures"
+    );
 }
 
 /// `statut: abandonné` : plus de creation, les blocs deja issus de ce
@@ -832,12 +1094,17 @@ async fn un_prd_abandonne_ne_cree_rien_et_marque_les_blocs_existants_prd_absent(
     ecrire(&racine, chemin_fichier, &abandonne);
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
 
-    assert_eq!(resume.features_creees, 0, "un document abandonne ne cree jamais rien");
+    assert_eq!(
+        resume.features_creees, 0,
+        "un document abandonne ne cree jamais rien"
+    );
 
     let blocs = ctx.lire_blocs(&repo_id).await;
     assert_eq!(blocs.len(), 2, "rien n'est supprime");
     assert!(
-        blocs.iter().all(|b| b["prd_absent"] == serde_json::json!(true)),
+        blocs
+            .iter()
+            .all(|b| b["prd_absent"] == serde_json::json!(true)),
         "les deux features existantes sont marquees absentes"
     );
 }
@@ -880,7 +1147,10 @@ async fn deux_prd_valides_avec_le_meme_id_et_la_meme_date_ne_convertissent_que_l
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
 
-    assert_eq!(resume.features_creees, 1, "un seul document converti, jamais deux ecritures sur la meme cle");
+    assert_eq!(
+        resume.features_creees, 1,
+        "un seul document converti, jamais deux ecritures sur la meme cle"
+    );
     assert_eq!(
         resume.cles_dupliquees,
         vec![PathBuf::from("docs/prd/b-second.md")],
@@ -888,7 +1158,11 @@ async fn deux_prd_valides_avec_le_meme_id_et_la_meme_date_ne_convertissent_que_l
     );
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs.len(), 1, "une seule feature, pas deux qui se marcheraient dessus");
+    assert_eq!(
+        blocs.len(),
+        1,
+        "une seule feature, pas deux qui se marcheraient dessus"
+    );
     assert_eq!(
         blocs[0]["titre"],
         serde_json::json!("Titre du premier"),
@@ -934,7 +1208,10 @@ async fn une_conversion_qui_echoue_a_mi_chemin_ne_laisse_rien() {
         )
         .await;
 
-    assert!(resultat.is_err(), "un titre manquant doit faire echouer l'appel");
+    assert!(
+        resultat.is_err(),
+        "un titre manquant doit faire echouer l'appel"
+    );
     assert!(
         ctx.lire_blocs(&repo_id).await.is_empty(),
         "la premiere feature, pourtant valide, ne doit pas etre restee ecrite : tout ou rien"
@@ -954,18 +1231,43 @@ async fn un_prd_qui_repasse_de_valide_a_draft_ne_ressuscite_pas_lexploration() {
     let plan = plan_simple("atelier", "local:x");
     let chemin_fichier = "docs/prd/PRD-1.md";
 
-    let valide = document("PRD-1", "validé", "2026-08-12", "atelier", Some("Chantier"), &section_feature(1, "F", "P1", ""));
+    let valide = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        Some("Chantier"),
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, chemin_fichier, &valide);
     traiter(&client, &racine, &repo_id, &plan).await;
-    assert_eq!(ctx.lire_blocs(&repo_id).await.len(), 1, "une feature, l'exploration vierge a ete retiree");
+    assert_eq!(
+        ctx.lire_blocs(&repo_id).await.len(),
+        1,
+        "une feature, l'exploration vierge a ete retiree"
+    );
 
-    let brouillon = document("PRD-1", "draft", "2026-08-12", "atelier", Some("Chantier"), &section_feature(1, "F", "P1", ""));
+    let brouillon = document(
+        "PRD-1",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some("Chantier"),
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, chemin_fichier, &brouillon);
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
 
-    assert_eq!(resume.blocs_poses, 0, "aucune exploration ne ressuscite a cote d'une feature deja convertie");
+    assert_eq!(
+        resume.blocs_poses, 0,
+        "aucune exploration ne ressuscite a cote d'une feature deja convertie"
+    );
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs.len(), 1, "toujours la seule feature, jamais un second bloc d'exploration a cote");
+    assert_eq!(
+        blocs.len(),
+        1,
+        "toujours la seule feature, jamais un second bloc d'exploration a cote"
+    );
     assert_eq!(blocs[0]["type"], serde_json::json!("feature"));
 }
 
@@ -985,7 +1287,14 @@ async fn un_bloc_de_feature_supprime_a_la_main_reapparait_a_la_prochaine_lecture
     let plan = plan_simple("atelier", "local:x");
     let chemin_fichier = "docs/prd/PRD-1.md";
 
-    let texte = document("PRD-1", "validé", "2026-08-12", "atelier", None, &section_feature(1, "F", "P1", ""));
+    let texte = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        None,
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, chemin_fichier, &texte);
     traiter(&client, &racine, &repo_id, &plan).await;
 
@@ -996,11 +1305,18 @@ async fn un_bloc_de_feature_supprime_a_la_main_reapparait_a_la_prochaine_lecture
     assert!(ctx.lire_blocs(&repo_id).await.is_empty());
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
-    assert_eq!(resume.features_creees, 1, "le document decrit toujours cette feature, elle est recreee");
+    assert_eq!(
+        resume.features_creees, 1,
+        "le document decrit toujours cette feature, elle est recreee"
+    );
 
     let blocs_apres = ctx.lire_blocs(&repo_id).await;
     assert_eq!(blocs_apres.len(), 1);
-    assert_ne!(blocs_apres[0]["id"], serde_json::json!(ancien_id), "un nouvel identifiant, la ligne precedente est bien partie");
+    assert_ne!(
+        blocs_apres[0]["id"],
+        serde_json::json!(ancien_id),
+        "un nouvel identifiant, la ligne precedente est bien partie"
+    );
 }
 
 /// Casse (suggeree par l'issue), documentee plutot que corrigee : corriger
@@ -1022,25 +1338,51 @@ async fn corriger_la_date_de_len_tete_cree_de_nouveaux_blocs_sans_signaler_les_a
     let plan = plan_simple("atelier", "local:x");
     let chemin_fichier = "docs/prd/PRD-1.md";
 
-    let mauvaise_date = document("PRD-1", "validé", "2026-08-12", "atelier", None, &section_feature(1, "F", "P1", ""));
+    let mauvaise_date = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        None,
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, chemin_fichier, &mauvaise_date);
     traiter(&client, &racine, &repo_id, &plan).await;
     let blocs_avant = ctx.lire_blocs(&repo_id).await;
     assert_eq!(blocs_avant.len(), 1);
     let id_ancien_bloc = blocs_avant[0]["id"].as_str().unwrap().to_string();
 
-    let date_corrigee = document("PRD-1", "validé", "2026-08-11", "atelier", None, &section_feature(1, "F", "P1", ""));
+    let date_corrigee = document(
+        "PRD-1",
+        "validé",
+        "2026-08-11",
+        "atelier",
+        None,
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, chemin_fichier, &date_corrigee);
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
 
-    assert_eq!(resume.features_creees, 1, "une nouvelle cle, donc un nouveau bloc");
+    assert_eq!(
+        resume.features_creees, 1,
+        "une nouvelle cle, donc un nouveau bloc"
+    );
     let blocs_apres = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs_apres.len(), 2, "l'ancien bloc reste actif a cote du nouveau - limite connue");
-    let ancien = blocs_apres.iter().find(|b| b["id"] == serde_json::json!(id_ancien_bloc)).unwrap();
-    assert_eq!(ancien["prd_absent"], serde_json::json!(false), "il n'est pas signale : sa cle ne fait plus partie du document courant");
+    assert_eq!(
+        blocs_apres.len(),
+        2,
+        "l'ancien bloc reste actif a cote du nouveau - limite connue"
+    );
+    let ancien = blocs_apres
+        .iter()
+        .find(|b| b["id"] == serde_json::json!(id_ancien_bloc))
+        .unwrap();
+    assert_eq!(
+        ancien["prd_absent"],
+        serde_json::json!(false),
+        "il n'est pas signale : sa cle ne fait plus partie du document courant"
+    );
 }
-
-
 
 /// FR-044 : un document dont l'en-tete est reconnu mais qui ne recense
 /// aucune feature est signale - `traiter` le rend dans son resume plutot que
@@ -1052,7 +1394,14 @@ async fn un_document_sans_feature_reconnue_est_signale_dans_le_resume() {
     let racine = depot_git_temporaire("sans-feature");
     let plan = plan_simple("atelier", "local:x");
 
-    let texte = document("PRD-1", "validé", "2026-08-12", "atelier", None, "## Contexte\n\nRien de plus.\n");
+    let texte = document(
+        "PRD-1",
+        "validé",
+        "2026-08-12",
+        "atelier",
+        None,
+        "## Contexte\n\nRien de plus.\n",
+    );
     ecrire(&racine, "docs/prd/PRD-vide.md", &texte);
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
@@ -1072,11 +1421,21 @@ async fn un_prd_hors_de_docs_est_tout_de_meme_lu() {
     let racine = depot_git_temporaire("hors-docs");
     let plan = plan_simple("atelier", "local:x");
 
-    let texte = document("PRD-1", "draft", "2026-08-12", "atelier", Some("A la racine"), &section_feature(1, "F", "P1", ""));
+    let texte = document(
+        "PRD-1",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some("A la racine"),
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, "BROUILLON.md", &texte);
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
-    assert_eq!(resume.blocs_poses, 1, "l'emplacement du fichier ne conditionne pas sa lecture");
+    assert_eq!(
+        resume.blocs_poses, 1,
+        "l'emplacement du fichier ne conditionne pas sa lecture"
+    );
 
     let blocs = ctx.lire_blocs(&repo_id).await;
     assert_eq!(blocs[0]["chemin"], serde_json::json!("BROUILLON.md"));
@@ -1094,16 +1453,37 @@ async fn deux_prd_avec_le_meme_id_et_la_meme_date_ne_creent_quun_seul_bloc() {
     let racine = depot_git_temporaire("id-duplique");
     let plan = plan_simple("atelier", "local:x");
 
-    let premier = document("PRD-1", "draft", "2026-08-12", "atelier", Some("Premier document"), &section_feature(1, "F", "P1", ""));
-    let second = document("PRD-1", "draft", "2026-08-12", "atelier", Some("Second document"), &section_feature(1, "F", "P1", ""));
+    let premier = document(
+        "PRD-1",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some("Premier document"),
+        &section_feature(1, "F", "P1", ""),
+    );
+    let second = document(
+        "PRD-1",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some("Second document"),
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, "docs/prd/a-premier.md", &premier);
     ecrire(&racine, "docs/prd/b-second.md", &second);
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
-    assert_eq!(resume.blocs_poses, 2, "les deux appels reussissent (idempotence), aucun n'echoue");
+    assert_eq!(
+        resume.blocs_poses, 2,
+        "les deux appels reussissent (idempotence), aucun n'echoue"
+    );
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs.len(), 1, "un seul bloc au final, la cle prd_cle est partagee par construction");
+    assert_eq!(
+        blocs.len(),
+        1,
+        "un seul bloc au final, la cle prd_cle est partagee par construction"
+    );
 }
 
 /// Casse : un titre qui porte des guillemets et un antislash ne doit pas
@@ -1118,14 +1498,24 @@ async fn un_titre_avec_guillemets_et_antislash_traverse_sans_encombre() {
     let plan = plan_simple("atelier", "local:x");
 
     let titre = "Kanban \"v2\" \\ le retour";
-    let texte = document("PRD-1", "draft", "2026-08-12", "atelier", Some(titre), &section_feature(1, "F", "P1", ""));
+    let texte = document(
+        "PRD-1",
+        "draft",
+        "2026-08-12",
+        "atelier",
+        Some(titre),
+        &section_feature(1, "F", "P1", ""),
+    );
     ecrire(&racine, "docs/prd/hostile.md", &texte);
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
     assert_eq!(resume.blocs_poses, 1);
 
     let blocs = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(blocs[0]["titre"], serde_json::json!(format!("cadrage {titre}")));
+    assert_eq!(
+        blocs[0]["titre"],
+        serde_json::json!(format!("cadrage {titre}"))
+    );
 }
 
 /// Casse : un fichier `.md` dont le contenu n'est pas de l'UTF-8 valide (un
@@ -1140,7 +1530,11 @@ async fn un_fichier_non_utf8_ne_fait_pas_paniquer_traiter() {
     let plan = plan_simple("atelier", "local:x");
 
     std::fs::create_dir_all(racine.join("docs/prd")).unwrap();
-    std::fs::write(racine.join("docs/prd/casse.md"), [0xFF, 0xFE, 0x00, 0xC3, 0x28]).unwrap();
+    std::fs::write(
+        racine.join("docs/prd/casse.md"),
+        [0xFF, 0xFE, 0x00, 0xC3, 0x28],
+    )
+    .unwrap();
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
     assert_eq!(resume.blocs_poses, 0);
@@ -1169,15 +1563,26 @@ async fn le_vrai_prd_001_du_depot_est_converti_en_seize_features() {
     let (client, repo_id) = repo_de_test(&ctx).await;
     // La racine du depot lui-meme : `daemon/` est le repertoire du crate, son
     // parent est la racine ou vit `docs/prd/PRD-001-espace-projet-kanban.md`.
-    let racine = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
-    let plan = plan_simple("vibecode-traker-app", "github.com/yarma-tech/vibecode-traker-app");
+    let racine = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let plan = plan_simple(
+        "vibecode-traker-app",
+        "github.com/yarma-tech/vibecode-traker-app",
+    );
 
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
 
-    assert_eq!(resume.features_creees, 16, "PRD-001 porte seize sections ### Fn");
-    assert_eq!(resume.blocs_poses, 0, "aucune exploration n'a jamais ete posee pour ce document");
+    assert_eq!(
+        resume.features_creees, 16,
+        "PRD-001 porte seize sections ### Fn"
+    );
     assert!(
-        resume.sans_feature_reconnue.iter().all(|c| !c.ends_with("PRD-001-espace-projet-kanban.md")),
+        resume
+            .sans_feature_reconnue
+            .iter()
+            .all(|c| !c.ends_with("PRD-001-espace-projet-kanban.md")),
         "PRD-001 porte 16 features reconnues, il ne doit pas etre signale comme vide"
     );
     assert!(
@@ -1185,11 +1590,42 @@ async fn le_vrai_prd_001_du_depot_est_converti_en_seize_features() {
         "PRD-001 est seul dans ce depot de test, aucune collision de cle possible"
     );
 
-    let blocs = ctx.lire_blocs(&repo_id).await;
+    // `docs/prd/` n'est plus le domaine reserve de PRD-001 : un second document
+    // en brouillon y vit desormais, et il laisse legitimement son exploration.
+    // Les compteurs globaux du resume ne disent donc plus rien de PRD-001 - on
+    // interroge les blocs, ou chacun porte sa cle de document.
+    let tous_les_blocs = ctx.lire_blocs(&repo_id).await;
+    assert!(
+        !tous_les_blocs.iter().any(|b| {
+            b["type"] == serde_json::json!("exploration")
+                && b["chemin"]
+                    .as_str()
+                    .is_some_and(|c| c.ends_with("PRD-001-espace-projet-kanban.md"))
+        }),
+        "aucune exploration n'a jamais ete posee pour ce document"
+    );
+
+    let blocs: Vec<_> = tous_les_blocs
+        .into_iter()
+        .filter(|b| {
+            b["prd_cle"]
+                .as_str()
+                .is_some_and(|c| c.starts_with("2026-08-10/PRD-001/"))
+        })
+        .collect();
     assert_eq!(blocs.len(), 16);
-    assert!(blocs.iter().all(|b| b["type"] == serde_json::json!("feature")));
-    assert!(blocs.iter().all(|b| b["statut"] == serde_json::json!("todo")), "toutes en A faire, aucune n'est nee ailleurs");
-    assert!(blocs.iter().all(|b| b["prd_statut"] == serde_json::json!("validé")));
+    assert!(blocs
+        .iter()
+        .all(|b| b["type"] == serde_json::json!("feature")));
+    assert!(
+        blocs
+            .iter()
+            .all(|b| b["statut"] == serde_json::json!("todo")),
+        "toutes en A faire, aucune n'est nee ailleurs"
+    );
+    assert!(blocs
+        .iter()
+        .all(|b| b["prd_statut"] == serde_json::json!("validé")));
     assert!(
         blocs.iter().all(|b| b["prd_cle"]
             .as_str()
@@ -1198,7 +1634,10 @@ async fn le_vrai_prd_001_du_depot_est_converti_en_seize_features() {
     );
 
     let compte_priorite = |p: &str| {
-        blocs.iter().filter(|b| b["prd_priorite"] == serde_json::json!(p)).count()
+        blocs
+            .iter()
+            .filter(|b| b["prd_priorite"] == serde_json::json!(p))
+            .count()
     };
     assert_eq!(compte_priorite("P1"), 11, "F1 a F11");
     assert_eq!(compte_priorite("P2"), 4, "F12 a F15");
@@ -1208,8 +1647,15 @@ async fn le_vrai_prd_001_du_depot_est_converti_en_seize_features() {
         .iter()
         .filter(|b| b["prd_a_clarifier"] == serde_json::json!(true))
         .collect();
-    assert_eq!(a_clarifier.len(), 1, "un seul marqueur [À CLARIFIER] dans tout le document, porte par F12");
-    assert_eq!(a_clarifier[0]["prd_cle"], serde_json::json!("2026-08-10/PRD-001/F12"));
+    assert_eq!(
+        a_clarifier.len(),
+        1,
+        "un seul marqueur [À CLARIFIER] dans tout le document, porte par F12"
+    );
+    assert_eq!(
+        a_clarifier[0]["prd_cle"],
+        serde_json::json!("2026-08-10/PRD-001/F12")
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1225,7 +1671,10 @@ fn ecriture_agent(fichier: &str) -> vibemap::Activite {
     vibemap::Activite {
         session_id: uuid::Uuid::new_v4().to_string(),
         tool_use_id: uuid::Uuid::new_v4().to_string(),
-        module_path: fichier.rsplit_once('/').map(|(m, _)| m.to_string()).unwrap_or_default(),
+        module_path: fichier
+            .rsplit_once('/')
+            .map(|(m, _)| m.to_string())
+            .unwrap_or_default(),
         file_path: fichier.to_string(),
         kind: "write",
         occurred_at: chrono::Utc::now(),
@@ -1262,24 +1711,55 @@ async fn une_exploration_posee_par_un_agent_est_adoptee_par_la_lecture_du_prd_qu
     // L'ecriture d'agent arrive la premiere : #38 pose une exploration sans
     // la moindre lecture du contenu.
     client
-        .pousser_activite(&machine.machine_id, &repo_id, Some("main"), &[ecriture_agent(chemin_fichier)])
+        .pousser_activite(
+            &machine.machine_id,
+            &repo_id,
+            Some("main"),
+            &[ecriture_agent(chemin_fichier)],
+        )
         .await
         .expect("l'evenement doit etre accepte");
 
     let avant = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(avant.len(), 1, "l'ecriture d'agent pose sa propre exploration");
-    assert_eq!(avant[0]["prd_cle"], serde_json::json!(null), "pas encore rattachee a un PRD");
+    assert_eq!(
+        avant.len(),
+        1,
+        "l'ecriture d'agent pose sa propre exploration"
+    );
+    assert_eq!(
+        avant[0]["prd_cle"],
+        serde_json::json!(null),
+        "pas encore rattachee a un PRD"
+    );
     let id_avant = avant[0]["id"].as_str().unwrap().to_string();
 
     // La cartographie lit ensuite le PRD.
     let resume = traiter(&client, &racine, &repo_id, &plan).await;
-    assert_eq!(resume.blocs_poses, 1, "la fonction rend une ligne reelle, adoptee ou creee");
+    assert_eq!(
+        resume.blocs_poses, 1,
+        "la fonction rend une ligne reelle, adoptee ou creee"
+    );
 
     let apres = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(apres.len(), 1, "toujours une seule carte pour ce fichier, jamais deux");
-    assert_eq!(apres[0]["id"], serde_json::json!(id_avant), "la ligne posee par #38 est ADOPTEE, pas dedoublee");
-    assert_eq!(apres[0]["prd_cle"], serde_json::json!("2026-08-12/PRD-77"), "desormais rattachee a son PRD");
-    assert_eq!(apres[0]["titre"], serde_json::json!("cadrage Double nature"));
+    assert_eq!(
+        apres.len(),
+        1,
+        "toujours une seule carte pour ce fichier, jamais deux"
+    );
+    assert_eq!(
+        apres[0]["id"],
+        serde_json::json!(id_avant),
+        "la ligne posee par #38 est ADOPTEE, pas dedoublee"
+    );
+    assert_eq!(
+        apres[0]["prd_cle"],
+        serde_json::json!("2026-08-12/PRD-77"),
+        "desormais rattachee a son PRD"
+    );
+    assert_eq!(
+        apres[0]["titre"],
+        serde_json::json!("cadrage Double nature")
+    );
 }
 
 /// Sens 2 : le PRD est lu en premier (l'exploration porte deja `prd_cle`),
@@ -1313,12 +1793,21 @@ async fn une_ecriture_dagent_sur_un_fichier_deja_explore_par_le_prd_ne_cree_rien
     let id_avant = avant[0]["id"].as_str().unwrap().to_string();
 
     client
-        .pousser_activite(&machine.machine_id, &repo_id, Some("main"), &[ecriture_agent(chemin_fichier)])
+        .pousser_activite(
+            &machine.machine_id,
+            &repo_id,
+            Some("main"),
+            &[ecriture_agent(chemin_fichier)],
+        )
         .await
         .expect("l'evenement doit etre accepte");
 
     let apres = ctx.lire_blocs(&repo_id).await;
-    assert_eq!(apres.len(), 1, "le fichier est deja couvert par l'exploration du PRD, rien ne s'ajoute");
+    assert_eq!(
+        apres.len(),
+        1,
+        "le fichier est deja couvert par l'exploration du PRD, rien ne s'ajoute"
+    );
     assert_eq!(apres[0]["id"], serde_json::json!(id_avant));
     assert_eq!(
         apres[0]["prd_cle"],

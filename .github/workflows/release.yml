@@ -2,8 +2,29 @@ name: Release
 
 # La distribution est la contrepartie du choix de Rust (ADR 0001, « Comment on
 # limite ces risques », point 6) : « un binaire qu'on ne sait pas produire
-# n'existe pas ». Un tag `v*` compile les binaires, calcule leurs sommes de
-# controle, et publie le tout en release GitHub.
+# n'existe pas ». Un tag `v*` compile l'application de bureau et le binaire en
+# ligne de commande, calcule leurs sommes de controle, et publie le tout en
+# release GitHub.
+#
+# Une seule cible : macOS Apple Silicon (FR-079). L'application vise les Mac
+# Apple Silicon et eux seuls - aucune version Intel n'est produite - et le
+# binaire en ligne de commande l'accompagne sur ce meme poste, dont il est le
+# compagnon et non plus une porte d'entree autonome (FR-082).
+#
+# CE QUI A ETE RETIRE, ET COMMENT LE REMETTRE
+# -------------------------------------------
+# La cible Linux x86_64 sortait ici jusqu'a la tranche #86. Elle a ete retiree
+# par FR-079 : le chemin d'appairage par code disparait (FR-082), donc un poste
+# Linux neuf n'a plus aucune porte d'entree, et publier un binaire dont
+# l'entree est fermee reviendrait a publier une impasse. Les postes Linux deja
+# relies gardent leur jeton et continuent d'etre acceptes.
+#
+# C'est un retrait de PORTEE, pris par le PRD-002 et pas par le PM : sa
+# ratification est encore attendue (PRD-002, note en tete de « Hors scope
+# global »). S'il le refuse, le retrait se defait en rejouant a l'envers le
+# commit de #86 : la matrice ci-dessous retrouve son entree Ubuntu, la formule
+# Homebrew son volet, le README son paragraphe, et `bureau/tests/publication.rs`
+# ses deux assertions. Rien d'autre n'en depend.
 on:
   push:
     tags:
@@ -14,8 +35,128 @@ permissions:
   contents: write
 
 jobs:
+  # L'etiquette est ce que l'utilisateur telechargera ; la version compilee est
+  # ce que l'application et le binaire annonceront. Les laisser diverger,
+  # c'est publier un paquet qui ment sur son propre numero - et l'ecran
+  # Reglages (FR-068) le repeterait. On refuse la publication au lieu de la
+  # rattraper : reetiqueter coute moins cher que de retirer une release fausse.
+  etiquette:
+    name: Verifier que l'etiquette est la version compilee
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Comparer l'etiquette aux manifestes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          attendue="${TAG#v}"
+          echec=0
+          verifier() {
+            if [ "$2" != "$attendue" ]; then
+              echo "::error::$1 annonce $2, l'etiquette annonce $attendue"
+              echec=1
+            fi
+          }
+          verifier "bureau/Cargo.toml" \
+            "$(sed -n 's/^version = "\(.*\)"/\1/p' bureau/Cargo.toml | head -1)"
+          verifier "daemon/Cargo.toml" \
+            "$(sed -n 's/^version = "\(.*\)"/\1/p' daemon/Cargo.toml | head -1)"
+          verifier "web/package.json" \
+            "$(node -p "require('./web/package.json').version")"
+          exit "$echec"
+
+  # L'application de bureau : le paquet `.app` que l'utilisateur glisse dans ses
+  # Applications (FR-067). Il embarque le lecteur, compile dans le meme binaire,
+  # et le service d'interface, assemble par `bureau/embarquer-le-service.sh`
+  # (FR-069) : le poste qui telecharge l'application n'a ni le depot, ni Node.
+  application:
+    name: Construire l'application macOS
+    needs: etiquette
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: bureau
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Ajouter la cible
+        run: rustup target add aarch64-apple-darwin
+
+      # Node sert ici a CONSTRUIRE l'interface, pas a la faire tourner ensuite :
+      # le paquet embarque son propre executable Node, telecharge et verifie par
+      # `embarquer-le-service.sh`. La version suit celle de l'integration
+      # continue, qui construit la meme interface.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Installer les dependances de l'interface
+        working-directory: web
+        run: npm ci
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            bureau/target
+          key: cargo-release-bureau-${{ hashFiles('bureau/Cargo.lock') }}
+
+      # La CLI Tauri en binaire deja compile, plutot que `cargo install
+      # tauri-cli` qui recompilerait tout l'outil a chaque release.
+      #
+      # L'application n'est ni signee ni notariee : c'est un hors-scope assume
+      # du PRD-002, faute de compte developpeur Apple. Au premier lancement,
+      # macOS annonce un « developpeur non identifie » ; le README dit comment
+      # passer outre.
+      #
+      # L'empaquetage lance d'abord `bureau/embarquer-le-service.sh`, qui
+      # construit l'interface : d'ou l'adresse de la base ici. Elle est ecrite
+      # dans l'interface au moment de la construction, jamais lue au lancement,
+      # donc c'est le seul endroit ou la poser. Tant qu'aucun projet heberge
+      # n'est declare en variables du depot, le paquet vise la base locale du
+      # poste, comme le depot lui-meme (README) - c'est un point ouvert du
+      # PRD-002, pas un choix de cette tranche.
+      - name: Empaqueter l'application
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321' }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'cle-de-build' }}
+        run: npx --yes @tauri-apps/cli@^2 build --target aarch64-apple-darwin --bundles app
+
+      # Une archive et sa somme de controle sha256 a cote, comme pour le binaire.
+      # `ditto` plutot que `zip` : c'est l'outil d'Apple, il preserve les liens
+      # symboliques et les ressources d'un `.app`, qu'un zip ordinaire abime.
+      - name: Archiver l'application
+        id: paquet
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          nom="VibeMap-${version}-aarch64-apple-darwin"
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent \
+            "target/aarch64-apple-darwin/release/bundle/macos/Vibe Map.app" \
+            "dist/${nom}.app.zip"
+          cd dist
+          shasum -a 256 "${nom}.app.zip" > "${nom}.app.zip.sha256"
+          echo "archive=bureau/dist/${nom}.app.zip" >> "$GITHUB_OUTPUT"
+          echo "somme=bureau/dist/${nom}.app.zip.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Verser les artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibemap-application-macos
+          path: |
+            ${{ github.workspace }}/${{ steps.paquet.outputs.archive }}
+            ${{ github.workspace }}/${{ steps.paquet.outputs.somme }}
+
+  # Le binaire en ligne de commande, compagnon de l'application sur le meme Mac.
   build:
     name: Construire ${{ matrix.cible }}
+    needs: etiquette
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -25,13 +166,10 @@ jobs:
       matrix:
         include:
           # macOS arm64 se compile nativement sur les runners Apple Silicon.
+          # C'est desormais la seule entree de cette matrice : voir « ce qui a
+          # ete retire » en tete de fichier.
           - runner: macos-14
             cible: aarch64-apple-darwin
-          # Linux x86_64 se compile nativement sur les runners Ubuntu : pas de
-          # linker croise a installer, contrairement a une compilation depuis
-          # macOS.
-          - runner: ubuntu-latest
-            cible: x86_64-unknown-linux-gnu
 
     steps:
       - uses: actions/checkout@v5
@@ -87,7 +225,7 @@ jobs:
 
   publier:
     name: Publier la release
-    needs: build
+    needs: [application, build]
     runs-on: ubuntu-latest
     steps:
       - name: Recuperer les artefacts
@@ -96,8 +234,9 @@ jobs:
           path: artefacts
           merge-multiple: true
 
-      # Une seule release, tous les binaires et toutes leurs sommes de controle
-      # attaches. Sur un tag, `gh release create` cree la release et televerse.
+      # Une seule release : l'application, le binaire, et toutes leurs sommes de
+      # controle attachees. Sur un tag, `gh release create` cree la release et
+      # televerse.
       - name: Creer la release GitHub
         env:
           GH_TOKEN: ${{ github.token }}
@@ -108,4 +247,4 @@ jobs:
             --repo "$DEPOT" \
             --title "vibemap $TAG" \
             --generate-notes \
-            artefacts/*.tar.gz artefacts/*.sha256
+            artefacts/*.app.zip artefacts/*.tar.gz artefacts/*.sha256

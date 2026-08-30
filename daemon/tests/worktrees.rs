@@ -11,14 +11,16 @@ use vibemap::Worktree;
 
 /// Appaire une machine et rend son identite.
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
-    let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
+    vibemap::declarer(&ctx.url, &ctx.user_token, "MacBook Pro", Some("darwin"))
         .await
-        .expect("appairage")
+        .expect("declaration de la machine")
 }
 
 fn wt(path: &str, branch: &str) -> Worktree {
-    Worktree { path: path.to_string(), branch: branch.to_string() }
+    Worktree {
+        path: path.to_string(),
+        branch: branch.to_string(),
+    }
 }
 
 /// Critere 1 (cote donnees) : pousser un worktree le rend visible, avec sa branche.
@@ -80,7 +82,10 @@ async fn un_releve_vide_ferme_tous_les_worktrees() {
         .expect("releve accepte");
     assert_eq!(ctx.worktrees_ouverts(&repo_id).await.len(), 1);
 
-    client.pousser_worktrees(&repo_id, &[]).await.expect("releve vide accepte");
+    client
+        .pousser_worktrees(&repo_id, &[])
+        .await
+        .expect("releve vide accepte");
     assert!(
         ctx.worktrees_ouverts(&repo_id).await.is_empty(),
         "plus aucun worktree ouvert"
@@ -95,14 +100,24 @@ async fn rouvrir_un_worktree_ferme_le_rend_a_nouveau_visible() {
     let repo_id = ctx.creer_repo(&machine.machine_id, &["src"]).await;
     let client = vibemap::Supabase::new(&ctx.url, &machine.token);
 
-    client.pousser_worktrees(&repo_id, &[wt("a", "feat-a")]).await.unwrap();
+    client
+        .pousser_worktrees(&repo_id, &[wt("a", "feat-a")])
+        .await
+        .unwrap();
     client.pousser_worktrees(&repo_id, &[]).await.unwrap();
     assert!(ctx.worktrees_ouverts(&repo_id).await.is_empty());
 
     // Le meme dossier revient, sur une autre branche.
-    client.pousser_worktrees(&repo_id, &[wt("a", "feat-a-suite")]).await.unwrap();
+    client
+        .pousser_worktrees(&repo_id, &[wt("a", "feat-a-suite")])
+        .await
+        .unwrap();
 
     let ouverts = ctx.worktrees_ouverts(&repo_id).await;
     assert_eq!(ouverts.len(), 1, "le worktree rouvert reapparait");
-    assert_eq!(ouverts[0]["branch"].as_str(), Some("feat-a-suite"), "la branche est a jour");
+    assert_eq!(
+        ouverts[0]["branch"].as_str(),
+        Some("feat-a-suite"),
+        "la branche est a jour"
+    );
 }

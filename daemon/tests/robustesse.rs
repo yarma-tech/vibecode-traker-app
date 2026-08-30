@@ -81,15 +81,26 @@ fn apres_un_redemarrage_rien_n_est_rejoue() {
     // Premiere vie : on lit, puis on enregistre la position sur disque.
     let mut premiere = Suivi::charger(&offsets);
     let lecture = premiere.nouveaux(&projets, tres_ancien());
-    assert_eq!(lecture.evenements.len(), 1, "la premiere vie voit l'evenement");
-    assert_eq!(lecture.usages.len(), 1, "la premiere vie voit la consommation");
+    assert_eq!(
+        lecture.evenements.len(),
+        1,
+        "la premiere vie voit l'evenement"
+    );
+    assert_eq!(
+        lecture.usages.len(),
+        1,
+        "la premiere vie voit la consommation"
+    );
     premiere.enregistrer().expect("la position doit s'ecrire");
 
     // Seconde vie : un Suivi tout neuf, recree depuis le disque. C'est un
     // redemarrage du daemon.
     let mut seconde = Suivi::charger(&offsets);
     let apres = seconde.nouveaux(&projets, tres_ancien());
-    assert!(apres.evenements.is_empty(), "aucun evenement rejoue apres redemarrage");
+    assert!(
+        apres.evenements.is_empty(),
+        "aucun evenement rejoue apres redemarrage"
+    );
     assert!(
         apres.usages.is_empty(),
         "aucun jeton recompte apres redemarrage : c'est le defaut que #10 ferme"
@@ -103,7 +114,10 @@ fn seules_les_lignes_ajoutees_depuis_le_redemarrage_reviennent() {
     let chemin = poser_journal(
         &projets,
         "session.jsonl",
-        &format!("{}\n", evenement("toolu_a", "a.ts", "2026-08-04T12:00:00.000Z")),
+        &format!(
+            "{}\n",
+            evenement("toolu_a", "a.ts", "2026-08-04T12:00:00.000Z")
+        ),
     );
 
     let mut premiere = Suivi::charger(&offsets);
@@ -111,8 +125,14 @@ fn seules_les_lignes_ajoutees_depuis_le_redemarrage_reviennent() {
     premiere.enregistrer().expect("ecriture de la position");
 
     // Le journal grandit pendant que le daemon etait arrete.
-    let suite = format!("{}\n", evenement("toolu_b", "b.ts", "2026-08-04T12:05:00.000Z"));
-    let mut fichier = std::fs::OpenOptions::new().append(true).open(&chemin).unwrap();
+    let suite = format!(
+        "{}\n",
+        evenement("toolu_b", "b.ts", "2026-08-04T12:05:00.000Z")
+    );
+    let mut fichier = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&chemin)
+        .unwrap();
     std::io::Write::write_all(&mut fichier, suite.as_bytes()).unwrap();
 
     let mut seconde = Suivi::charger(&offsets);
@@ -133,14 +153,21 @@ fn un_fichier_d_offsets_illisible_ne_fait_pas_paniquer() {
     poser_journal(
         &projets,
         "session.jsonl",
-        &format!("{}\n", evenement("toolu_a", "a.ts", "2026-08-04T12:00:00.000Z")),
+        &format!(
+            "{}\n",
+            evenement("toolu_a", "a.ts", "2026-08-04T12:00:00.000Z")
+        ),
     );
 
     // On ne plante pas : faute de position sure, on relit dans la fenetre, ce qui
     // est borne et rattrape par l'idempotence cote base.
     let mut suivi = Suivi::charger(&offsets);
     let lecture = suivi.nouveaux(&projets, tres_ancien());
-    assert_eq!(lecture.evenements.len(), 1, "offsets illisibles : on relit sans planter");
+    assert_eq!(
+        lecture.evenements.len(),
+        1,
+        "offsets illisibles : on relit sans planter"
+    );
 }
 
 #[test]
@@ -150,14 +177,20 @@ fn l_ecriture_des_offsets_est_atomique() {
     poser_journal(
         &projets,
         "session.jsonl",
-        &format!("{}\n", evenement("toolu_a", "a.ts", "2026-08-04T12:00:00.000Z")),
+        &format!(
+            "{}\n",
+            evenement("toolu_a", "a.ts", "2026-08-04T12:00:00.000Z")
+        ),
     );
 
     let mut suivi = Suivi::charger(&offsets);
     suivi.nouveaux(&projets, tres_ancien());
     suivi.enregistrer().expect("ecriture de la position");
 
-    assert!(offsets.exists(), "le fichier d'offsets existe apres ecriture");
+    assert!(
+        offsets.exists(),
+        "le fichier d'offsets existe apres ecriture"
+    );
     let temporaire = offsets.with_extension("json.tmp");
     assert!(
         !temporaire.exists(),
@@ -180,11 +213,18 @@ fn un_journal_de_pur_binaire_n_arrete_pas_le_suivi() {
     let offsets = dossier_neuf("binaire-etat").join("offsets.json");
     let projet = projets.join("-Users-moi-Developer-atelier");
     std::fs::create_dir_all(&projet).unwrap();
-    std::fs::write(projet.join("brouille.jsonl"), [0u8, 159, 146, 150, 255, 254]).unwrap();
+    std::fs::write(
+        projet.join("brouille.jsonl"),
+        [0u8, 159, 146, 150, 255, 254],
+    )
+    .unwrap();
 
     let mut suivi = Suivi::charger(&offsets);
     let lecture = suivi.nouveaux(&projets, tres_ancien());
-    assert!(lecture.evenements.is_empty(), "un binaire ne donne rien, mais ne plante pas");
+    assert!(
+        lecture.evenements.is_empty(),
+        "un binaire ne donne rien, mais ne plante pas"
+    );
     assert!(lecture.usages.is_empty());
 }
 
@@ -196,7 +236,11 @@ fn une_derniere_ligne_tronquee_est_gardee_pour_plus_tard() {
     // ligne final : le journal est en train d'etre ecrit.
     let complete = evenement("toolu_a", "a.ts", "2026-08-04T12:00:00.000Z");
     let tronquee = "{\"type\":\"assistant\",\"timestamp\":\"2026-08-04T12:0";
-    poser_journal(&projets, "session.jsonl", &format!("{complete}\n{tronquee}"));
+    poser_journal(
+        &projets,
+        "session.jsonl",
+        &format!("{complete}\n{tronquee}"),
+    );
 
     let mut suivi = Suivi::charger(&offsets);
     let lecture = suivi.nouveaux(&projets, tres_ancien());

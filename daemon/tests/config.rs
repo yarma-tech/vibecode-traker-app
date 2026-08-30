@@ -6,8 +6,7 @@
 use std::path::PathBuf;
 
 fn fichier_temporaire(contenu: &str) -> PathBuf {
-    let chemin =
-        std::env::temp_dir().join(format!("vibemap-{}.toml", uuid::Uuid::new_v4()));
+    let chemin = std::env::temp_dir().join(format!("vibemap-{}.toml", uuid::Uuid::new_v4()));
     std::fs::write(&chemin, contenu).expect("ecriture du fichier de test");
     chemin
 }
@@ -33,7 +32,7 @@ fn charge_une_configuration_complete() {
 }
 
 /// Le jeton ne vit plus dans le fichier : il est au trousseau (issue #9).
-/// Un fichier qui en contient encore un vient d'avant l'appairage, et le dire
+/// Un fichier qui en contient encore un vient d'avant ce changement, et le dire
 /// vaut mieux que de faire semblant de rien.
 #[test]
 fn refuse_un_jeton_ecrit_en_clair() {
@@ -55,8 +54,8 @@ fn refuse_un_jeton_ecrit_en_clair() {
         "le message doit renvoyer vers le trousseau, obtenu : {message}"
     );
     assert!(
-        message.contains("vibemap pair"),
-        "le message doit dire comment refaire l'appairage, obtenu : {message}"
+        message.contains("application de bureau"),
+        "le message doit renvoyer vers l'application de bureau, obtenu : {message}"
     );
 }
 
@@ -150,8 +149,7 @@ fn dit_ou_il_a_cherche_quand_le_fichier_manque() {
     let chemin = std::env::temp_dir().join("vibemap-ce-fichier-n-existe-pas.toml");
     let _ = std::fs::remove_file(&chemin);
 
-    let erreur =
-        vibemap::Config::load(&chemin).expect_err("un fichier absent ne doit pas charger");
+    let erreur = vibemap::Config::load(&chemin).expect_err("un fichier absent ne doit pas charger");
 
     let message = erreur.to_string();
     assert!(
@@ -159,7 +157,71 @@ fn dit_ou_il_a_cherche_quand_le_fichier_manque() {
         "le message doit donner le chemin cherche, obtenu : {message}"
     );
     assert!(
-        message.contains("vibemap pair"),
-        "le message doit dire comment creer la configuration, obtenu : {message}"
+        message.contains("application de bureau"),
+        "le message doit dire qui ecrit la configuration, obtenu : {message}"
     );
+}
+
+/// Le `~` ne se deplie qu'en tete. Un vrai chemin peut en porter un au milieu -
+/// `/Volumes/Disque~2/code` existe - et le remplacer la ferait chercher le
+/// dossier ailleurs, sans rien dire. Le defaut est arrive avec le selecteur du
+/// systeme (issue #70) : le chemin ne vient plus d'un fichier ecrit a la main,
+/// il vient du disque, tel qu'il est.
+#[test]
+fn le_tilde_ne_se_deplie_qu_en_tete() {
+    let maison = std::env::var("HOME").expect("le test suppose un dossier personnel");
+    let chemin = fichier_temporaire(
+        r#"
+        supabase_url = "http://127.0.0.1:54321"
+        machine_id = "3f2b1c00-0000-0000-0000-000000000000"
+        label = "MacBook Pro"
+        roots = ["~/Developer", "/Volumes/Disque~2/code", "~", "/tmp/sans-tilde"]
+        "#,
+    );
+
+    let racines = vibemap::Config::load(&chemin)
+        .expect("la configuration doit charger")
+        .racines();
+
+    assert_eq!(
+        racines[0],
+        PathBuf::from(format!("{maison}/Developer")),
+        "un tilde de tete se deplie"
+    );
+    assert_eq!(
+        racines[1],
+        PathBuf::from("/Volumes/Disque~2/code"),
+        "un tilde au milieu d'un vrai chemin ne se touche pas"
+    );
+    assert_eq!(
+        racines[2],
+        PathBuf::from(&maison),
+        "un tilde seul est le dossier personnel"
+    );
+    assert_eq!(
+        racines[3],
+        PathBuf::from("/tmp/sans-tilde"),
+        "un chemin sans tilde traverse tel quel"
+    );
+}
+
+/// `~autre/x` designe le dossier d'un autre compte. On ne sait pas le resoudre :
+/// le rendre tel quel echouera en nommant ce qu'on cherchait, la ou une
+/// resolution inventee echouerait en nommant autre chose.
+#[test]
+fn le_dossier_d_un_autre_compte_traverse_tel_quel() {
+    let chemin = fichier_temporaire(
+        r#"
+        supabase_url = "http://127.0.0.1:54321"
+        machine_id = "3f2b1c00-0000-0000-0000-000000000000"
+        label = "MacBook Pro"
+        roots = ["~leandre/code"]
+        "#,
+    );
+
+    let racines = vibemap::Config::load(&chemin)
+        .expect("la configuration doit charger")
+        .racines();
+
+    assert_eq!(racines[0], PathBuf::from("~leandre/code"));
 }

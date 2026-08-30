@@ -22,10 +22,9 @@ fn petit_depot() -> PathBuf {
 
 /// Appaire une machine et rend son jeton.
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
-    let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
+    vibemap::declarer(&ctx.url, &ctx.user_token, "MacBook Pro", Some("darwin"))
         .await
-        .expect("appairage")
+        .expect("declaration de la machine")
 }
 
 #[tokio::test]
@@ -80,7 +79,10 @@ async fn un_second_scan_met_a_jour_sans_dupliquer() {
     assert_eq!(second_id, repo_id, "le meme repo, pas un nouveau");
 
     let repo = ctx.lire_repo(&repo_id).await;
-    assert_eq!(repo["loc_total"], 6, "les deux lignes ajoutees sont comptees");
+    assert_eq!(
+        repo["loc_total"], 6,
+        "les deux lignes ajoutees sont comptees"
+    );
 
     let modules = ctx.lire_modules(&repo_id).await;
     let src: Vec<_> = modules.iter().filter(|m| m["path"] == "src").collect();
@@ -290,7 +292,10 @@ async fn un_module_supprime_disparait_de_la_carte() {
         .expect("envoi");
 
     assert!(
-        ctx.lire_modules(&repo_id).await.iter().any(|m| m["path"] == "docs"),
+        ctx.lire_modules(&repo_id)
+            .await
+            .iter()
+            .any(|m| m["path"] == "docs"),
         "docs doit d'abord exister"
     );
 
@@ -302,7 +307,10 @@ async fn un_module_supprime_disparait_de_la_carte() {
         .expect("second envoi");
 
     assert!(
-        !ctx.lire_modules(&repo_id).await.iter().any(|m| m["path"] == "docs"),
+        !ctx.lire_modules(&repo_id)
+            .await
+            .iter()
+            .any(|m| m["path"] == "docs"),
         "docs a disparu du disque, il doit disparaitre de la carte"
     );
 }

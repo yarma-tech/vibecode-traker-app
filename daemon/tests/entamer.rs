@@ -15,24 +15,32 @@ use vibemap::Activite;
 
 /// Appaire une machine et rend son identite, comme le ferait le daemon.
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
-    let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
+    vibemap::declarer(&ctx.url, &ctx.user_token, "MacBook Pro", Some("darwin"))
         .await
-        .expect("appairage")
+        .expect("declaration de la machine")
 }
 
 /// Un repo pret a porter des blocs et des issues, avec son client daemon.
 async fn repo_de_test(ctx: &common::TestContext) -> (vibemap::Supabase, String, String) {
     let machine = machine_reliee(ctx).await;
-    let repo_id = ctx.creer_repo(&machine.machine_id, &["web/app/checkout", "daemon/src"]).await;
-    (vibemap::Supabase::new(&ctx.url, &machine.token), machine.machine_id, repo_id)
+    let repo_id = ctx
+        .creer_repo(&machine.machine_id, &["web/app/checkout", "daemon/src"])
+        .await;
+    (
+        vibemap::Supabase::new(&ctx.url, &machine.token),
+        machine.machine_id,
+        repo_id,
+    )
 }
 
 fn ecriture(fichier: &str) -> Activite {
     Activite {
         session_id: Uuid::new_v4().to_string(),
         tool_use_id: Uuid::new_v4().to_string(),
-        module_path: fichier.rsplit_once('/').map(|(m, _)| m.to_string()).unwrap_or_default(),
+        module_path: fichier
+            .rsplit_once('/')
+            .map(|(m, _)| m.to_string())
+            .unwrap_or_default(),
         file_path: fichier.to_string(),
         kind: "write",
         occurred_at: Utc::now(),
@@ -46,9 +54,22 @@ async fn une_ecriture_passe_lissue_en_doing() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Le tunnel de paiement", "feature", "web/app/checkout").await;
+    let bloc = ctx
+        .creer_bloc(
+            &repo_id,
+            "Le tunnel de paiement",
+            "feature",
+            "web/app/checkout",
+        )
+        .await;
     let bloc_id = bloc["id"].as_str().unwrap().to_string();
-    let issue = ctx.creer_issue(&bloc_id, "Ecran de paiement", Some("web/app/checkout/paiement")).await;
+    let issue = ctx
+        .creer_issue(
+            &bloc_id,
+            "Ecran de paiement",
+            Some("web/app/checkout/paiement"),
+        )
+        .await;
     let issue_id = issue["id"].as_str().unwrap().to_string();
 
     client
@@ -62,7 +83,11 @@ async fn une_ecriture_passe_lissue_en_doing() {
         .expect("l'evenement doit etre accepte");
 
     let relue = ctx.lire_issue(&issue_id).await;
-    assert_eq!(relue["statut"], json!("doing"), "l'ecriture doit entamer l'issue");
+    assert_eq!(
+        relue["statut"],
+        json!("doing"),
+        "l'ecriture doit entamer l'issue"
+    );
 }
 
 /// FR-010 : ecrire dans un dossier n'est pas reprendre un travail livre. Une
@@ -73,9 +98,17 @@ async fn elle_ne_rouvre_pas_une_issue_terminee() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Deja livre", "feature", "web/app/checkout").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Deja livre", "feature", "web/app/checkout")
+        .await;
     let bloc_id = bloc["id"].as_str().unwrap().to_string();
-    let issue = ctx.creer_issue(&bloc_id, "Ecran termine", Some("web/app/checkout/confirmation")).await;
+    let issue = ctx
+        .creer_issue(
+            &bloc_id,
+            "Ecran termine",
+            Some("web/app/checkout/confirmation"),
+        )
+        .await;
     let issue_id = issue["id"].as_str().unwrap().to_string();
 
     ctx.poser_statut_issue(&issue_id, "done").await;
@@ -91,7 +124,11 @@ async fn elle_ne_rouvre_pas_une_issue_terminee() {
         .expect("l'evenement doit etre accepte");
 
     let relue = ctx.lire_issue(&issue_id).await;
-    assert_eq!(relue["statut"], json!("done"), "une ecriture ne rouvre jamais un travail termine");
+    assert_eq!(
+        relue["statut"],
+        json!("done"),
+        "une ecriture ne rouvre jamais un travail termine"
+    );
 }
 
 /// FR-011 : quand plusieurs travaux vivants partagent un emplacement, tous
@@ -101,7 +138,9 @@ async fn six_issues_du_meme_dossier_passent_toutes_en_doing() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Six chantiers", "feature", "web/app/checkout").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Six chantiers", "feature", "web/app/checkout")
+        .await;
     let bloc_id = bloc["id"].as_str().unwrap().to_string();
 
     let mut issue_ids = Vec::new();
@@ -124,7 +163,11 @@ async fn six_issues_du_meme_dossier_passent_toutes_en_doing() {
 
     for id in &issue_ids {
         let relue = ctx.lire_issue(id).await;
-        assert_eq!(relue["statut"], json!("doing"), "toutes les six doivent passer en cours");
+        assert_eq!(
+            relue["statut"],
+            json!("doing"),
+            "toutes les six doivent passer en cours"
+        );
     }
 }
 
@@ -136,18 +179,29 @@ async fn le_plus_profond_gagne() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc_large = ctx.creer_bloc(&repo_id, "Tout le web", "technique", "web").await;
+    let bloc_large = ctx
+        .creer_bloc(&repo_id, "Tout le web", "technique", "web")
+        .await;
     let bloc_large_id = bloc_large["id"].as_str().unwrap().to_string();
     let issue_large = ctx.creer_issue(&bloc_large_id, "Large", Some("web")).await;
     let issue_large_id = issue_large["id"].as_str().unwrap().to_string();
 
-    let bloc_profond = ctx.creer_bloc(&repo_id, "Le hero", "feature", "web/app/hero").await;
+    let bloc_profond = ctx
+        .creer_bloc(&repo_id, "Le hero", "feature", "web/app/hero")
+        .await;
     let bloc_profond_id = bloc_profond["id"].as_str().unwrap().to_string();
-    let issue_profonde = ctx.creer_issue(&bloc_profond_id, "Profonde", Some("web/app/hero")).await;
+    let issue_profonde = ctx
+        .creer_issue(&bloc_profond_id, "Profonde", Some("web/app/hero"))
+        .await;
     let issue_profonde_id = issue_profonde["id"].as_str().unwrap().to_string();
 
     client
-        .pousser_activite(&machine_id, &repo_id, Some("main"), &[ecriture("web/app/hero/page.tsx")])
+        .pousser_activite(
+            &machine_id,
+            &repo_id,
+            Some("main"),
+            &[ecriture("web/app/hero/page.tsx")],
+        )
         .await
         .expect("l'evenement doit etre accepte");
 
@@ -172,9 +226,13 @@ async fn un_faux_prefixe_de_segment_ne_route_rien() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "L'app web", "feature", "web/app").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "L'app web", "feature", "web/app")
+        .await;
     let bloc_id = bloc["id"].as_str().unwrap().to_string();
-    let issue = ctx.creer_issue(&bloc_id, "Le dossier app", Some("web/app")).await;
+    let issue = ctx
+        .creer_issue(&bloc_id, "Le dossier app", Some("web/app"))
+        .await;
     let issue_id = issue["id"].as_str().unwrap().to_string();
 
     client
@@ -210,11 +268,18 @@ async fn un_chemin_vide_prefixe_tout() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Chantier racine", "technique", "daemon/src").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Chantier racine", "technique", "daemon/src")
+        .await;
     let bloc_id = bloc["id"].as_str().unwrap().to_string();
     // Decoupe le bloc une premiere fois : la seconde issue, elle, n'est plus
     // soumise a l'heritage force du chemin du bloc par `bloc_coherent()`.
-    ctx.creer_issue(&bloc_id, "Premiere, pour decouper", Some("daemon/src/journal.rs")).await;
+    ctx.creer_issue(
+        &bloc_id,
+        "Premiere, pour decouper",
+        Some("daemon/src/journal.rs"),
+    )
+    .await;
     let racine = ctx
         .tenter_inserer_issue_brute(&repo_id, &bloc_id, 424_242, "")
         .await
@@ -222,12 +287,21 @@ async fn un_chemin_vide_prefixe_tout() {
     let issue_id = racine[0]["id"].as_str().unwrap().to_string();
 
     client
-        .pousser_activite(&machine_id, &repo_id, Some("main"), &[ecriture("README.md")])
+        .pousser_activite(
+            &machine_id,
+            &repo_id,
+            Some("main"),
+            &[ecriture("README.md")],
+        )
         .await
         .expect("l'evenement doit etre accepte");
 
     let relue = ctx.lire_issue(&issue_id).await;
-    assert_eq!(relue["statut"], json!("doing"), "la racine doit couvrir n'importe quel fichier");
+    assert_eq!(
+        relue["statut"],
+        json!("doing"),
+        "la racine doit couvrir n'importe quel fichier"
+    );
 }
 
 /// Les blocs simples sont routables comme les issues : ils portent un
@@ -237,16 +311,32 @@ async fn un_bloc_simple_est_route_comme_une_issue() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Correction ponctuelle", "correction", "daemon/src").await;
+    let bloc = ctx
+        .creer_bloc(
+            &repo_id,
+            "Correction ponctuelle",
+            "correction",
+            "daemon/src",
+        )
+        .await;
     let bloc_id = bloc["id"].as_str().unwrap().to_string();
 
     client
-        .pousser_activite(&machine_id, &repo_id, Some("main"), &[ecriture("daemon/src/journal.rs")])
+        .pousser_activite(
+            &machine_id,
+            &repo_id,
+            Some("main"),
+            &[ecriture("daemon/src/journal.rs")],
+        )
         .await
         .expect("l'evenement doit etre accepte");
 
     let relu = ctx.lire_bloc(&bloc_id).await;
-    assert_eq!(relu["statut"], json!("doing"), "un bloc simple doit s'entamer comme une issue");
+    assert_eq!(
+        relu["statut"],
+        json!("doing"),
+        "un bloc simple doit s'entamer comme une issue"
+    );
 }
 
 /// La derivation de l'etat du bloc parent doit suivre : entamer une issue
@@ -257,10 +347,18 @@ async fn entamer_une_issue_derive_son_bloc_parent_en_cours() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Bloc a deux issues", "feature", "web/app/checkout").await;
+    let bloc = ctx
+        .creer_bloc(
+            &repo_id,
+            "Bloc a deux issues",
+            "feature",
+            "web/app/checkout",
+        )
+        .await;
     let bloc_id = bloc["id"].as_str().unwrap().to_string();
     ctx.creer_issue(&bloc_id, "Premiere", None).await;
-    ctx.creer_issue(&bloc_id, "Seconde", Some("web/app/checkout/autre")).await;
+    ctx.creer_issue(&bloc_id, "Seconde", Some("web/app/checkout/autre"))
+        .await;
 
     let avant = ctx.lire_bloc(&bloc_id).await;
     assert_eq!(avant["statut"], json!("todo"));
@@ -276,7 +374,11 @@ async fn entamer_une_issue_derive_son_bloc_parent_en_cours() {
         .expect("l'evenement doit etre accepte");
 
     let apres = ctx.lire_bloc(&bloc_id).await;
-    assert_eq!(apres["statut"], json!("doing"), "le bloc decoupe doit deriver en cours");
+    assert_eq!(
+        apres["statut"],
+        json!("doing"),
+        "le bloc decoupe doit deriver en cours"
+    );
 }
 
 /// Etancheite entre depots : une ecriture dans le depot A ne doit jamais
@@ -290,7 +392,14 @@ async fn une_ecriture_dans_un_depot_nentame_rien_dans_un_autre() {
     let machine_b = ctx.create_machine("Autre machine").await;
     let repo_b = ctx.creer_repo(&machine_b, &["web/app/checkout"]).await;
 
-    let bloc_b = ctx.creer_bloc(&repo_b, "Meme chemin, autre depot", "feature", "web/app/checkout").await;
+    let bloc_b = ctx
+        .creer_bloc(
+            &repo_b,
+            "Meme chemin, autre depot",
+            "feature",
+            "web/app/checkout",
+        )
+        .await;
     let bloc_b_id = bloc_b["id"].as_str().unwrap().to_string();
 
     client_a
@@ -304,7 +413,11 @@ async fn une_ecriture_dans_un_depot_nentame_rien_dans_un_autre() {
         .expect("l'evenement doit etre accepte");
 
     let relu = ctx.lire_bloc(&bloc_b_id).await;
-    assert_eq!(relu["statut"], json!("todo"), "un autre depot ne doit jamais bouger");
+    assert_eq!(
+        relu["statut"],
+        json!("todo"),
+        "un autre depot ne doit jamais bouger"
+    );
 }
 
 /// Une lecture ne route rien : seule une ecriture entame (FR-009 parle
@@ -314,7 +427,14 @@ async fn une_lecture_nentame_rien() {
     let ctx = common::TestContext::new().await;
     let (client, machine_id, repo_id) = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Pas touche par une lecture", "feature", "web/app/checkout").await;
+    let bloc = ctx
+        .creer_bloc(
+            &repo_id,
+            "Pas touche par une lecture",
+            "feature",
+            "web/app/checkout",
+        )
+        .await;
     let bloc_id = bloc["id"].as_str().unwrap().to_string();
 
     let mut lecture = ecriture("web/app/checkout/panier.tsx");
@@ -326,5 +446,9 @@ async fn une_lecture_nentame_rien() {
         .expect("l'evenement doit etre accepte");
 
     let relu = ctx.lire_bloc(&bloc_id).await;
-    assert_eq!(relu["statut"], json!("todo"), "une lecture ne doit jamais entamer un travail");
+    assert_eq!(
+        relu["statut"],
+        json!("todo"),
+        "une lecture ne doit jamais entamer un travail"
+    );
 }

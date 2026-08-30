@@ -14,10 +14,9 @@ mod common;
 use vibemap::Activite;
 
 async fn machine_reliee(ctx: &common::TestContext) -> vibemap::Identite {
-    let code = ctx.creer_code().await;
-    vibemap::appairer(&ctx.url, &ctx.anon_key, &code, "MacBook Pro", Some("darwin"))
+    vibemap::declarer(&ctx.url, &ctx.user_token, "MacBook Pro", Some("darwin"))
         .await
-        .expect("appairage")
+        .expect("declaration de la machine")
 }
 
 fn session() -> String {
@@ -55,7 +54,13 @@ async fn le_tri_place_le_conflit_en_tete() {
             &machine.machine_id,
             &ecrit,
             Some("main"),
-            &[evenement(&a, "toolu_1", "src/core", "src/core/a.ts", "write")],
+            &[evenement(
+                &a,
+                "toolu_1",
+                "src/core",
+                "src/core/a.ts",
+                "write",
+            )],
         )
         .await
         .expect("envoi ecrit");
@@ -66,7 +71,13 @@ async fn le_tri_place_le_conflit_en_tete() {
             &decisif,
             Some("main"),
             &[
-                evenement(&a, "toolu_2", "src/core/auth", "src/core/auth/j.ts", "write"),
+                evenement(
+                    &a,
+                    "toolu_2",
+                    "src/core/auth",
+                    "src/core/auth/j.ts",
+                    "write",
+                ),
                 evenement(&b, "toolu_3", "src/core/db", "src/core/db/p.ts", "write"),
             ],
         )
@@ -86,7 +97,10 @@ async fn le_tri_place_le_conflit_en_tete() {
     );
 
     let tete = &apercu[0];
-    assert_eq!(tete["etat"], "conflit", "la bande d'etat du repo en tete est rouge");
+    assert_eq!(
+        tete["etat"], "conflit",
+        "la bande d'etat du repo en tete est rouge"
+    );
     assert_eq!(tete["conflits"], 1, "un seul point de rencontre");
 }
 
@@ -102,7 +116,8 @@ async fn le_compte_se_deduit_du_proprietaire_du_remote() {
 
     ctx.poser_remote_owner(&pro, "acme-corp").await;
     ctx.poser_remote_owner(&perso, "moi-perso").await;
-    ctx.poser_remote_owner(&sans_compte, "inconnu-au-bataillon").await;
+    ctx.poser_remote_owner(&sans_compte, "inconnu-au-bataillon")
+        .await;
 
     // La correspondance se regle une fois : owner -> perso / pro.
     ctx.regler_compte("acme-corp", "pro").await;
@@ -137,7 +152,9 @@ async fn l_apercu_ne_montre_que_les_repos_de_l_appelant() {
     let apercu = ctx.apercu_repos(600).await;
 
     assert!(
-        apercu.iter().all(|r| r["id"].as_str() == Some(mien.as_str())),
+        apercu
+            .iter()
+            .all(|r| r["id"].as_str() == Some(mien.as_str())),
         "l'apercu ne rend que les repos de l'utilisateur connecte, la RLS s'en charge"
     );
     assert_eq!(apercu.len(), 1);

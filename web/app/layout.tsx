@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Lecteur } from "./lecteur";
 
 export const metadata: Metadata = {
   title: "Vibe Map",
@@ -12,7 +13,14 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      {/* Le bandeau du lecteur passe par-dessus tous les ecrans : un lecteur
+          arrete ne se voit nulle part ailleurs, et il ne se repare pas depuis
+          la carte. Hors de l'application, il n'y a pas de pont et il ne
+          s'affiche jamais (FR-060). */}
+      <body>
+        <Lecteur />
+        {children}
+      </body>
     </html>
   );
 }

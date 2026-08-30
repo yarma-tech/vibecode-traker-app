@@ -11,10 +11,31 @@ import {
 } from "./direct";
 import { type Module } from "./plan";
 import { SqueletteRepo } from "./squelette";
-import { demoDemande } from "@/lib/ecrans";
+import { BaseInjoignable } from "@/app/base-injoignable";
+import { baseInjoignable, demoDemande, raisonInjoignable } from "@/lib/ecrans";
+import { type Touche } from "@/lib/touches";
 
 /** Combien d'événements le journal reçoit au premier rendu. */
 const LIGNES_DU_JOURNAL = 60;
+
+/**
+ * Le plan d'un repo quand la base ne répond pas (FR-085). Sans elle, on ne sait
+ * rien de ce repo - ni s'il existe, ni ce qu'il porte : conclure « introuvable »
+ * et servir un 404 accuserait le repo d'une absence qui est celle du réseau.
+ */
+function EcranInjoignable({ raison }: { raison: string }) {
+  return (
+    <main className="tableau">
+      <header className="entete">
+        <Link className="lien" href="/">
+          ← tous les repos
+        </Link>
+      </header>
+
+      <BaseInjoignable raison={raison} />
+    </main>
+  );
+}
 
 export default async function PageRepo({
   params,
@@ -33,20 +54,35 @@ export default async function PageRepo({
     return <SqueletteRepo />;
   }
 
+  // Base injoignable, atteignable en dev sans couper le réseau pour de vrai
+  // (issue #12, critère 6 ; FR-085).
+  if (demoEcran === "injoignable") {
+    return <EcranInjoignable raison={raisonInjoignable(null)} />;
+  }
+
   const supabase = await createClient();
 
   const {
     data: { user },
+    error: erreurAuth,
   } = await supabase.auth.getUser();
+
+  if (baseInjoignable(erreurAuth)) {
+    return <EcranInjoignable raison={raisonInjoignable(erreurAuth)} />;
+  }
 
   if (!user) notFound();
 
   // La RLS suffit à garantir que ce repo appartient bien à cet utilisateur.
-  const { data: repo } = await supabase
+  const { data: repo, error: erreurRepo } = await supabase
     .from("repos")
     .select("id,name,remote_owner,current_branch,loc_total,file_count,scanned_at,machine_id")
     .eq("id", id)
     .maybeSingle();
+
+  if (baseInjoignable(erreurRepo)) {
+    return <EcranInjoignable raison={raisonInjoignable(erreurRepo)} />;
+  }
 
   if (!repo) notFound();
 
@@ -61,7 +97,7 @@ export default async function PageRepo({
 
   // La fenêtre d'activité est un réglage de la base : l'écran la lit, il ne la
   // décide pas. Ainsi une seule valeur gouverne les couleurs et ce qu'on en dit.
-  const [modules, etats, evenements, conflits, agents, releve, worktrees, fenetre] =
+  const [modules, etats, touches, evenements, conflits, agents, releve, worktrees, fenetre] =
     await Promise.all([
       supabase
         .from("modules")
@@ -69,6 +105,11 @@ export default async function PageRepo({
         .eq("repo_id", id)
         .order("loc", { ascending: false }),
       supabase.rpc("etat_modules", { p_repo_id: id }),
+      // Canal séparé de `etat_modules`, et non une colonne de plus dedans : ces
+      // deux dates se lisent, elles n'allument aucune couleur (FR-044). Leur
+      // héritage vers les zones parentes est déjà calculé ici, en base
+      // (FR-043) - l'écran n'a plus qu'à le montrer.
+      supabase.rpc("touches_modules", { p_repo_id: id }),
       supabase
         .from("activity_events")
         .select("id,session_id,module_path,file_path,kind,occurred_at")
@@ -87,6 +128,7 @@ export default async function PageRepo({
   // (issue #12, critère 6). En vrai, un repo neuf est déjà dans cet état.
   const sansActivite = demoEcran === "sans-activite";
   const etatsInitiaux = sansActivite ? [] : ((etats.data ?? []) as Etat[]);
+  const touchesInitiales = sansActivite ? [] : ((touches.data ?? []) as Touche[]);
   const evenementsInitiaux = sansActivite ? [] : ((evenements.data ?? []) as Evenement[]);
   const conflitsInitiaux = sansActivite ? [] : ((conflits.data ?? []) as Conflit[]);
   const agentsInitiaux = sansActivite ? 0 : ((agents.data as number | null) ?? 0);
@@ -129,6 +171,7 @@ export default async function PageRepo({
         modules={(modules.data ?? []) as Module[]}
         locTotal={repo.loc_total}
         etatsInitiaux={etatsInitiaux}
+        touchesInitiales={touchesInitiales}
         evenementsInitiaux={evenementsInitiaux}
         conflitsInitiaux={conflitsInitiaux}
         agentsInitiaux={agentsInitiaux}

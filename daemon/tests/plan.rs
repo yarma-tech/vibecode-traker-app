@@ -35,7 +35,11 @@ fn depot_temporaire() -> PathBuf {
     ecrire(&racine, "bruit.log", "ligne\n");
 
     // Binaire : present pour git, mais ne compte pas en lignes de code.
-    std::fs::write(racine.join("logo.png"), [0x89, 0x50, 0x4E, 0x47, 0x00, 0x01]).unwrap();
+    std::fs::write(
+        racine.join("logo.png"),
+        [0x89, 0x50, 0x4E, 0x47, 0x00, 0x01],
+    )
+    .unwrap();
 
     racine
 }
@@ -58,7 +62,11 @@ fn cartographie_les_dossiers_avec_leurs_lignes() {
     let plan = vibemap::scanner(&racine).expect("le scan doit reussir");
 
     // Lignes cumulees : un dossier porte le total de ce qu'il contient.
-    assert_eq!(module(&plan, "src").loc, 5, "src contient a.rs (3) et core/b.rs (2)");
+    assert_eq!(
+        module(&plan, "src").loc,
+        5,
+        "src contient a.rs (3) et core/b.rs (2)"
+    );
     assert_eq!(module(&plan, "src/core").loc, 2);
     assert_eq!(module(&plan, "docs").loc, 1);
 
@@ -79,7 +87,10 @@ fn ce_que_git_ignore_n_existe_pas() {
     let plan = vibemap::scanner(&racine).expect("le scan doit reussir");
 
     assert!(
-        !plan.modules.iter().any(|m| m.path.starts_with("node_modules")),
+        !plan
+            .modules
+            .iter()
+            .any(|m| m.path.starts_with("node_modules")),
         "node_modules est dans le .gitignore : il ne doit pas apparaitre"
     );
     assert!(
@@ -129,7 +140,11 @@ fn le_chemin_absolu_ne_sort_pas_du_plan() {
         !serialise.contains(&absolu),
         "aucun chemin absolu ne doit figurer dans ce qui part vers Supabase"
     );
-    assert_eq!(plan.root_hash.len(), 64, "l'empreinte est un sha256 hexadecimal");
+    assert_eq!(
+        plan.root_hash.len(),
+        64,
+        "l'empreinte est un sha256 hexadecimal"
+    );
 }
 
 /// L'invariant qui rend la carte honnete : la somme des parcelles filles fait

@@ -71,7 +71,14 @@ impl TestContext {
             .unwrap_or_else(|| panic!("pas de jeton dans {session}"))
             .to_string();
 
-        Self { url, service_key, anon_key, user_token, user_id, http }
+        Self {
+            url,
+            service_key,
+            anon_key,
+            user_token,
+            user_id,
+            http,
+        }
     }
 
     /// Demande un code d'appairage, comme le ferait la page web.
@@ -216,9 +223,23 @@ impl TestContext {
         .unwrap_or_default()
     }
 
+    /// Relit toutes les sessions d'un repo en contournant la RLS.
+    ///
+    /// Sert a eprouver une absence : le depouillement du passe ne doit faire
+    /// apparaitre aucune session (issue #79, FR-047).
+    pub async fn lire_sessions(&self, repo_id: &str) -> Vec<Value> {
+        self.lire(&format!("sessions?repo_id=eq.{repo_id}&select=*"))
+            .await
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
     /// Relit une session en contournant la RLS.
     pub async fn lire_session(&self, session_id: &str) -> Value {
-        self.lire(&format!("sessions?id=eq.{session_id}&select=*")).await[0].clone()
+        self.lire(&format!("sessions?id=eq.{session_id}&select=*"))
+            .await[0]
+            .clone()
     }
 
     /// Demande a la base l'etat de chaque module, comme le fera l'ecran.
@@ -238,7 +259,10 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "etat_modules a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "etat_modules a echoue ({code}) : {texte}"
+        );
 
         serde_json::from_str::<Value>(&texte)
             .expect("reponse JSON de etat_modules")
@@ -274,7 +298,10 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "apercu_repos a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "apercu_repos a echoue ({code}) : {texte}"
+        );
 
         serde_json::from_str::<Value>(&texte)
             .expect("reponse JSON de apercu_repos")
@@ -352,9 +379,15 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "agents_actifs a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "agents_actifs a echoue ({code}) : {texte}"
+        );
 
-        texte.trim().parse().unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
+        texte
+            .trim()
+            .parse()
+            .unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
     }
 
     /// Les worktrees ouverts d'un repo, tels que le plan les lira.
@@ -386,8 +419,14 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "purger_activite a echoue ({code}) : {texte}");
-        texte.trim().parse().unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
+        assert!(
+            code.is_success(),
+            "purger_activite a echoue ({code}) : {texte}"
+        );
+        texte
+            .trim()
+            .parse()
+            .unwrap_or_else(|_| panic!("nombre attendu, recu : {texte}"))
     }
 
     /// Dit si la purge des evenements est bien programmee cote base (pg_cron).
@@ -404,17 +443,15 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "purge_planifiee a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "purge_planifiee a echoue ({code}) : {texte}"
+        );
         texte.trim() == "true"
     }
 
     /// Pose un evenement daté à la main, pour éprouver la purge sans attendre.
-    pub async fn poser_evenement_ancien(
-        &self,
-        repo_id: &str,
-        session_id: &str,
-        occurred_at: &str,
-    ) {
+    pub async fn poser_evenement_ancien(&self, repo_id: &str, session_id: &str, occurred_at: &str) {
         self.ecrire_service(
             "activity_events",
             json!([{
@@ -498,7 +535,10 @@ impl TestContext {
 
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
-        assert!(code.is_success(), "POST {chemin} a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "POST {chemin} a echoue ({code}) : {texte}"
+        );
 
         serde_json::from_str(&texte).expect("reponse JSON d'insertion")
     }
@@ -549,7 +589,10 @@ impl TestContext {
         let code = reponse.status();
         let texte = reponse.text().await.unwrap_or_default();
 
-        assert!(code.is_success(), "PATCH {chemin} a echoue ({code}) : {texte}");
+        assert!(
+            code.is_success(),
+            "PATCH {chemin} a echoue ({code}) : {texte}"
+        );
         assert!(
             texte.trim_start().starts_with('[') && texte.trim() != "[]",
             "PATCH {chemin} n'a touche aucune ligne : {texte}"
@@ -722,36 +765,44 @@ impl TestContext {
 
     /// Relit une seule issue en contournant la RLS.
     pub async fn lire_issue(&self, issue_id: &str) -> Value {
-        self.lire(&format!("issues?id=eq.{issue_id}&select=*")).await[0].clone()
+        self.lire(&format!("issues?id=eq.{issue_id}&select=*"))
+            .await[0]
+            .clone()
     }
 
     /// Relit les commits d'un repo en contournant la RLS.
     pub async fn lire_commits(&self, repo_id: &str) -> Vec<Value> {
-        self.lire(&format!("commits?repo_id=eq.{repo_id}&select=*&order=authored_at"))
-            .await
-            .as_array()
-            .cloned()
-            .unwrap_or_default()
+        self.lire(&format!(
+            "commits?repo_id=eq.{repo_id}&select=*&order=authored_at"
+        ))
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
     }
 
     /// Relit les fermetures d'un bloc en contournant la RLS, dans l'ordre ou
     /// elles ont ete posees : c'est l'historique des versions d'un travail
     /// (FR-024).
     pub async fn lire_fermetures_bloc(&self, bloc_id: &str) -> Vec<Value> {
-        self.lire(&format!("fermetures?bloc_id=eq.{bloc_id}&select=*&order=ferme_le"))
-            .await
-            .as_array()
-            .cloned()
-            .unwrap_or_default()
+        self.lire(&format!(
+            "fermetures?bloc_id=eq.{bloc_id}&select=*&order=ferme_le"
+        ))
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
     }
 
     /// Relit les fermetures d'une issue en contournant la RLS.
     pub async fn lire_fermetures_issue(&self, issue_id: &str) -> Vec<Value> {
-        self.lire(&format!("fermetures?issue_id=eq.{issue_id}&select=*&order=ferme_le"))
-            .await
-            .as_array()
-            .cloned()
-            .unwrap_or_default()
+        self.lire(&format!(
+            "fermetures?issue_id=eq.{issue_id}&select=*&order=ferme_le"
+        ))
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
     }
 
     /// Pose une ligne `commits` directement, en contournant la RLS et le
@@ -870,7 +921,10 @@ impl TestContext {
     pub async fn lire_issues_avec_jeton(&self, jeton: &str, repo_id: &str) -> Vec<Value> {
         let reponse = self
             .http
-            .get(format!("{}/rest/v1/issues?repo_id=eq.{repo_id}&select=*", self.url))
+            .get(format!(
+                "{}/rest/v1/issues?repo_id=eq.{repo_id}&select=*",
+                self.url
+            ))
             .header("apikey", &self.anon_key)
             .bearer_auth(jeton)
             .send()
@@ -894,15 +948,21 @@ impl TestContext {
     /// capable de poser `done` directement : c'est la meme requete que
     /// prendrait un automatisme cote serveur, jamais le navigateur.
     pub async fn poser_statut_issue(&self, issue_id: &str, statut: &str) {
-        self.ecrire(&format!("issues?id=eq.{issue_id}"), json!({ "statut": statut }))
-            .await;
+        self.ecrire(
+            &format!("issues?id=eq.{issue_id}"),
+            json!({ "statut": statut }),
+        )
+        .await;
     }
 
     /// Le pendant de `poser_statut_issue` pour un bloc : pose son statut avec
     /// la cle de service, en contournant la RLS.
     pub async fn poser_statut_bloc(&self, bloc_id: &str, statut: &str) {
-        self.ecrire(&format!("blocs?id=eq.{bloc_id}"), json!({ "statut": statut }))
-            .await;
+        self.ecrire(
+            &format!("blocs?id=eq.{bloc_id}"),
+            json!({ "statut": statut }),
+        )
+        .await;
     }
 
     /// Tente de poser `prd_priorite` avec la cle de SERVICE - qui echappe a
@@ -944,7 +1004,8 @@ impl TestContext {
         bloc_id: &str,
         statut: &str,
     ) -> Result<(), (reqwest::StatusCode, String)> {
-        self.patch_bloc_avec_jeton(jeton, bloc_id, json!({ "statut": statut })).await
+        self.patch_bloc_avec_jeton(jeton, bloc_id, json!({ "statut": statut }))
+            .await
     }
 
     /// Meme geste, avec un corps de requete libre : sert a eprouver qu'un
@@ -988,7 +1049,8 @@ impl TestContext {
         issue_id: &str,
         statut: &str,
     ) -> Result<(), (reqwest::StatusCode, String)> {
-        self.patch_issue_avec_jeton(jeton, issue_id, json!({ "statut": statut })).await
+        self.patch_issue_avec_jeton(jeton, issue_id, json!({ "statut": statut }))
+            .await
     }
 
     /// Le pendant de `patch_bloc_avec_jeton` pour une issue.
@@ -1025,7 +1087,10 @@ impl TestContext {
     pub async fn lire_blocs_avec_jeton(&self, jeton: &str, repo_id: &str) -> Vec<Value> {
         let reponse = self
             .http
-            .get(format!("{}/rest/v1/blocs?repo_id=eq.{repo_id}&select=*", self.url))
+            .get(format!(
+                "{}/rest/v1/blocs?repo_id=eq.{repo_id}&select=*",
+                self.url
+            ))
             .header("apikey", &self.anon_key)
             .bearer_auth(jeton)
             .send()
@@ -1063,6 +1128,75 @@ impl TestContext {
             .to_string()
     }
 
+    /// Les machines que la SESSION de l'utilisateur voit, exactement comme la
+    /// liste de l'accueil web.
+    ///
+    /// Avec le jeton de l'utilisateur, jamais la cle de service : celle-ci
+    /// verrait les machines de tous les comptes de la base de test, et un test
+    /// de doublon n'y verrait plus rien.
+    pub async fn machines_visibles(&self) -> Vec<Value> {
+        self.http
+            .get(format!(
+                "{}/rest/v1/machines?select=id,label,platform,revoked_at&order=label",
+                self.url
+            ))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(&self.user_token)
+            .send()
+            .await
+            .expect("lecture des machines de l'utilisateur")
+            .json::<Value>()
+            .await
+            .expect("reponse JSON de lecture des machines")
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Tente de creer une machine par une insertion BRUTE, avec le jeton
+    /// choisi par l'appelant - jamais par `declarer_machine`.
+    ///
+    /// C'est la seule facon d'eprouver la policy d'INSERTION seule : passer par
+    /// la fonction laisserait le doute qu'un autre garde-fou ait refuse a sa
+    /// place, et le test resterait vert le jour ou la policy s'affaiblirait.
+    ///
+    /// POURQUOI sans `return=representation`, contrairement aux autres aides de
+    /// ce fichier : la representation force un `returning`, et un `returning`
+    /// fait passer la ligne par la policy de LECTURE. Celle-ci refuse d'office
+    /// une machine qu'un jeton de machine viendrait de creer - elle ne voit que
+    /// la sienne -, et la ligne serait annulee par ce refus-la, pas par la
+    /// policy d'insertion. Le test aurait alors l'air de tenir alors que
+    /// l'insertion, elle, ne serait plus gardee du tout. Sans representation,
+    /// ce qui refuse ne peut etre que la policy d'insertion.
+    pub async fn tenter_inserer_machine_avec_jeton(
+        &self,
+        jeton: &str,
+        label: &str,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .post(format!("{}/rest/v1/machines", self.url))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .json(&json!([{ "user_id": self.user_id, "label": label }]))
+            .send()
+            .await
+            .expect("tentative d'insertion brute de machine");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        Ok(())
+    }
+
+    /// Efface une machine, comme le ferait une base remise a zero.
+    pub async fn effacer_machine(&self, machine_id: &str) {
+        self.supprimer(&format!("machines?id=eq.{machine_id}"))
+            .await;
+    }
+
     /// Pose la date du dernier battement d'une machine, sans attendre le daemon.
     ///
     /// Permet d'éprouver la bascule en état gelé : un battement vieux de plus de
@@ -1096,5 +1230,85 @@ impl TestContext {
             s.parse::<chrono::DateTime<chrono::Utc>>()
                 .expect("last_seen_at doit etre une date valide")
         })
+    }
+
+    /// Les deux dates de chaque parcelle dessinee, telles que la carte les
+    /// lira : heritage par prefixe compris, zones disparues exclues.
+    pub async fn touches_modules(&self, repo_id: &str) -> Vec<Value> {
+        self.appeler("touches_modules", json!({ "p_repo_id": repo_id }))
+            .await
+    }
+
+    /// Relit l'agregat brut d'un repo en contournant la RLS.
+    ///
+    /// Distinct de `touches_modules` a dessein : c'est la seule facon de voir
+    /// qu'une ligne survit a la disparition de sa zone de la carte.
+    pub async fn lire_dernieres_touches(&self, repo_id: &str) -> Vec<Value> {
+        self.lire(&format!(
+            "dernieres_touches?repo_id=eq.{repo_id}&select=*&order=chemin"
+        ))
+        .await
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+    }
+
+    /// Efface les zones d'un repo sans toucher a son agregat : ce que fait la
+    /// cartographie avant de repousser sa carte.
+    pub async fn supprimer_modules(&self, repo_id: &str) {
+        self.supprimer(&format!("modules?repo_id=eq.{repo_id}"))
+            .await;
+    }
+
+    /// Supprime un repo, la seule facon d'emporter son agregat (en cascade).
+    pub async fn supprimer_repo(&self, repo_id: &str) {
+        self.supprimer(&format!("repos?id=eq.{repo_id}")).await;
+    }
+
+    /// Tente d'effacer une ligne d'agregat avec le jeton d'une machine : sert a
+    /// eprouver qu'aucun droit de suppression n'a ete accorde.
+    pub async fn tenter_supprimer_touche_avec_jeton(
+        &self,
+        jeton: &str,
+        repo_id: &str,
+        chemin: &str,
+    ) -> Result<(), (reqwest::StatusCode, String)> {
+        let reponse = self
+            .http
+            .delete(format!(
+                "{}/rest/v1/dernieres_touches?repo_id=eq.{repo_id}&chemin=eq.{chemin}",
+                self.url
+            ))
+            .header("apikey", &self.anon_key)
+            .bearer_auth(jeton)
+            .header("Prefer", "return=representation")
+            .send()
+            .await
+            .expect("tentative de suppression d'une derniere touche");
+
+        let code = reponse.status();
+        let texte = reponse.text().await.unwrap_or_default();
+        if !code.is_success() {
+            return Err((code, texte));
+        }
+        if texte.trim() == "[]" {
+            return Err((code, "aucune ligne effacee".to_string()));
+        }
+        Ok(())
+    }
+
+    /// Suppression de service qui refuse d'echouer en silence.
+    async fn supprimer(&self, chemin: &str) {
+        let reponse = self
+            .http
+            .delete(format!("{}/rest/v1/{}", self.url, chemin))
+            .header("apikey", &self.service_key)
+            .bearer_auth(&self.service_key)
+            .send()
+            .await
+            .expect("requete de service");
+
+        let code = reponse.status();
+        assert!(code.is_success(), "DELETE {chemin} a echoue ({code})");
     }
 }

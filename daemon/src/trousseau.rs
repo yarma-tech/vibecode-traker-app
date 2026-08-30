@@ -1,8 +1,9 @@
 //! Rangement du jeton de machine dans le trousseau du systeme.
 //!
 //! Le jeton ne transite jamais par un fichier de configuration : il est ecrit
-//! ici a l'appairage, et relu a chaque demarrage. Sur macOS c'est le trousseau
-//! d'ouverture de session, sur Linux le service de secrets du bureau.
+//! ici quand l'application de bureau declare la machine, et relu a chaque
+//! demarrage. Sur macOS c'est le trousseau d'ouverture de session, sur Linux le
+//! service de secrets du bureau.
 
 const SERVICE: &str = "fr.yarma.vibemap";
 
@@ -12,8 +13,8 @@ pub enum TrousseauError {
     Inaccessible(#[from] keyring::Error),
 
     #[error(
-        "aucun jeton au trousseau pour la machine {0}. \
-         Lance `vibemap pair <code>` avec un code affiche par l'application web."
+        "aucun jeton au trousseau pour la machine {0}. Ouvre l'application de bureau \
+         Vibe Map sur ce Mac : c'est elle qui declare la machine et range son jeton."
     )]
     Absent(String),
 }

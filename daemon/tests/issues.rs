@@ -12,7 +12,8 @@ use serde_json::json;
 /// Appaire une machine et pose un repo a son nom, pour porter des blocs.
 async fn repo_de_test(ctx: &common::TestContext) -> String {
     let machine_id = ctx.create_machine("MacBook Pro").await;
-    ctx.creer_repo(&machine_id, &["web/app/hero", "web/app/checkout"]).await
+    ctx.creer_repo(&machine_id, &["web/app/hero", "web/app/checkout"])
+        .await
 }
 
 /// Le critere d'acceptation central de l'issue (FR-006, FR-007) : un bloc
@@ -25,10 +26,14 @@ async fn la_premiere_issue_fait_descendre_le_chemin_du_bloc_et_le_vide() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
 
-    let issue = ctx.creer_issue(&bloc_id, "Nouveau visuel", Some("peu importe")).await;
+    let issue = ctx
+        .creer_issue(&bloc_id, "Nouveau visuel", Some("peu importe"))
+        .await;
 
     assert_eq!(
         issue["chemin"],
@@ -36,7 +41,10 @@ async fn la_premiere_issue_fait_descendre_le_chemin_du_bloc_et_le_vide() {
         "la premiere issue doit porter l'emplacement du bloc, pas celui fourni a la creation"
     );
     assert_eq!(issue["statut"], json!("todo"));
-    assert!(issue["ref"].as_i64().is_some(), "l'issue doit porter une reference entiere");
+    assert!(
+        issue["ref"].as_i64().is_some(),
+        "l'issue doit porter une reference entiere"
+    );
 
     let bloc_relu = ctx.lire_bloc(&bloc_id).await;
     assert_eq!(
@@ -54,18 +62,24 @@ async fn une_issue_suivante_doit_porter_son_propre_emplacement() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
 
     ctx.creer_issue(&bloc_id, "Premiere issue", None).await;
 
-    let resultat = ctx.creer_issue_avec_jeton(&ctx.user_token, &bloc_id, "Seconde issue", None).await;
+    let resultat = ctx
+        .creer_issue_avec_jeton(&ctx.user_token, &bloc_id, "Seconde issue", None)
+        .await;
     assert!(
         resultat.is_err(),
         "une issue sans emplacement doit etre refusee une fois le bloc deja decoupe"
     );
 
-    let issue = ctx.creer_issue(&bloc_id, "Seconde issue", Some("web/app/hero/bandeau")).await;
+    let issue = ctx
+        .creer_issue(&bloc_id, "Seconde issue", Some("web/app/hero/bandeau"))
+        .await;
     assert_eq!(issue["chemin"], json!("web/app/hero/bandeau"));
 }
 
@@ -78,13 +92,20 @@ async fn une_issue_ne_peut_pas_servir_de_bloc_a_une_autre_issue() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
     let issue = ctx.creer_issue(&bloc_id, "Premiere issue", None).await;
     let issue_id = issue["id"].as_str().expect("id de l'issue").to_string();
 
     let resultat = ctx
-        .creer_issue_avec_jeton(&ctx.user_token, &issue_id, "Sous-issue interdite", Some("web/app/hero"))
+        .creer_issue_avec_jeton(
+            &ctx.user_token,
+            &issue_id,
+            "Sous-issue interdite",
+            Some("web/app/hero"),
+        )
         .await;
 
     assert!(
@@ -103,12 +124,16 @@ async fn une_insertion_brute_ne_permet_pas_non_plus_une_sous_issue() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
     let issue = ctx.creer_issue(&bloc_id, "Premiere issue", None).await;
     let issue_id = issue["id"].as_str().expect("id de l'issue").to_string();
 
-    let resultat = ctx.tenter_inserer_issue_brute(&repo_id, &issue_id, 9999, "web/app/hero").await;
+    let resultat = ctx
+        .tenter_inserer_issue_brute(&repo_id, &issue_id, 9999, "web/app/hero")
+        .await;
 
     assert!(
         resultat.is_err(),
@@ -130,10 +155,14 @@ async fn une_issue_ne_peut_pas_sattacher_a_un_bloc_dun_autre_depot() {
     let repo_a = ctx.creer_repo(&machine_id, &["web/a"]).await;
     let repo_b = ctx.creer_repo(&machine_id, &["web/b"]).await;
 
-    let bloc = ctx.creer_bloc(&repo_a, "Bloc du depot A", "feature", "web/a").await;
+    let bloc = ctx
+        .creer_bloc(&repo_a, "Bloc du depot A", "feature", "web/a")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
 
-    let resultat = ctx.tenter_inserer_issue_brute(&repo_b, &bloc_id, 999, "web/a").await;
+    let resultat = ctx
+        .tenter_inserer_issue_brute(&repo_b, &bloc_id, 999, "web/a")
+        .await;
     assert!(
         resultat.is_err(),
         "une issue du depot B ne doit pas pouvoir s'accrocher a un bloc du depot A"
@@ -154,11 +183,15 @@ async fn un_bloc_decoupe_suit_ses_issues() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
 
     let issue_1 = ctx.creer_issue(&bloc_id, "Premiere issue", None).await;
-    let issue_2 = ctx.creer_issue(&bloc_id, "Seconde issue", Some("web/app/hero/bandeau")).await;
+    let issue_2 = ctx
+        .creer_issue(&bloc_id, "Seconde issue", Some("web/app/hero/bandeau"))
+        .await;
     let issue_1_id = issue_1["id"].as_str().expect("id issue 1").to_string();
     let issue_2_id = issue_2["id"].as_str().expect("id issue 2").to_string();
 
@@ -191,13 +224,26 @@ async fn neuf_issues_dont_une_entamee_le_bloc_est_en_cours() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Chantier a neuf issues", "feature", "web/app/hero").await;
+    let bloc = ctx
+        .creer_bloc(
+            &repo_id,
+            "Chantier a neuf issues",
+            "feature",
+            "web/app/hero",
+        )
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
 
     let mut ids = Vec::new();
     for n in 0..9 {
-        let chemin = if n == 0 { None } else { Some("web/app/hero/partie") };
-        let issue = ctx.creer_issue(&bloc_id, &format!("Issue {n}"), chemin).await;
+        let chemin = if n == 0 {
+            None
+        } else {
+            Some("web/app/hero/partie")
+        };
+        let issue = ctx
+            .creer_issue(&bloc_id, &format!("Issue {n}"), chemin)
+            .await;
         ids.push(issue["id"].as_str().expect("id issue").to_string());
     }
 
@@ -214,11 +260,18 @@ async fn un_bloc_simple_garde_son_statut_propre() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Correction rapide", "correction", "web/app/hero").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Correction rapide", "correction", "web/app/hero")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
 
-    let resultat = ctx.deplacer_bloc_avec_jeton(&ctx.user_token, &bloc_id, "doing").await;
-    assert!(resultat.is_ok(), "un bloc simple doit rester deplacable directement : {resultat:?}");
+    let resultat = ctx
+        .deplacer_bloc_avec_jeton(&ctx.user_token, &bloc_id, "doing")
+        .await;
+    assert!(
+        resultat.is_ok(),
+        "un bloc simple doit rester deplacable directement : {resultat:?}"
+    );
     assert_eq!(ctx.lire_bloc(&bloc_id).await["statut"], json!("doing"));
 }
 
@@ -230,11 +283,15 @@ async fn un_bloc_decoupe_refuse_un_deplacement_direct() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
     ctx.creer_issue(&bloc_id, "Premiere issue", None).await;
 
-    let resultat = ctx.deplacer_bloc_avec_jeton(&ctx.user_token, &bloc_id, "doing").await;
+    let resultat = ctx
+        .deplacer_bloc_avec_jeton(&ctx.user_token, &bloc_id, "doing")
+        .await;
     assert!(
         resultat.is_err(),
         "un bloc decoupe ne doit jamais accepter un deplacement direct de son statut"
@@ -254,15 +311,21 @@ async fn blocs_et_issues_puisent_au_meme_compteur() {
     let ctx = common::TestContext::new().await;
     let repo_id = repo_de_test(&ctx).await;
 
-    let bloc = ctx.creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero").await;
+    let bloc = ctx
+        .creer_bloc(&repo_id, "Refonte du hero", "feature", "web/app/hero")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
     let bloc_ref = bloc["ref"].as_i64().expect("reference du bloc");
 
     let issue = ctx.creer_issue(&bloc_id, "Premiere issue", None).await;
     let issue_ref = issue["ref"].as_i64().expect("reference de l'issue");
 
-    let second_bloc = ctx.creer_bloc(&repo_id, "Autre travail", "technique", "web/app/checkout").await;
-    let second_bloc_ref = second_bloc["ref"].as_i64().expect("reference du second bloc");
+    let second_bloc = ctx
+        .creer_bloc(&repo_id, "Autre travail", "technique", "web/app/checkout")
+        .await;
+    let second_bloc_ref = second_bloc["ref"]
+        .as_i64()
+        .expect("reference du second bloc");
 
     let references = [bloc_ref, issue_ref, second_bloc_ref];
     let distinctes: std::collections::HashSet<_> = references.iter().collect();
@@ -286,11 +349,17 @@ async fn un_compte_ne_voit_rien_des_issues_dun_autre_compte() {
     let intrus = common::TestContext::new().await;
 
     let repo_id = repo_de_test(&proprietaire).await;
-    let bloc = proprietaire.creer_bloc(&repo_id, "Travail prive", "feature", "web/app/hero").await;
+    let bloc = proprietaire
+        .creer_bloc(&repo_id, "Travail prive", "feature", "web/app/hero")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
-    proprietaire.creer_issue(&bloc_id, "Issue privee", None).await;
+    proprietaire
+        .creer_issue(&bloc_id, "Issue privee", None)
+        .await;
 
-    let vu_par_lintrus = intrus.lire_issues_avec_jeton(&intrus.user_token, &repo_id).await;
+    let vu_par_lintrus = intrus
+        .lire_issues_avec_jeton(&intrus.user_token, &repo_id)
+        .await;
     assert!(
         vu_par_lintrus.is_empty(),
         "un autre compte ne doit voir aucune issue de ce depot, recu : {vu_par_lintrus:?}"
@@ -305,11 +374,18 @@ async fn un_compte_ne_peut_pas_creer_une_issue_dans_le_bloc_dun_autre() {
     let intrus = common::TestContext::new().await;
 
     let repo_id = repo_de_test(&proprietaire).await;
-    let bloc = proprietaire.creer_bloc(&repo_id, "Travail prive", "feature", "web/app/hero").await;
+    let bloc = proprietaire
+        .creer_bloc(&repo_id, "Travail prive", "feature", "web/app/hero")
+        .await;
     let bloc_id = bloc["id"].as_str().expect("id du bloc").to_string();
 
     let resultat = intrus
-        .creer_issue_avec_jeton(&intrus.user_token, &bloc_id, "Issue volee", Some("web/app/hero"))
+        .creer_issue_avec_jeton(
+            &intrus.user_token,
+            &bloc_id,
+            "Issue volee",
+            Some("web/app/hero"),
+        )
         .await;
 
     assert!(
@@ -318,5 +394,8 @@ async fn un_compte_ne_peut_pas_creer_une_issue_dans_le_bloc_dun_autre() {
     );
 
     let issues = proprietaire.lire_issues(&repo_id).await;
-    assert!(issues.is_empty(), "aucune issue ne doit avoir ete creee malgre la tentative");
+    assert!(
+        issues.is_empty(),
+        "aucune issue ne doit avoir ete creee malgre la tentative"
+    );
 }

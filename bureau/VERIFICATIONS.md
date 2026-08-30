@@ -1,0 +1,395 @@
+# Vérifications manuelles - application de bureau
+
+Une fenêtre, un menu, une barre d'adresse absente : rien de tout cela ne se
+vérifie sans un écran. Cette liste est ce que le PRD-002 impose de jouer **avant
+chaque fusion touchant `bureau/`**. Elle s'allonge avec les tranches ; #57 l'a
+commencée, #58 y ajoute la géométrie de la fenêtre, #61 le lecteur embarqué,
+#62 son état affiché et sa relance, #68 l'ouverture du pont à l'interface, #70
+l'ajout d'un dossier au sélecteur du système, #63 l'entrée avec GitHub, #86
+l'application publiée et son premier lancement, #87 l'interface embarquée dans
+le paquet, #66 et #67 la reprise d'un poste déjà appairé et la redéclaration
+d'une identité perdue.
+
+Ce qui est déjà couvert par les tests automatiques - la sonde de disponibilité,
+l'URL fixe de la fenêtre, la lecture et l'écriture de la géométrie, la prise et
+la libération du verrou du poste par le lecteur embarqué, le refus d'un second
+lecteur et sa mise en mots, l'état montré à chaque lecture, la relance après un
+arrêt, les origines auxquelles le pont s'ouvre et ce qu'il rend des dossiers
+surveillés - n'a pas à être rejoué ici : `cargo test` dans `bureau/` s'en
+charge.
+
+## Avant de commencer
+
+```sh
+cd web && npm install && npm run build   # l'interface que l'application sert
+cd ../bureau && cargo run
+```
+
+L'application sert `web/` construit, pas le serveur de développement : un
+`npm run dev` ouvert à côté ne la gêne pas, et le service qu'elle démarre est
+le même que celui du site.
+
+## À jouer
+
+- [ ] **La carte s'affiche.** Au lancement, la fenêtre montre l'interface en
+      moins de 5 secondes, sans barre d'adresse.
+- [ ] **Rien ne mène ailleurs.** Menus, raccourcis clavier, clic droit : aucune
+      commande ne permet de charger une autre page que Vibe Map.
+- [ ] **Le port pris s'annonce.** Avec `python3 -c 'import socket,time;
+      s=socket.socket(); s.bind(("127.0.0.1",51789)); s.listen(); time.sleep(120)'`
+      lancé d'abord, l'application affiche un message nommant le port 51789 et un
+      bouton « Réessayer », au lieu d'une fenêtre blanche - et aucun service
+      d'interface n'est démarré ailleurs.
+- [ ] **Réessayer suffit.** Le port libéré, un clic sur « Réessayer » affiche la
+      carte, sans quitter l'application.
+- [ ] **La même adresse à chaque lancement.** Quitter et rouvrir trois fois ;
+      à chaque fois, `http://127.0.0.1:51789` répond dans Safari.
+- [ ] **Rien ne vient du site hébergé.** Dans l'inspecteur web de la fenêtre,
+      au chargement : aucune page ni aucun script venu d'un domaine distant.
+      Seuls les appels à la base sortent de la machine.
+- [ ] **Rien ne survit.** Après avoir quitté l'application,
+      `lsof -nP -iTCP:51789 -sTCP:LISTEN` ne rend rien.
+- [ ] **La fenêtre se retrouve où on l'a laissée.** Redimensionner et déplacer
+      la fenêtre, quitter, rouvrir : elle revient à la même taille et au même
+      endroit. Ce qu'elle a retenu se lit dans
+      `~/Library/Application\ Support/fr.yarma.vibemap.bureau/fenetre.json`.
+- [ ] **Un poste neuf s'ouvre proprement.** Après
+      `rm -rf ~/Library/Application\ Support/fr.yarma.vibemap.bureau`, la
+      fenêtre s'ouvre à 1280 × 860, placée par le système, sans message d'erreur.
+- [ ] **Un état abîmé ne bloque rien.** Avec
+      `printf '{"largeur": 12' > ~/Library/Application\ Support/fr.yarma.vibemap.bureau/fenetre.json`,
+      l'application s'ouvre quand même, à la géométrie par défaut, et réécrit un
+      fichier valide en quittant.
+
+## Le lecteur (#61)
+
+Ces vérifications demandent une machine reliée (`vibemap pair <code>`) et une
+pile Supabase joignable. Le verrou du poste vit à
+`~/.config/vibemap/lecteur.lock` ; `lsof ~/.config/vibemap/lecteur.lock` dit qui
+le tient.
+
+- [ ] **La machine bat dès l'ouverture.** L'application ouverte depuis une
+      minute, la liste des machines consultée depuis un autre appareil montre
+      cette machine vue il y a moins de 90 secondes.
+- [ ] **Rien ne survit à la fermeture.** Quitter l'application : le Moniteur
+      d'activité ne montre plus aucun processus de lecture,
+      `lsof ~/.config/vibemap/lecteur.lock` ne rend rien, et la machine passe
+      muette au bout de 90 secondes.
+- [ ] **Un signal ne laisse rien derrière.** L'application ouverte,
+      `kill -TERM <pid de Vibe Map>` : `lsof ~/.config/vibemap/lecteur.lock` ne
+      rend rien ensuite. Même chose avec `kill -9`.
+- [ ] **Deux ouvertures, un seul lecteur.** L'application déjà ouverte, la
+      relancer depuis le Finder : un seul lecteur tourne.
+- [ ] **Le poste tenu s'annonce.** Avec `vibemap` lancé au terminal, ouvrir
+      l'application : la fenêtre dit qu'un lecteur tourne déjà, nomme
+      « vibemap » et son processus, et propose « Afficher la carte ». Le
+      Moniteur d'activité n'en montre qu'un seul.
+- [ ] **Et l'inverse.** L'application ouverte, lancer `vibemap` au terminal : il
+      refuse en nommant « l'application de bureau ».
+- [ ] **Aucun démarrage automatique.** Session du Mac ouverte, application
+      jamais lancée depuis le démarrage : au bout de deux minutes, aucun
+      processus de lecture ne tourne et la machine reste muette.
+- [ ] **Le poste tenu se relance une fois l'autre arrêté.** Dans la suite du
+      point précédent, `vibemap` toujours lancé au terminal : l'arrêter par
+      Ctrl-C, puis cliquer sur « Relancer le lecteur » dans la fenêtre. Elle dit
+      « Le lecteur tourne », `lsof ~/.config/vibemap/lecteur.lock` nomme
+      l'application, et la machine est de nouveau vue il y a moins de
+      90 secondes.
+- [ ] **Le refus du trousseau se dit.** Après une recompilation
+      (`cargo build` puis `cargo run`), macOS redemande l'autorisation
+      d'accéder au jeton : refuser la boîte de dialogue. La fenêtre affiche
+      « Le jeton de cette machine n'a pas pu être lu », la raison rendue par le
+      système, et un bouton « Relancer le lecteur ». Le rejouer en accordant
+      cette fois l'autorisation : le lecteur repart sans quitter l'application.
+- [ ] **L'attente du trousseau se voit.** Même situation, boîte de dialogue
+      laissée ouverte : la fenêtre dit « Démarrage du lecteur… » et propose
+      « Afficher la carte » plutôt que de rester muette.
+- [ ] **Le pont ne répond qu'à la fenêtre.** Ouvrir
+      `http://127.0.0.1:51789` dans Safari, puis dans la console :
+      `window.__TAURI__` est `undefined`, et aucune commande du pont n'est
+      joignable. L'origine est la même que celle de la fenêtre, et c'est bien
+      cela qu'il faut vérifier : le pont s'ouvre à une origine **dans le
+      webview de l'application**, jamais à un navigateur qui charge la même
+      adresse.
+
+## Le pont, l'écran Réglages et le bandeau (#68)
+
+Ces vérifications demandent une machine reliée, une pile Supabase joignable et
+une cartographie déjà passée. La configuration du lecteur vit à
+`~/.config/vibemap/config.toml` ; ses `roots` sont les dossiers surveillés.
+
+- [ ] **Les dossiers surveillés s'affichent.** Dans la fenêtre, ouvrir
+      Réglages : chaque dossier de `roots` est listé, avec le nombre de dépôts
+      trouvés. Le compte doit être celui des enfants **directs** portant un
+      `.git` - `ls -d ~/Developer/*/.git | wc -l` donne le même nombre.
+- [ ] **Un dossier renommé se signale.** Renommer un dossier surveillé
+      (`mv ~/Developer ~/Developer-renomme`), rouvrir Réglages : sa ligne porte
+      « Dossier introuvable », sans compte, et les autres dossiers restent
+      affichés normalement. Remettre le nom ensuite.
+- [ ] **Le même écran dans Safari.** Ouvrir `http://127.0.0.1:51789/reglages`
+      dans Safari : la section des dossiers est remplacée par la mention
+      « Ces réglages n'existent que dans l'application Vibe Map », les comptes
+      s'affichent normalement, l'heure de la dernière cartographie aussi - et
+      aucune erreur ni liste vide n'apparaît.
+- [ ] **Rien ne sort de la machine.** Dans l'inspecteur web de la fenêtre,
+      onglet Réseau, en ouvrant Réglages : aucune requête ne porte un chemin de
+      dossier ni un compte de dépôts. Les seuls appels sortants sont ceux de la
+      base, pour les comptes et `repos`.
+- [ ] **Le bandeau du lecteur par-dessus la carte.** L'application ouverte sur
+      la carte, lancer `vibemap` au terminal après avoir arrêté le lecteur de
+      l'application (ou tuer sa boucle) : un bandeau ambre apparaît en haut de
+      n'importe quel écran, dit ce qui cloche, et « Relancer le lecteur » le
+      remet en marche sans quitter l'application. Le bandeau disparaît seul.
+- [ ] **Pas de bandeau dans Safari.** Le même écran dans Safari n'affiche jamais
+      ce bandeau, quel que soit l'état du lecteur : hors de l'application, il
+      n'y a pas de pont, et l'interface ne prétend rien savoir du poste.
+
+## Ajouter un dossier au sélecteur du Mac (#70)
+
+Le sélecteur de fichiers est une fenêtre du système : personne ne clique dedans
+dans un test. Ce qui suit le choix - l'écriture dans la configuration, la liste
+rendue, la reprise du lecteur - est éprouvé par `cargo test --test ajout` ; ce
+qui se joue ici est le geste lui-même, du clic au dépôt qui apparaît.
+
+- [ ] **Le sélecteur s'ouvre.** Dans Réglages, cliquer sur « Ajouter un
+      dossier » : le sélecteur de dossiers de macOS s'ouvre par-dessus la
+      fenêtre, et l'application continue de répondre pendant qu'il est ouvert.
+      Le bouton dit « Sélecteur ouvert… » et ne réagit plus.
+- [ ] **Refermer ne fait rien.** Annuler le sélecteur : aucun message
+      n'apparaît, la liste ne bouge pas, et `~/.config/vibemap/config.toml` n'a
+      pas gagné de ligne.
+- [ ] **Le dossier choisi est surveillé.** Choisir `~/Sites` (ou tout dossier
+      contenant au moins un dépôt) : sa ligne apparaît aussitôt avec son compte
+      de dépôts, et le message nomme le dossier. Rien n'a été ouvert d'autre que
+      le sélecteur (FR-036).
+- [ ] **Le fichier a gagné une ligne, et rien perdu.** `cat
+      ~/.config/vibemap/config.toml` : le nouveau dossier y est, écrit `~/…`,
+      à côté des anciens ; `supabase_url`, `machine_id`, `label` et les cadences
+      sont intacts, commentaires compris.
+- [ ] **Les dépôts arrivent en moins d'une minute.** Sans rien fermer ni
+      relancer, l'accueil montre les dépôts du dossier ajouté dans la minute
+      (FR-034). Le terminal d'où l'application a été lancée montre un nouveau
+      « vibemap surveille depuis… » suivi d'une ligne de cartographie : c'est le
+      lecteur qui vient de repartir avec la nouvelle liste.
+- [ ] **Le poste n'est pas perdu au passage.** Juste après l'ajout,
+      `lsof ~/.config/vibemap/lecteur.lock` nomme toujours l'application, et la
+      machine reste vue il y a moins de 90 secondes depuis un autre appareil.
+- [ ] **Aucun bouton dans Safari.** `http://127.0.0.1:51789/reglages` dans
+      Safari : la mention de FR-060 s'affiche, et il n'y a **aucun** bouton
+      « Ajouter un dossier » - hors de l'application, il n'y a pas de sélecteur
+      à ouvrir.
+
+## Entrer avec GitHub (#63)
+
+**Prérequis humain n° 1 : une application OAuth GitHub.** Sans elle, rien de
+cette section ne se joue. Il faut une application GitHub dont l'URL de rappel
+est celle de la pile Supabase (`http://127.0.0.1:54321/auth/v1/callback` en
+local), puis `SUPABASE_AUTH_GITHUB_CLIENT_ID` et `SUPABASE_AUTH_GITHUB_SECRET`
+dans l'environnement du `supabase start`. Tant que ces valeurs manquent, la
+pile locale répond à l'autorisation par une erreur de fournisseur, et
+l'aller-retour ne peut pas avoir lieu - c'est le seul morceau de cette tranche
+qui n'a **pas** pu être vérifié (voir la dernière section).
+
+- [ ] **Un seul bouton.** Sur un Mac où aucune session n'a jamais été ouverte,
+      la fenêtre ne présente que « Continuer avec GitHub ». Aucun autre bouton,
+      aucun champ, aucun lien (FR-012).
+- [ ] **GitHub s'ouvre dehors.** Cliquer : la page d'autorisation apparaît dans
+      le navigateur **par défaut du Mac**, dans un nouvel onglet, et la fenêtre
+      de Vibe Map reste sur son écran de connexion en disant qu'elle attend.
+      Elle ne charge à aucun moment `github.com` (FR-071).
+- [ ] **Le retour vise l'origine fixe.** Dans la barre d'adresse du navigateur,
+      pendant l'aller-retour : le paramètre `redirect_to` de l'adresse
+      d'autorisation vaut exactement
+      `http://127.0.0.1:51789/auth/callback`, et l'onglet finit sur
+      `http://127.0.0.1:51789/auth/retour`.
+- [ ] **La fenêtre reprend la main toute seule.** Accepter dans GitHub : sans
+      rien cliquer d'autre, sans revenir au Dock et sans recopier quoi que ce
+      soit, la fenêtre de Vibe Map repasse **devant le navigateur** avec la
+      carte affichée (FR-072, FR-013).
+- [ ] **Rien à faire dans le navigateur.** L'onglet resté ouvert dit seulement
+      que la suite se passe dans la fenêtre. Le fermer ne change rien à la
+      session de l'application.
+- [ ] **Un refus se dit.** Recommencer et cliquer « Cancel » sur la page
+      GitHub : la fenêtre affiche la raison du refus et son bouton reste
+      cliquable ; un second essai, accepté cette fois, ouvre la carte (FR-016).
+- [ ] **La session tient d'un lancement à l'autre.** Quitter l'application et
+      la rouvrir : la carte s'affiche directement, sans écran de connexion
+      (FR-014).
+- [ ] **Le même écran dans Safari.** `http://127.0.0.1:51789` dans Safari, sans
+      session : le bouton part vers GitHub **dans l'onglet**, sans passer par
+      l'application, et le retour ouvre la session dans Safari. Aucun message
+      d'attente n'apparaît : hors de l'application, il n'y a pas de relais.
+- [ ] **Rien d'autre ne s'ouvre.** Dans l'inspecteur web de la fenêtre, onglet
+      Réseau, pendant tout l'aller-retour : les seuls appels sortants vont à la
+      pile Supabase. Le pont n'est appelé que pour `ouvrir_l_autorisation` puis
+      `revenir_au_premier_plan`.
+
+## Ce que cette liste ne peut pas jouer (#62)
+
+**Tuer le lecteur depuis le Moniteur d'activité.** Le critère d'acceptation du
+PRD le demande, et il a été écrit avant que #61 n'embarque le lecteur dans le
+processus de l'application. Il n'y a plus de processus de lecture à terminer :
+celui qu'on y verrait est Vibe Map elle-même, et le terminer ferme la fenêtre.
+Ce qui reste vérifiable de cette exigence - qu'une boucle qui cesse de tourner
+se voie à la lecture suivante, et qu'un bouton la relance - est éprouvé par
+`cargo test --test lecteur`, et la relance se joue à la main ci-dessus depuis un
+poste tenu et depuis un trousseau refusé.
+
+**L'état du lecteur pendant que la carte est affichée.** Ce point est levé par
+#68 : le pont est désormais ouvert à l'origine que la fenêtre charge, et `web/`
+affiche le bandeau de FR-009 et FR-010 par-dessus n'importe quel écran. Il se
+joue ci-dessus, dans « Le pont, l'écran Réglages et le bandeau ».
+
+## Ce qui n'a pas pu être vérifié, faute d'application GitHub (#63)
+
+La pile locale n'a **aucune** application OAuth GitHub déclarée :
+`SUPABASE_AUTH_GITHUB_CLIENT_ID` et `SUPABASE_AUTH_GITHUB_SECRET` sont vides.
+L'aller-retour réel avec GitHub n'a donc jamais eu lieu. Ce qui suit est écrit,
+raisonné, et **non observé** - ne pas le cocher sur la foi de cette tranche :
+
+- **GitHub accepte l'adresse de retour.** Le fournisseur exige que l'URL de
+  rappel de l'application GitHub soit celle de la pile Supabase, et c'est
+  Supabase qui renvoie ensuite vers `127.0.0.1:51789`. Cette seconde étape n'a
+  pas été jouée en vrai : seule la liste blanche de `supabase/config.toml` a
+  été mise en place, et un test la garde.
+- **Le navigateur du système s'ouvre bien.** L'ouverture passe par
+  `/usr/bin/open`, appelée depuis l'application. Ce chemin n'a été éprouvé que
+  jusqu'à la borne qui décide d'ouvrir ou non (`cargo test --test
+  autorisation`) : personne n'a vu l'onglet apparaître.
+- **La fenêtre repasse devant.** `revenir_au_premier_plan` n'a pas été observée
+  en situation - il faut un vrai retour d'autorisation pour l'atteindre.
+- **Le code s'échange réellement.** Ce qui a été joué de bout en bout, service
+  d'interface lancé sur le port fixe, c'est tout le reste : la fenêtre demande
+  l'adresse d'autorisation avec un défi PKCE et un `redirect_to` valant
+  l'origine locale fixe ; le retour déposé par un client sans vérificateur est
+  repris pour la fenêtre ; la fenêtre le relève et appelle bien
+  `/auth/v1/token?grant_type=pkce` avec son propre vérificateur. Seule la
+  RÉPONSE de ce dernier appel n'a pas pu être une vraie session : le code joué
+  était fictif, et Supabase l'a refusé - refus que la fenêtre a affiché, ce qui
+  éprouve au passage FR-016.
+
+## L'application publiée (#86)
+
+Ces points ne se jouent pas depuis le dépôt : ils demandent le paquet
+`VibeMap-<version>-aarch64-apple-darwin.app.zip` d'une vraie publication, ou à
+défaut celui que produit `npx @tauri-apps/cli build --target
+aarch64-apple-darwin --bundles app` en local, recopié sur **un autre Mac** que
+celui qui l'a compilé.
+
+- [ ] **L'application s'installe.** L'archive décompressée donne
+      `Vibe Map.app` ; glissée dans `/Applications`, elle porte l'icône de Vibe
+      Map dans le Finder et dans le Dock, à toutes les tailles - pas l'icône
+      générique de macOS.
+- [ ] **Le premier lancement s'annonce comme le README le dit.** Un
+      double-clic sort « le développeur n'a pas pu être vérifié » ; un clic
+      droit puis **Ouvrir** l'ouvre, et les lancements suivants ne redemandent
+      rien. C'est le comportement d'une application non signée, assumé par le
+      PRD-002.
+- [ ] **Le numéro de version est celui de la publication.** `Vibe Map.app` →
+      Lire les informations, ou `mdls -name kMDItemVersion "/Applications/Vibe
+      Map.app"`, rend la version de l'étiquette téléchargée. Quand #85 l'aura
+      posé, l'écran Réglages doit annoncer le même numéro.
+- [ ] **Réseau coupé, l'application s'ouvre quand même.** Wi-Fi éteint juste
+      après l'installation, l'application démarre et ne se plaint que de la
+      base injoignable - jamais d'un morceau qui manquerait.
+
+## Ce qui n'a pas pu être vérifié, faute de publication réelle (#86)
+
+- **La release elle-même.** Aucune étiquette n'a été poussée : la chaîne de
+  `.github/workflows/release.yml` n'a jamais tourné. Ce qui a été éprouvé, c'est
+  la construction du paquet en local et la cohérence du workflow avec celui du
+  binaire. La première étiquette - une préproduction du genre `v0.0.0-essai` -
+  reste à jouer, et à vérifier : l'application et l'archive du binaire pour
+  macOS Apple Silicon présentes avec leurs sommes de contrôle, aucun artefact
+  Linux.
+
+## L'interface embarquée dans le paquet (#87)
+
+Ces points ne se jouent **que hors du dépôt** : c'est tout leur objet. Le paquet
+porte désormais l'interface et l'exécutable Node qui la fait tourner, dans
+`Contents/Resources/service` ; `bureau/embarquer-le-service.sh` les y dépose à
+l'empaquetage (il télécharge Node la première fois, donc le réseau est requis
+pour construire - jamais pour lancer).
+
+```sh
+cd bureau
+npx @tauri-apps/cli build --target aarch64-apple-darwin --bundles app
+essai=$(mktemp -d)
+ditto "target/aarch64-apple-darwin/release/bundle/macos/Vibe Map.app" \
+      "$essai/Vibe Map.app"
+open "$essai/Vibe Map.app"
+```
+
+- [ ] **La carte s'affiche depuis ailleurs que le dépôt.** L'application ouverte
+      depuis `$essai` montre la carte, pas la page d'indisponibilité.
+- [ ] **C'est bien l'interface du paquet qui sert.**
+      `ps -o command= -p "$(lsof -nP -iTCP:51789 -sTCP:LISTEN -t)"` nomme un
+      exécutable et un `server.js` sous `Vibe Map.app/Contents/Resources/service`
+      - rien qui vienne du dépôt.
+- [ ] **Tout ce qu'il faut est dedans.**
+      `ls -a "$essai/Vibe Map.app/Contents/Resources/service"` montre `node`,
+      `server.js`, `.next`, `node_modules` et `public`, et
+      `otool -L "$essai/Vibe Map.app/Contents/Resources/service/node"` ne cite
+      que `/usr/lib` et `/System` : l'exécutable embarqué n'emprunte rien au
+      poste.
+- [ ] **Rien ne survit.** Application quittée,
+      `lsof -nP -iTCP:51789 -sTCP:LISTEN` ne rend rien, et
+      `pgrep -f "Contents/Resources/service"` non plus.
+- [ ] **Un paquet amputé le dit.** Sur la copie seulement,
+      `rm "$essai/Vibe Map.app/Contents/Resources/service/server.js"` puis
+      réouverture : la fenêtre annonce une interface embarquée incomplète et
+      invite à retélécharger - elle ne renvoie jamais vers un dépôt que le poste
+      n'a pas.
+- [ ] **La voie de développement tient toujours.** Dans le dépôt,
+      `cd web && npm run build` puis `cd ../bureau && cargo run` ouvre la carte
+      comme avant, et `ps` montre cette fois le service lancé par le `npm` du
+      dépôt.
+
+Le paquet pèse environ 161 Mo décompressé - dont 113 Mo pour le seul exécutable
+Node - et 53 Mo une fois archivé, c'est-à-dire à télécharger.
+C'est le prix de « aucun morceau téléchargé au premier lancement » (FR-069) :
+l'interface est un serveur, pas un dossier de fichiers, et il lui faut de quoi
+tourner.
+
+## Reprendre, redéclarer, ou se taire (#66, #67)
+
+La boîte de dialogue du trousseau est le seul écran de ces deux tranches qu'aucun
+test ne peut jouer : macOS la fait apparaître parce que l'application est un
+**exécutable différent** du binaire en ligne de commande, et un test qui
+l'ouvrirait resterait suspendu devant elle. Le reste - ce qui est déclaré, ce qui
+ne l'est pas, ce que le fichier de configuration devient - est couvert par
+`cargo test --test identite` dans `bureau/`, contre la pile locale.
+
+Ces vérifications demandent un poste où `vibemap` était **déjà appairé** :
+`~/.config/vibemap/config.toml` porte un `machine_id`, deux dossiers surveillés
+et une `supabase_url`. Garde une copie du fichier avant de commencer.
+
+- [ ] **L'autorisation est demandée, et c'est normal.** Au premier lancement de
+      l'application sur ce poste, macOS demande l'accès au trousseau pour
+      `fr.yarma.vibemap`. Accorder : la fenêtre ne dit rien de particulier, la
+      liste des machines **n'en gagne aucune**, et la machine d'origine reprend
+      son battement (« à jour, il y a N s »).
+- [ ] **Les dossiers sont là, sans doublon.** L'écran Réglages montre les deux
+      dossiers du fichier, chacun une fois.
+- [ ] **Le fichier n'a été ni effacé ni vidé.** `cat ~/.config/vibemap/config.toml` :
+      les deux dossiers, les cadences et les commentaires sont intacts. Seule
+      `supabase_url` a changé - elle pointe maintenant la base de l'application,
+      et c'est voulu (FR-073) : le lecteur embarqué ne lit que ce champ.
+- [ ] **Un refus s'annonce, et ne déclare rien.** Refuser l'accès au trousseau
+      (relancer après `security delete-generic-password -s fr.yarma.vibemap` puis
+      « Refuser », ou révoquer l'autorisation dans Trousseaux d'accès) : la
+      fenêtre porte un bandeau qui dit que macOS demande cette autorisation à
+      chaque nouvelle version, que **rien n'a été déclaré à la place**, et un
+      bouton « Réessayer ». La liste des machines n'a gagné personne.
+- [ ] **Réessayer en acceptant suffit.** Le clic sur « Réessayer », autorisation
+      accordée : la machine d'origine reprend son battement, toujours sans
+      doublon.
+- [ ] **Une machine révoquée le dit, et rien ne la remplace.** Révoquer cette
+      machine depuis la liste, puis rouvrir l'application : le bandeau annonce la
+      révocation, invite à la lever, et la liste ne porte **aucune** machine de
+      plus. Attendre une minute : toujours aucune.
+- [ ] **Une identité perdue se redéclare, et se voit.** `supabase db reset` (ou
+      supprimer la machine depuis la liste), puis rouvrir : le bandeau annonce
+      que la machine **a été redéclarée**, avec un texte visiblement différent de
+      celui de la révocation et **sans** bouton « Réessayer ». La liste n'en
+      porte qu'une, et la carte se repeuple en quelques minutes.

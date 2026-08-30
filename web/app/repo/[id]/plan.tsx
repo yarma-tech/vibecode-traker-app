@@ -1,9 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { decouper } from "@/lib/treemap";
 import { heureFigement } from "@/lib/figement";
 import { ecrirePlanCache } from "@/lib/squelette";
+import {
+  accesClavier,
+  ancrerInfobulle,
+  annoncerParcelle,
+  nomParcelle,
+  ouvertureVisee,
+  poidsEnMots,
+} from "@/lib/parcelle";
+import {
+  datesEnMotsSeparees,
+  indexerTouches,
+  touchesDeLaZone,
+  type Touche,
+} from "@/lib/touches";
 import type { Etat, Worktree } from "./direct";
 
 export type Module = {
@@ -35,21 +49,19 @@ const SEUIL_ABSORPTION = 0.7;
 const LARGEUR_LISIBLE = 9;
 const HAUTEUR_LISIBLE = 7;
 
-function nom(chemin: string): string {
-  // Les parcelles en « /. » portent les fichiers poses directement dans un
-  // dossier, a cote de ses sous-dossiers.
-  if (chemin === ".") return "fichiers à la racine";
-  if (chemin.endsWith("/.")) return "fichiers";
-
-  const dernier = chemin.split("/").pop();
-  return dernier && dernier.length > 0 ? dernier : chemin;
-}
-
-function lignes(n: number): string {
-  return n >= 1000
-    ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k lignes`
-    : `${n} lignes`;
-}
+/**
+ * Les deux dates disent bien plus long que le nom ou le poids, et leur seuil
+ * de lisibilité à elles ne se mesure pas en pourcentage du plan : « modifié il
+ * y a 2 j » occupe un nombre de PIXELS fixe, qu'un plan de 340 px de large sur
+ * un téléphone n'offrirait pas là où un plan de 800 px l'offre. Ce seuil vit
+ * donc en CSS, dans une requête de conteneur sur `.parcelle` (`globals.css`),
+ * seul endroit qui connaisse la largeur réelle de la parcelle.
+ *
+ * En deçà, les dates ne se tronquent pas : elles ne paraissent pas, et restent
+ * atteignables au survol ET au clavier, par l'infobulle que porte la parcelle
+ * (FR-063). Une date coupée en plein mot apprendrait moins qu'une date absente,
+ * et ferait douter du reste de l'écran.
+ */
 
 function depuis(instant: string, maintenant: number): string {
   const secondes = Math.max(0, Math.round((maintenant - Date.parse(instant)) / 1000));
@@ -62,6 +74,7 @@ export function Plan({
   modules,
   locTotal,
   etats,
+  touches,
   worktrees,
   fige,
   dernierBattement,
@@ -70,6 +83,7 @@ export function Plan({
   modules: Module[];
   locTotal: number;
   etats: Etat[];
+  touches: Touche[];
   worktrees: Worktree[];
   fige: boolean;
   dernierBattement: string | null;
@@ -92,6 +106,12 @@ export function Plan({
     () => new Map(etats.map((etat) => [etat.module_path, etat])),
     [etats],
   );
+
+  // Les deux dates de dernière touche, héritage des sous-dossiers compris - la
+  // base l'a déjà calculé pour chaque zone (`touches_modules`, FR-043). Canal
+  // strictement séparé de `parModule` : ces dates se lisent, elles n'entrent
+  // pas dans la couleur de la parcelle (FR-044).
+  const parTouche = useMemo(() => indexerTouches(touches), [touches]);
 
   const enfants = useMemo(
     () => modules.filter((m) => (m.parent_path ?? "") === ouvert),
@@ -199,42 +219,97 @@ export function Plan({
         {parcelles.map(({ donnee, x, y, largeur, hauteur }) => {
           const peutDescendre = descendable(donnee);
           const etat = parModule.get(donnee.path);
+          // Les deux dates de la zone, mises en mots (FR-041, FR-042). Tant que
+          // l'horloge du navigateur n'a pas démarré, on ne peut juger l'âge de
+          // rien : la ligne reste vide plutôt que d'annoncer un « rien de
+          // récent » qui serait faux dès la seconde suivante.
+          const touche = touchesDeLaZone(parTouche, donnee.path);
+          const membresDates =
+            maintenant !== null ? datesEnMotsSeparees(touche, maintenant) : [];
           const dit = etat ? DIT[etat.etat] : "inactif";
-          const surimpression = sousWorktree ? `, worktree ${branches.join(", ")}` : "";
-          const etiquette = `${nom(donnee.path)}, ${lignes(donnee.loc)}, ${dit}${surimpression}`;
+          // Les dates entrent dans l'étiquette lue à voix haute comme dans
+          // l'infobulle : une parcelle trop petite pour les porter en clair ne
+          // doit pas les faire disparaître pour autant (FR-063).
+          const { nomAccessible, infobulle } = annoncerParcelle(
+            { chemin: donnee.path, loc: donnee.loc, fichiers: donnee.file_count },
+            {
+              ouvrable: peutDescendre,
+              dit,
+              branches: sousWorktree ? branches : [],
+              dates: touche,
+              maintenant,
+            },
+          );
 
           return (
-            <button
-              key={donnee.path}
-              className={
-                `parcelle${etat ? ` ${etat.etat}` : ""}${sousWorktree ? " worktree" : ""}`
-              }
-              style={{
-                left: `${x}%`,
-                top: `${y}%`,
-                width: `${largeur}%`,
-                height: `${hauteur}%`,
-              }}
-              onClick={() => peutDescendre && setOuvert(donnee.path)}
-              disabled={!peutDescendre}
-              title={`${donnee.path} · ${lignes(donnee.loc)} · ${donnee.file_count} fichiers`}
-              aria-label={
-                peutDescendre ? `${etiquette}, ouvrir` : etiquette
-              }
-            >
-              {largeur >= LARGEUR_LISIBLE && hauteur >= HAUTEUR_LISIBLE && (
-                <>
-                  <span className="parcelle-nom">{nom(donnee.path)}</span>
-                  {etat && (
+            <Fragment key={donnee.path}>
+              <button
+                className={
+                  `parcelle${etat ? ` ${etat.etat}` : ""}${sousWorktree ? " worktree" : ""}`
+                }
+                style={{
+                  left: `${x}%`,
+                  top: `${y}%`,
+                  width: `${largeur}%`,
+                  height: `${hauteur}%`,
+                }}
+                onClick={() => {
+                  const cible = ouvertureVisee(donnee.path, peutDescendre);
+                  if (cible !== null) setOuvert(cible);
+                }}
+                // Une parcelle sans sous-dossier reste dans le parcours de
+                // tabulation : c'est souvent la plus petite, donc celle dont les
+                // dates ne tiennent pas à l'écran, donc la seule qui n'ait que le
+                // focus pour se dire (FR-083). `disabled` l'en sortirait.
+                {...accesClavier(peutDescendre)}
+                aria-label={nomAccessible}
+              >
+                {largeur >= LARGEUR_LISIBLE && hauteur >= HAUTEUR_LISIBLE && (
+                  <>
+                    <span className="parcelle-nom">{nomParcelle(donnee.path)}</span>
+                    {/* La ligne de l'activité vivante garde sa place même au
+                        repos (FR-077) : aucune date ne vient l'occuper, et la
+                        parcelle ne se réorganise pas sous l'œil au moment où un
+                        agent s'y met. */}
                     <span className="parcelle-fait">
-                      {dit}
-                      {maintenant ? `, ${depuis(etat.dernier_evenement, maintenant)}` : ""}
+                      {etat && (
+                        <>
+                          {dit}
+                          {maintenant ? `, ${depuis(etat.dernier_evenement, maintenant)}` : ""}
+                        </>
+                      )}
                     </span>
-                  )}
-                  <span className="parcelle-poids">{lignes(donnee.loc)}</span>
-                </>
-              )}
-            </button>
+                    <span className="parcelle-dates">
+                      {/* Chaque date reste d'un bloc : quand la parcelle est trop
+                          étroite pour les deux, le repli se fait ENTRE elles,
+                          jamais au milieu de « il y a 20 min ». */}
+                      {membresDates.map((membre, rang) => (
+                        <span key={membre} className="parcelle-date">
+                          {membre}
+                          {rang < membresDates.length - 1 ? "," : ""}
+                        </span>
+                      ))}
+                    </span>
+                    <span className="parcelle-poids">{poidsEnMots(donnee.loc)}</span>
+                  </>
+                )}
+              </button>
+
+              {/* L'infobulle de la parcelle, qui remplace l'attribut `title` du
+                  navigateur : celui-ci ne paraît qu'au survol, et laissait au
+                  clavier une parcelle définitivement muette (FR-083). Elle vit
+                  À CÔTÉ de la parcelle, jamais dedans - la parcelle coupe ce qui
+                  dépasse - et se montre en CSS, sur le survol comme sur le focus.
+                  `aria-hidden` : ce qu'elle dit est déjà dans le nom accessible
+                  du bouton, et l'entendre deux fois n'apprendrait rien. */}
+              <span
+                className="parcelle-bulle"
+                aria-hidden="true"
+                style={ancrerInfobulle({ x, y, largeur, hauteur })}
+              >
+                {infobulle}
+              </span>
+            </Fragment>
           );
         })}
 

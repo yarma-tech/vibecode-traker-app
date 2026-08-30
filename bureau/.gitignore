@@ -1,0 +1,9 @@
+/target
+/gen
+# Ce que l'etape d'archivage de la release depose quand on la rejoue en local.
+/dist
+# Ce que `embarquer-le-service.sh` assemble avant l'empaquetage : la sortie
+# autonome de l'interface et l'executable Node qui la fait tourner. Tout se
+# reconstruit depuis `web/`, rien ne se versionne.
+/service-embarque
+/.node

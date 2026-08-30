@@ -57,10 +57,10 @@ fn analyser(porcelain: &str) -> Vec<Worktree> {
     let mut principal = true;
 
     let clore = |chemin: &mut Option<String>,
-                     branche: &mut Option<String>,
-                     tete: &mut Option<String>,
-                     principal: &mut bool,
-                     worktrees: &mut Vec<Worktree>| {
+                 branche: &mut Option<String>,
+                 tete: &mut Option<String>,
+                 principal: &mut bool,
+                 worktrees: &mut Vec<Worktree>| {
         if let Some(chemin) = chemin.take() {
             if *principal {
                 // Le premier worktree est le depot lui-meme : deja sur la carte.
@@ -71,9 +71,7 @@ fn analyser(porcelain: &str) -> Vec<Worktree> {
                     .next()
                     .unwrap_or(&chemin)
                     .to_string();
-                let branch = branche
-                    .take()
-                    .unwrap_or_else(|| detache(tete.as_deref()));
+                let branch = branche.take().unwrap_or_else(|| detache(tete.as_deref()));
                 worktrees.push(Worktree { path: nom, branch });
             }
         }
@@ -85,7 +83,13 @@ fn analyser(porcelain: &str) -> Vec<Worktree> {
         let attribut = attribut.trim_matches(['\n', '\r']);
         if let Some(valeur) = attribut.strip_prefix("worktree ") {
             // Nouveau bloc : on clot le precedent avant d'ouvrir celui-ci.
-            clore(&mut chemin, &mut branche, &mut tete, &mut principal, &mut worktrees);
+            clore(
+                &mut chemin,
+                &mut branche,
+                &mut tete,
+                &mut principal,
+                &mut worktrees,
+            );
             chemin = Some(valeur.to_string());
         } else if let Some(valeur) = attribut.strip_prefix("branch ") {
             branche = Some(valeur.trim_start_matches("refs/heads/").to_string());
@@ -93,7 +97,13 @@ fn analyser(porcelain: &str) -> Vec<Worktree> {
             tete = Some(valeur.to_string());
         }
     }
-    clore(&mut chemin, &mut branche, &mut tete, &mut principal, &mut worktrees);
+    clore(
+        &mut chemin,
+        &mut branche,
+        &mut tete,
+        &mut principal,
+        &mut worktrees,
+    );
 
     worktrees
 }

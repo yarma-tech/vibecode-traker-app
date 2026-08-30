@@ -15,15 +15,20 @@ use std::process::Command;
 
 /// Dossiers qu'on ecarte meme quand le repo a oublie de les ignorer.
 const TOUJOURS_EXCLUS: &[&str] = &[
-    "node_modules", ".git", "dist", "build", "target", ".next", "vendor",
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    "target",
+    ".next",
+    "vendor",
 ];
 
 /// Extensions qu'on ne compte jamais en lignes de code.
 const BINAIRES: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "webp", "avif", "ico", "icns", "pdf", "zip",
-    "gz", "tar", "bz2", "7z", "mp3", "mp4", "mov", "wav", "woff", "woff2",
-    "ttf", "otf", "eot", "so", "dylib", "dll", "a", "o", "bin", "wasm",
-    "class", "jar", "pyc", "db", "sqlite", "lock",
+    "png", "jpg", "jpeg", "gif", "webp", "avif", "ico", "icns", "pdf", "zip", "gz", "tar", "bz2",
+    "7z", "mp3", "mp4", "mov", "wav", "woff", "woff2", "ttf", "otf", "eot", "so", "dylib", "dll",
+    "a", "o", "bin", "wasm", "class", "jar", "pyc", "db", "sqlite", "lock",
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -222,7 +227,13 @@ pub fn normaliser_distant(url: &str) -> String {
 /// Autrement dit : exactement ce que `git status` considere comme le depot.
 fn fichiers_du_depot(racine: &Path) -> Result<Vec<String>, ScanError> {
     let sortie = Command::new("git")
-        .args(["ls-files", "--cached", "--others", "--exclude-standard", "-z"])
+        .args([
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z",
+        ])
         .current_dir(racine)
         .output()
         .map_err(|e| ScanError::GitEnEchec {

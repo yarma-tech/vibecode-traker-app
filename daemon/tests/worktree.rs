@@ -61,8 +61,15 @@ fn un_worktree_ajoute_porte_sa_branche() {
     let worktrees = vibemap::worktrees(&racine);
 
     // Le worktree principal (le depot lui-meme) ne compte pas : seul l'ajoute.
-    assert_eq!(worktrees.len(), 1, "un seul worktree ajoute, le principal exclu");
-    assert_eq!(worktrees[0].branch, "hotfix", "la branche du worktree, pas main");
+    assert_eq!(
+        worktrees.len(),
+        1,
+        "un seul worktree ajoute, le principal exclu"
+    );
+    assert_eq!(
+        worktrees[0].branch, "hotfix",
+        "la branche du worktree, pas main"
+    );
 
     let _ = std::fs::remove_dir_all(&ailleurs);
     let _ = std::fs::remove_dir_all(&racine);
@@ -88,7 +95,13 @@ fn aucun_chemin_absolu_ne_sort_du_worktree() {
     let ailleurs = racine.with_extension("hotfix");
     git(
         &racine,
-        &["worktree", "add", "-b", "hotfix", ailleurs.to_str().unwrap()],
+        &[
+            "worktree",
+            "add",
+            "-b",
+            "hotfix",
+            ailleurs.to_str().unwrap(),
+        ],
     );
 
     let worktrees = vibemap::worktrees(&racine);
