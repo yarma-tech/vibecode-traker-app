@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   ATTENTE_MAXIMALE_MS,
+  CHEMIN_DE_RETOUR,
+  CHEMIN_DE_RETOUR_FENETRE,
   DUREE_DU_RELAIS_MS,
   ORIGINE_LOCALE,
   attenteExpiree,
   departAutorisation,
   ecranDeConnexion,
-  initiateurDuFlux,
   messageDEchec,
   origineDeLaRequete,
   relaisEncoreValable,
@@ -26,7 +27,21 @@ const params = (requete: string) => new URLSearchParams(requete);
 describe("urlDeRetour — l'origine locale fixe, dans la fenêtre (FR-071)", () => {
   it("dans l'application, le retour vaut l'origine locale fixe", () => {
     expect(urlDeRetour("http://127.0.0.1:51789", true)).toBe(
-      "http://127.0.0.1:51789/auth/callback",
+      "http://127.0.0.1:51789/auth/callback/fenetre",
+    );
+  });
+
+  it("et il porte le chemin de la fenêtre, jamais celui de l'échangeur", () => {
+    // C'est le DÉPART qui sait que l'autorisation sort dans le navigateur du
+    // système. Le dire dans l'adresse de retour est ce qui évite de le deviner
+    // à l'arrivée - un cookie n'a pas de port dans sa portée, et la marque
+    // qu'on y cherchait pouvait venir de n'importe quelle page de la boucle
+    // locale (docs/VIGILANCE.md).
+    expect(urlDeRetour("http://127.0.0.1:51789", true)).toBe(
+      `${ORIGINE_LOCALE}${CHEMIN_DE_RETOUR_FENETRE}`,
+    );
+    expect(urlDeRetour("http://127.0.0.1:51789", true)).not.toBe(
+      `${ORIGINE_LOCALE}${CHEMIN_DE_RETOUR}`,
     );
   });
 
@@ -40,7 +55,7 @@ describe("urlDeRetour — l'origine locale fixe, dans la fenêtre (FR-071)", () 
       "http://127.0.0.1:51790",
       "https://vibemap.example.com",
     ]) {
-      expect(urlDeRetour(ailleurs, true)).toBe(`${ORIGINE_LOCALE}/auth/callback`);
+      expect(urlDeRetour(ailleurs, true)).toBe(`${ORIGINE_LOCALE}${CHEMIN_DE_RETOUR_FENETRE}`);
     }
   });
 
@@ -147,7 +162,10 @@ describe("departAutorisation — ce que le clic déclenche", () => {
         dansLApplication: true,
         origineDeLaPage: origine,
       }),
-    ).toEqual({ quoi: "au_navigateur_du_systeme", retour: `${ORIGINE_LOCALE}/auth/callback` });
+    ).toEqual({
+      quoi: "au_navigateur_du_systeme",
+      retour: `${ORIGINE_LOCALE}${CHEMIN_DE_RETOUR_FENETRE}`,
+    });
   });
 
   it("sans session, hors de l'application : la page part elle-même", () => {
@@ -211,25 +229,6 @@ describe("retourDAutorisation — un échec est annoncé, jamais avalé (FR-016)
   });
 });
 
-describe("initiateurDuFlux — qui peut finir l'échange", () => {
-  it("le client qui est parti porte son vérificateur PKCE", () => {
-    expect(initiateurDuFlux(["sb-abcdefgh-auth-token-code-verifier"])).toBe(true);
-  });
-
-  it("le vérificateur d'un flux nommé compte aussi", () => {
-    expect(initiateurDuFlux(["sb-abcdefgh-auth-token-flow-a1b2c3d4e5-code-verifier"])).toBe(true);
-  });
-
-  it("le navigateur du système, qui revient sans rien, n'est pas l'initiateur", () => {
-    expect(initiateurDuFlux([])).toBe(false);
-  });
-
-  it("des cookies de session ne font pas un initiateur", () => {
-    // Un navigateur déjà venu sur l'origine locale porte des cookies. Aucun
-    // ne permet d'échanger un code : seul le vérificateur le permet.
-    expect(initiateurDuFlux(["sb-abcdefgh-auth-token", "theme", "NEXT_LOCALE"])).toBe(false);
-  });
-});
 
 describe("relaisEncoreValable — un code d'hier n'ouvre rien aujourd'hui", () => {
   it("un dépôt de la seconde d'avant est bon à prendre", () => {

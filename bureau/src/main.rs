@@ -29,7 +29,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use bureau::autorisation;
-use bureau::dossiers::{Ajout, Surveillance};
+use bureau::dossiers::{Ajout, Reautorisation, Retrait, Surveillance};
 use bureau::geometrie::{self, Geometrie, Position, HAUTEUR_MINIMALE, LARGEUR_MINIMALE};
 use bureau::lecteur::{CasEchec, EchecLecteur, EtatLecteur, LecteurEmbarque};
 use bureau::machine::{self, EtatMachine};
@@ -111,6 +111,8 @@ fn main() {
             dossiers_surveilles,
             contexte_du_poste,
             ajouter_un_dossier,
+            retirer_un_dossier,
+            redemander_l_autorisation,
             ouvrir_l_autorisation,
             declarer_la_machine,
             revenir_au_premier_plan,
@@ -480,6 +482,43 @@ async fn ajouter_un_dossier(app: AppHandle) -> Ajout {
     }
 
     ajout
+}
+
+/// Cesse de surveiller un dossier, sans effacer ce qu'on y a deja observe.
+///
+/// La fenetre fournit ici un chemin, contrairement a l'ajout - mais un chemin
+/// qu'elle a recu de l'application elle-meme, et qui ne sert qu'a designer une
+/// ligne de la liste. `retirer_du_poste` ne retire que ce qui y figure deja :
+/// un chemin inconnu ne retire rien et le dit (FR-035).
+#[tauri::command]
+fn retirer_un_dossier(app: AppHandle, chemin: String) -> Retrait {
+    let retrait = bureau::dossiers::retirer_du_poste(&chemin);
+
+    // Meme regle que pour l'ajout : le lecteur ne repart que si la liste a
+    // vraiment change.
+    if let Retrait::Retire { .. } = retrait {
+        reprendre_le_lecteur_en_arriere_plan(app);
+    }
+
+    retrait
+}
+
+/// Redemande au systeme l'autorisation de lire un dossier deja surveille.
+///
+/// macOS ne repose pas une question a laquelle on a repondu « non ». Le seul
+/// geste qui rouvre la porte est que l'utilisateur designe lui-meme le dossier
+/// dans le selecteur du systeme : c'est donc l'application qui l'ouvre, sur le
+/// dossier concerne, et la lisibilite est relevee APRES le choix (FR-061).
+#[tauri::command]
+async fn redemander_l_autorisation(app: AppHandle, chemin: String) -> Reautorisation {
+    let choisi = choisir_un_dossier(app.clone()).await;
+    let rendu = bureau::dossiers::redemander_au_poste(&chemin, choisi.as_deref());
+
+    if let Reautorisation::Accordee { .. } = rendu {
+        reprendre_le_lecteur_en_arriere_plan(app);
+    }
+
+    rendu
 }
 
 /// Le dossier que l'utilisateur designe dans le selecteur du systeme, ou rien

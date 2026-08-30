@@ -18,6 +18,8 @@ import { invocateur, pontOuvert } from "@/lib/poste";
 export type CommandeLocale =
   | "dossiers_surveilles"
   | "ajouter_un_dossier"
+  | "retirer_un_dossier"
+  | "redemander_l_autorisation"
   | "etat_du_lecteur"
   | "relancer_le_lecteur"
   | "arreter_le_lecteur"

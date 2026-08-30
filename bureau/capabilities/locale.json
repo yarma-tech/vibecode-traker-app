@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "page-locale",
+  "description": "Les memes gestes, pour la page d'attente que l'application sert elle-meme depuis son paquet. Cette capacite existe separement parce qu'une capacite qui porte `remote` ne vaut QUE pour les origines distantes : sans elle, declarer les permissions de l'application rendrait muette la page qui montre l'etat du lecteur et le bouton « Reessayer ». Aucune origine du dehors n'entre ici - il n'y a pas de champ `remote`, donc seule la page locale est concernee.",
+  "windows": ["principale"],
+  "permissions": ["core:default", "allow-pont"]
+}

@@ -1,30 +1,25 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import {
-  PAGE_DE_RETOUR,
-  initiateurDuFlux,
-  origineDeLaRequete,
-  retourDAutorisation,
-} from "@/lib/autorisation";
-import { deposer } from "../relais";
+import { origineDeLaRequete, retourDAutorisation } from "@/lib/autorisation";
 
 /**
- * Retour de GitHub : on echange le code contre une session.
+ * Retour de GitHub pour un navigateur ordinaire : on echange le code contre
+ * une session.
  *
  * Les cookies sont poses sur la reponse que l'on retourne, et pas sur le
  * magasin global. Une redirection fabriquee a part n'emporte pas les
  * ecritures du magasin : la session serait perdue en silence et l'utilisateur
  * reviendrait sur l'ecran de connexion sans comprendre pourquoi.
  *
- * Deux clients peuvent arriver ici, et un seul peut echanger (issue #63) :
+ * Ce chemin echange TOUJOURS, parce qu'il n'est demande que par le client qui
+ * porte son verificateur PKCE - le site heberge, ou la fenetre si elle partait
+ * elle-meme. L'autorisation confiee au navigateur du systeme revient, elle, sur
+ * `/auth/callback/fenetre`, ou rien ne s'echange (FR-072, issue #63).
  *
- * - le navigateur qui est parti - le site heberge, ou la fenetre elle-meme.
- *   Il porte son verificateur PKCE, l'echange aboutit, et la carte s'affiche ;
- * - le navigateur du systeme, a qui l'application de bureau a confie
- *   l'autorisation. Il n'a aucun verificateur : son echange serait refuse, et
- *   le code serait brule pour rien. On le lui reprend et on le depose pour la
- *   fenetre, qui a de quoi le finir (FR-072).
+ * POURQUOI deux chemins plutot qu'un seul qui distingue ses visiteurs : voir
+ * `lib/autorisation.ts`. Le resume : un cookie n'a pas de port dans sa portee,
+ * la marque qu'on cherchait ici n'appartenait donc a personne en particulier.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -42,16 +37,6 @@ export async function GET(request: NextRequest) {
 
   const echec = (raison: string) =>
     NextResponse.redirect(`${origin}/?erreur=${encodeURIComponent(raison)}`);
-
-  // Qui revient, avant quoi que ce soit d'autre : un echange tente sans
-  // verificateur consommerait le code, et la fenetre n'aurait plus rien a
-  // echanger.
-  if (!initiateurDuFlux(request.cookies.getAll().map(({ name }) => name))) {
-    deposer(retour);
-    // Le navigateur du systeme n'a plus rien a faire : il le dit, et la suite
-    // se passe dans la fenetre.
-    return NextResponse.redirect(`${origin}${PAGE_DE_RETOUR}`);
-  }
 
   if (retour.quoi === "refus") return echec(retour.raison);
 
@@ -75,14 +60,11 @@ export async function GET(request: NextRequest) {
   );
 
   const { error } = await supabase.auth.exchangeCodeForSession(retour.code);
-  if (error) {
-    // Un echange refuse n'est pas avale. Il se lit dans l'ecran de connexion
-    // du navigateur, et au relais pour la fenetre : celle-ci attend un retour
-    // qui vient d'arriver et de ne rien donner, et elle doit pouvoir le dire
-    // plutot que de guetter jusqu'a l'echeance.
-    deposer({ quoi: "refus", raison: error.message, cause: "echange_refuse" });
-    return echec(error.message);
-  }
+  // Un echange refuse n'est pas avale : il se lit dans l'ecran de connexion du
+  // navigateur qui est parti (FR-016). Rien n'est depose au relais depuis ici -
+  // la fenetre ne revient jamais sur ce chemin, et un echec de navigateur
+  // couperait une autorisation qu'elle attendrait au meme moment.
+  if (error) return echec(error.message);
 
   return reponse;
 }

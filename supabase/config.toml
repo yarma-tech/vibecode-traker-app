@@ -170,6 +170,11 @@ site_url = "http://127.0.0.1:3000"
 # cette ligne, la pile locale ignorerait le retour demande et deposerait le
 # code sur `site_url`, ou personne ne l'echange - la fenetre attendrait un
 # retour deja perdu.
+#
+# Le joker couvre les DEUX chemins de retour : `/auth/callback`, ou le client
+# qui est parti echange son code, et `/auth/callback/fenetre`, ou le retour
+# confie au navigateur du systeme est simplement depose pour la fenetre. Un
+# projet heberge, qui liste des URL exactes, doit porter les deux.
 additional_redirect_urls = [
   "http://127.0.0.1:3000/**",
   "http://localhost:3000/**",

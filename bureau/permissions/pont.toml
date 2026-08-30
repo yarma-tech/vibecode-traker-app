@@ -1,0 +1,46 @@
+# Les commandes du pont, declarees comme permission de l'application.
+#
+# POURQUOI ce fichier existe : Tauri traite l'interface servie sur
+# 127.0.0.1:51789 comme une origine DISTANTE - la page locale de l'application,
+# celle que `frontendDist` designe, est la seule qu'il tienne pour locale. Or,
+# depuis une origine distante, aucune commande de l'application n'est atteignable
+# tant qu'une permission ne la nomme pas : Tauri rejette l'appel, et le rejet
+# arrive dans la page sous forme d'erreur, pas de refus lisible.
+#
+# Sans ce fichier, le pont existait mais toutes ses commandes etaient refusees,
+# et le bouton « Continuer avec GitHub » ne faisait rien - constate en lancant
+# l'application pour de vrai. Aucun test ne pouvait l'attraper : ils bouchonnent
+# tous le pont dans un navigateur ordinaire, ou ce controle n'existe pas.
+#
+# La liste ci-dessous est la meme que celle de `generate_handler!`, et c'est
+# volontairement une liste : ajouter une commande sans l'inscrire ici la laisse
+# muette depuis l'interface, ce qui se voit tout de suite.
+
+[[permission]]
+identifier = "allow-pont"
+description = """
+Les gestes nommes que la fenetre peut demander a l'application : ou en est
+l'ouverture de l'interface, ou en est le lecteur, le relancer, l'arreter a la
+deconnexion, lister les dossiers surveilles, en ajouter ou en retirer un,
+redemander une autorisation refusee par le systeme, lire le contexte du poste,
+faire ouvrir l'autorisation GitHub dans le navigateur du systeme, declarer la
+machine, et revenir au premier plan.
+
+Aucune ne rend ni ne recoit un chemin de fichier arbitraire : ce sont des gestes,
+jamais un acces au disque.
+"""
+commands.allow = [
+  "etat_de_l_interface",
+  "reessayer",
+  "etat_du_lecteur",
+  "relancer_le_lecteur",
+  "arreter_le_lecteur",
+  "dossiers_surveilles",
+  "ajouter_un_dossier",
+  "retirer_un_dossier",
+  "redemander_l_autorisation",
+  "contexte_du_poste",
+  "ouvrir_l_autorisation",
+  "declarer_la_machine",
+  "revenir_au_premier_plan",
+]

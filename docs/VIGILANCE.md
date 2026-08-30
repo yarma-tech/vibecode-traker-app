@@ -83,6 +83,21 @@ C'est aussi pourquoi le service d'interface, qui ecoute sur `127.0.0.1` mais
 fabriquait ses adresses en `localhost`, posait la session sur une origine que la
 fenetre ne voyait pas (corrige avec l'issue #63).
 
+**Le corollaire, paye une seconde fois :** un cookie pose sur `127.0.0.1` ne dit
+RIEN de la page qui l'a pose. Le retour d'autorisation cherchait un cookie
+`…-code-verifier` pour savoir lequel des deux clients revenait ; le site servi en
+developpement sur `127.0.0.1:3000` en pose sur le meme hote, et `@supabase/ssr`
+laisse en plus un cookie d'index `…-flows-code-verifier` qui survit aux flux
+termines. N'importe quel navigateur ayant un jour ouvert le site revenait donc
+marque, l'echange etait tente la, refuse - « PKCE code verifier not found in
+storage » - et la fenetre recevait cet echec au lieu de son code.
+
+Ne jamais deduire QUI revient de ce qu'un client porte sur la boucle locale. Le
+depart, lui, le sait : il le dit dans le chemin de retour qu'il demande
+(`/auth/callback` pour un navigateur ordinaire, `/auth/callback/fenetre` pour ce
+que la fenetre confie au navigateur du systeme). Ajouter un chemin de retour
+oblige a le declarer aussi chez le fournisseur d'identite.
+
 ## Eprouver une policy d'INSERTION en RLS (`supabase`, `daemon/tests`)
 
 Une insertion faite avec `Prefer: return=representation` passe par un

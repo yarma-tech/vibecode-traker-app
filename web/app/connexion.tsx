@@ -55,6 +55,23 @@ export function Connexion({ erreur }: { erreur?: string }) {
     setPhase("repos");
   }, []);
 
+  /**
+   * Le clic, avec son filet.
+   *
+   * POURQUOI ce filet : `seConnecter` est asynchrone et le clic ne l'attend
+   * pas. Un rejet - le pont qui refuse une commande, le reseau qui tombe - se
+   * perdait donc en promesse non rattrapee : le bouton restait a « ouverture »
+   * et l'utilisateur ne voyait rien du tout. C'est exactement ce qui s'est
+   * produit quand les commandes de l'application n'etaient nommees dans aucune
+   * permission : Tauri les rejetait, et l'ecran se taisait. Un echec doit se
+   * dire (FR-016).
+   */
+  function auClic() {
+    seConnecter().catch((souci) => {
+      echouer(souci instanceof Error ? souci.message : String(souci));
+    });
+  }
+
   async function seConnecter() {
     setPhase("ouverture");
     setEchec(null);
@@ -196,7 +213,7 @@ export function Connexion({ erreur }: { erreur?: string }) {
         travail. Ton code reste chez toi : seules les couleurs voyagent.
       </p>
 
-      <button className="bouton" onClick={seConnecter} disabled={!ecran.bouton.actif}>
+      <button className="bouton" onClick={auClic} disabled={!ecran.bouton.actif}>
         {ecran.bouton.texte}
       </button>
 

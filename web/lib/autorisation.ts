@@ -25,6 +25,25 @@
  *
  * Cela vaut aussi comme garde : un code déposé au relais ne sert à personne
  * d'autre qu'à la fenêtre qui a ouvert le flux.
+ *
+ * ## POURQUOI deux chemins de retour, et non un seul qui devine
+ *
+ * Le départ SAIT lequel des deux clients ira chercher l'autorisation : c'est
+ * lui qui décide de sortir dans le navigateur du système. Il le dit donc dans
+ * l'adresse de retour qu'il demande - `CHEMIN_DE_RETOUR` pour un navigateur
+ * ordinaire, `CHEMIN_DE_RETOUR_FENETRE` pour la fenêtre - et le retour n'a
+ * plus rien à deviner.
+ *
+ * Ce fut d'abord deviné, en cherchant un cookie de vérificateur sur le client
+ * qui revenait, et c'était faux : un cookie n'a pas de port dans sa portée
+ * (`docs/VIGILANCE.md`). Le site servi en développement sur
+ * `127.0.0.1:3000` pose donc ses vérificateurs sur le MÊME hôte que l'origine
+ * locale fixe de l'application, et un navigateur qui a un jour ouvert ce site
+ * revenait avec un vérificateur qui n'était pas le sien. L'échange était tenté
+ * là, refusé - « PKCE code verifier not found in storage » -, et la fenêtre
+ * recevait un échec au lieu de son code. `@supabase/ssr` laisse en outre
+ * derrière lui un cookie d'index (`…-flows-code-verifier`) qui survit aux flux
+ * terminés : la marque cherchée n'en était pas une.
  */
 
 /**
@@ -35,8 +54,22 @@
  */
 export const ORIGINE_LOCALE = "http://127.0.0.1:51789";
 
-/** Là où le fournisseur d'identité renvoie, sur l'une ou l'autre origine. */
+/**
+ * Là où le fournisseur d'identité renvoie un navigateur ordinaire : celui qui
+ * est parti est celui qui revient, il porte son vérificateur, et l'échange se
+ * fait là.
+ */
 export const CHEMIN_DE_RETOUR = "/auth/callback";
+
+/**
+ * Là où il renvoie le navigateur du système, quand c'est la fenêtre qui l'a
+ * envoyé (FR-072). Rien ne s'y échange : le code y est déposé pour la fenêtre,
+ * seule à porter le vérificateur.
+ *
+ * Ce chemin doit être déclaré chez le fournisseur d'identité au même titre que
+ * l'autre (`supabase/config.toml`, et les « Redirect URLs » du projet hébergé).
+ */
+export const CHEMIN_DE_RETOUR_FENETRE = "/auth/callback/fenetre";
 
 /** Ce que le navigateur du système affiche une fois le code repris. */
 export const PAGE_DE_RETOUR = "/auth/retour";
@@ -70,10 +103,15 @@ export const DUREE_DU_RELAIS_MS = 5 * 60 * 1000;
  *
  * Hors de l'application, c'est le site hébergé : l'origine de la page, celle
  * du navigateur qui est parti et qui reviendra.
+ *
+ * Le CHEMIN diffère lui aussi, et c'est ce qui dit au retour à qui il a
+ * affaire : la fenêtre envoie dehors, et ce qui revient de dehors ne s'échange
+ * pas sur place.
  */
 export function urlDeRetour(origineDeLaPage: string, dansLApplication: boolean): string {
   const origine = dansLApplication ? ORIGINE_LOCALE : origineDeLaPage.replace(/\/+$/, "");
-  return `${origine}${CHEMIN_DE_RETOUR}`;
+  const chemin = dansLApplication ? CHEMIN_DE_RETOUR_FENETRE : CHEMIN_DE_RETOUR;
+  return `${origine}${chemin}`;
 }
 
 /**
@@ -173,24 +211,6 @@ export function retourDAutorisation(parametres: URLSearchParams): Retour {
 function texte(valeur: string | null): string | null {
   const propre = valeur?.trim() ?? "";
   return propre === "" ? null : propre;
-}
-
-/* ---------- qui revient ? (le vérificateur PKCE) ---------- */
-
-/**
- * Le client qui revient est-il celui qui est parti ?
- *
- * La seule marque qui le dise est le vérificateur PKCE, que `@supabase/ssr`
- * écrit en cookie sur l'origine du départ - un nom terminé par
- * `-code-verifier`. Le navigateur du système, à qui l'autorisation a été
- * confiée, n'en a aucun : il revient avec un code qu'il ne peut pas échanger.
- *
- * On juge sur cette marque et non sur l'agent du navigateur ou l'origine : les
- * deux clients chargent exactement la même adresse locale, et c'est justement
- * pour cela que cette architecture a été choisie.
- */
-export function initiateurDuFlux(nomsDeCookies: readonly string[]): boolean {
-  return nomsDeCookies.some((nom) => nom.endsWith("-code-verifier"));
 }
 
 /* ---------- le relais, entre le navigateur et la fenêtre (FR-072) ---------- */

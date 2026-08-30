@@ -63,7 +63,6 @@ import { DerniereCartographie } from "./cartographie";
  * marcheraient dessus. À la fusion, ces deux noms rejoignent l'union du pont et
  * la conversion de `demander` disparaît.
  */
-type CommandeDesDossiers = "retirer_un_dossier" | "redemander_l_autorisation";
 
 /**
  * À quelle cadence redemander où en est le lecteur. La même que le bandeau :
@@ -178,7 +177,7 @@ export function DossiersSurveilles({
    */
   async function demander(
     ce_geste: Geste,
-    commande: CommandeLocale | CommandeDesDossiers,
+    commande: CommandeLocale,
     arguments_: Record<string, unknown>,
     lire: (rendu: unknown) => Suite,
     echec: (raison: string) => Suite,
@@ -190,7 +189,7 @@ export function DossiersSurveilles({
     setAnnonce(null);
 
     try {
-      const suite = lire((await invoquer(commande as CommandeLocale, arguments_)) ?? null);
+      const suite = lire((await invoquer(commande, arguments_)) ?? null);
       setAnnonce(suite.annonce);
       if (suite.surveillance) setVu({ su: true, reponse: suite.surveillance });
     } catch (erreur: unknown) {

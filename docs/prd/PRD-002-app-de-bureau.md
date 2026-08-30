@@ -471,7 +471,7 @@ Faits vérifiés dans le code, dont deux corrigent le brief de décisions :
 
 Points ouverts hérités du brief de décisions, tous marqués À CLARIFIER dans les features concernées ou repris ici :
 
-- **Hébergement de la base** : quel projet Supabase, quelle région, qui crée le compte. Rien dans ce PRD ne dépend du choix, mais la promesse « le catalogue survit à l'app fermée » n'est tenue qu'une fois l'hébergement en place. Quel que soit le projet retenu, sa liste blanche d'URL de retour devra porter `http://127.0.0.1:51789/auth/callback`, sans quoi F3 ne peut pas aboutir.
+- **Hébergement de la base** : quel projet Supabase, quelle région, qui crée le compte. Rien dans ce PRD ne dépend du choix, mais la promesse « le catalogue survit à l'app fermée » n'est tenue qu'une fois l'hébergement en place. Quel que soit le projet retenu, sa liste blanche d'URL de retour devra porter `http://127.0.0.1:51789/auth/callback/fenetre` - le chemin de retour propre à la fenêtre, sur lequel rien ne s'échange -, sans quoi F3 ne peut pas aboutir.
 - **Signature Apple** : hors scope de ce chantier, à trancher avant toute distribution plus large qu'un poste.
 - **Profondeur d'exploration d'un dossier surveillé**, et sort des dépôts d'un dossier qu'on cesse de surveiller : voir les deux À CLARIFIER de F7.
 - **Véhicule du retour d'autorisation** si l'origine locale fixe est infirmée à l'essai : voir l'À CLARIFIER de F3.
